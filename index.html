@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="ru" data-theme="light">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,interactive-widget=resizes-content">
+  <meta name="theme-color" content="#f4f0e7">
+  <meta name="color-scheme" content="light dark">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Narra">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="format-detection" content="telephone=no">
+  <title>Narra — личный дневник</title>
+  <meta name="description" content="Спокойный приватный дневник для историй, воспоминаний и наблюдений.">
+  <meta name="referrer" content="no-referrer">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; media-src 'self' blob:; connect-src 'self'; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'">
+  <link rel="icon" href="./icon.svg?v=4.2.0" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="./apple-touch-icon.png?v=4.2.0">
+  <link rel="stylesheet" href="./styles.css?v=4.2.0">
+  <script src="./bootstrap.js?v=4.2.0" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#main">Перейти к содержимому</a>
+
+<svg class="icon-sprite" aria-hidden="true" focusable="false" width="0" height="0">
+  <symbol id="icon-home" viewBox="0 0 24 24"><path d="M3.5 10.5 12 3l8.5 7.5"/><path d="M5.5 9.8V21h13V9.8"/><path d="M9.5 21v-6h5v6"/></symbol>
+  <symbol id="icon-journal" viewBox="0 0 24 24"><path d="M4.5 4.5h10a3 3 0 0 1 3 3V20h-10a3 3 0 0 1-3-3z"/><path d="M17.5 7.5h2a1 1 0 0 1 1 1V20h-3"/><path d="M8 9h6M8 13h6"/></symbol>
+  <symbol id="icon-insights" viewBox="0 0 24 24"><path d="M4 19V5"/><path d="M4 19h16"/><path d="m7 15 3-4 3 2 4-6"/></symbol>
+  <symbol id="icon-search" viewBox="0 0 24 24"><circle cx="10.8" cy="10.8" r="6.3"/><path d="m15.4 15.4 5 5"/></symbol>
+  <symbol id="icon-memories" viewBox="0 0 24 24"><path d="M12 3.5 13.2 7l3.3 1.2-3.3 1.2L12 13l-1.2-3.6-3.3-1.2L10.8 7z"/><path d="m18.5 14 .7 2.1 2.1.7-2.1.7-.7 2.1-.7-2.1-2.1-.7 2.1-.7z"/><path d="m6 14 .5 1.5L8 16l-1.5.5L6 18l-.5-1.5L4 16l1.5-.5z"/></symbol>
+  <symbol id="icon-reviews" viewBox="0 0 24 24"><rect x="3.5" y="5.5" width="17" height="15" rx="2"/><path d="M7.5 3.5v4M16.5 3.5v4M3.5 9.5h17"/><path d="m8 15 2 2 5-5"/></symbol>
+  <symbol id="icon-settings" viewBox="0 0 24 24"><path d="M4 7h9M17 7h3M4 17h3M11 17h9M4 12h4M12 12h8"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="17" r="2"/><circle cx="10" cy="12" r="2"/></symbol>
+  <symbol id="icon-command" viewBox="0 0 24 24"><path d="M8 8V6a3 3 0 1 0-3 3h2M16 8V6a3 3 0 1 1 3 3h-2M8 16v2a3 3 0 1 1-3-3h2M16 16v2a3 3 0 1 0 3-3h-2"/><rect x="8" y="8" width="8" height="8" rx="1"/></symbol>
+  <symbol id="icon-theme" viewBox="0 0 24 24"><path d="M20 15.2A8.5 8.5 0 0 1 8.8 4a8.5 8.5 0 1 0 11.2 11.2Z"/></symbol>
+  <symbol id="icon-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+  <symbol id="icon-more" viewBox="0 0 24 24"><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></symbol>
+  <symbol id="icon-arrow-right" viewBox="0 0 24 24"><path d="M5 12h14M14 7l5 5-5 5"/></symbol>
+  <symbol id="icon-arrow-left" viewBox="0 0 24 24"><path d="M19 12H5M10 7l-5 5 5 5"/></symbol>
+  <symbol id="icon-chevron-left" viewBox="0 0 24 24"><path d="m14.5 6-6 6 6 6"/></symbol>
+  <symbol id="icon-chevron-right" viewBox="0 0 24 24"><path d="m9.5 6 6 6-6 6"/></symbol>
+  <symbol id="icon-chevron-up" viewBox="0 0 24 24"><path d="m6 14.5 6-6 6 6"/></symbol>
+  <symbol id="icon-chevron-down" viewBox="0 0 24 24"><path d="m6 9.5 6 6 6-6"/></symbol>
+  <symbol id="icon-x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></symbol>
+  <symbol id="icon-star" viewBox="0 0 24 24"><path d="m12 3 2.7 5.5 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.8 1-6.1-4.4-4.3 6.1-.9z"/></symbol>
+  <symbol id="icon-trash" viewBox="0 0 24 24"><path d="M4.5 7.5h15M9 4.5h6l1 3H8zM7 7.5l.8 12h8.4l.8-12M10 11v5M14 11v5"/></symbol>
+  <symbol id="icon-history" viewBox="0 0 24 24"><path d="M4 12a8 8 0 1 0 2.3-5.7L4 8.6"/><path d="M4 4v4.6h4.6M12 8v4l3 2"/></symbol>
+  <symbol id="icon-calendar" viewBox="0 0 24 24"><rect x="3.5" y="5.5" width="17" height="15" rx="2"/><path d="M7.5 3.5v4M16.5 3.5v4M3.5 9.5h17"/></symbol>
+  <symbol id="icon-download" viewBox="0 0 24 24"><path d="M12 3v12M7 10l5 5 5-5M5 20h14"/></symbol>
+  <symbol id="icon-shield" viewBox="0 0 24 24"><path d="M12 3 20 6v5c0 5-3.4 8.3-8 10-4.6-1.7-8-5-8-10V6z"/><path d="m8.5 12 2.2 2.2 4.8-5"/></symbol>
+  <symbol id="icon-check" viewBox="0 0 24 24"><path d="m5 12.5 4.2 4.2L19 7"/></symbol>
+  <symbol id="icon-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 10v6M12 7.2v.2"/></symbol>
+  <symbol id="icon-random" viewBox="0 0 24 24"><path d="M4 7h3c5 0 5 10 10 10h3"/><path d="m17 14 3 3-3 3"/><path d="M4 17h3c2.1 0 3.3-1.8 4.4-4"/><path d="M14 7c1-.9 2-1.5 3-1.5h3"/><path d="m17 3 3 2.5L17 8"/></symbol>
+  <symbol id="icon-state" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M8.5 10h.01M15.5 10h.01M8.5 15c1.2.8 2.3 1.2 3.5 1.2s2.3-.4 3.5-1.2"/></symbol>
+  <symbol id="icon-focus" viewBox="0 0 24 24"><path d="M8 4H4v4M16 4h4v4M20 16v4h-4M4 16v4h4"/></symbol>
+  <symbol id="icon-bold" viewBox="0 0 24 24"><path d="M8 4h5a4 4 0 0 1 0 8H8zM8 12h6a4 4 0 0 1 0 8H8z"/></symbol>
+  <symbol id="icon-italic" viewBox="0 0 24 24"><path d="M10 4h8M6 20h8M14 4 10 20"/></symbol>
+  <symbol id="icon-heading" viewBox="0 0 24 24"><path d="M5 5v14M15 5v14M5 12h10M18 9l2-2v10"/></symbol>
+  <symbol id="icon-quote" viewBox="0 0 24 24"><path d="M5 7h5v5H6c0 3-1 4.5-3 5M14 7h5v5h-4c0 3-1 4.5-3 5"/></symbol>
+  <symbol id="icon-list" viewBox="0 0 24 24"><path d="M9 6h11M9 12h11M9 18h11"/><circle cx="4.5" cy="6" r=".5"/><circle cx="4.5" cy="12" r=".5"/><circle cx="4.5" cy="18" r=".5"/></symbol>
+  <symbol id="icon-list-ordered" viewBox="0 0 24 24"><path d="M9 6h11M9 12h11M9 18h11M4 5h1v3M3.5 12h2l-2 3h2"/></symbol>
+  <symbol id="icon-link" viewBox="0 0 24 24"><path d="M9 15 15 9"/><path d="M7.5 17H6a4 4 0 0 1 0-8h3M16.5 7H18a4 4 0 0 1 0 8h-3"/></symbol>
+  <symbol id="icon-divider" viewBox="0 0 24 24"><path d="M4 12h16"/></symbol>
+  <symbol id="icon-backup" viewBox="0 0 24 24"><path d="M12 20V9M8 13l4-4 4 4"/><path d="M5 6.5A3.5 3.5 0 0 1 8.5 3h7A3.5 3.5 0 0 1 19 6.5V7"/></symbol>
+  <symbol id="icon-heading2" viewBox="0 0 24 24"><path d="M4 5v14M13 5v14M4 12h9"/><path d="M15.4 9.4a2.3 2.3 0 0 1 4.3 1c0 1.2-.8 2-1.9 3l-2.4 2.6h4.5"/></symbol>
+  <symbol id="icon-strike" viewBox="0 0 24 24"><path d="M5 12h14"/><path d="M16.5 7.2C15.6 5.9 14 5 12 5c-2.4 0-4 1.2-4 3 0 1.4 1 2.3 2.6 2.8M7.5 16.8C8.4 18.1 10 19 12 19c2.4 0 4-1.2 4-3 0-1-.5-1.8-1.4-2.3"/></symbol>
+  <symbol id="icon-code" viewBox="0 0 24 24"><path d="m8.5 8-4 4 4 4M15.5 8l4 4-4 4M13.5 5.5l-3 13"/></symbol>
+  <symbol id="icon-checklist" viewBox="0 0 24 24"><rect x="3.5" y="4.5" width="6.5" height="6.5" rx="1.6"/><path d="m5 7.8 1.6 1.6 2.4-2.8"/><rect x="3.5" y="13" width="6.5" height="6.5" rx="1.6"/><path d="M14 7.8h6.5M14 16.3h6.5"/></symbol>
+  <symbol id="icon-eye" viewBox="0 0 24 24"><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12Z"/><circle cx="12" cy="12" r="2.8"/></symbol>
+  <symbol id="icon-pen" viewBox="0 0 24 24"><path d="m4 20 1-4.2L16.6 4.2a1.9 1.9 0 0 1 2.7 0l.5.5a1.9 1.9 0 0 1 0 2.7L8.2 19z"/><path d="m14.5 6.3 3.2 3.2"/></symbol>
+  <symbol id="icon-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2.8v2M12 19.2v2M2.8 12h2M19.2 12h2M5.5 5.5l1.4 1.4M17.1 17.1l1.4 1.4M5.5 18.5l1.4-1.4M17.1 6.9l1.4-1.4"/></symbol>
+  <symbol id="icon-upload" viewBox="0 0 24 24"><path d="M12 15V4M7 9l5-5 5 5M5 20h14"/></symbol>
+  <symbol id="icon-refresh" viewBox="0 0 24 24"><path d="M20 11a8 8 0 0 0-14.3-4.6L4 8.5"/><path d="M4 4v4.5h4.5M4 13a8 8 0 0 0 14.3 4.6L20 15.5M20 20v-4.5h-4.5"/></symbol>
+  <symbol id="icon-lock" viewBox="0 0 24 24"><rect x="5" y="10.5" width="14" height="10" rx="2.4"/><path d="M8.5 10.5V8a3.5 3.5 0 0 1 7 0v2.5"/></symbol>
+  <symbol id="icon-layout" viewBox="0 0 24 24"><rect x="3.5" y="4.5" width="17" height="15" rx="2.4"/><path d="M3.5 9.5h17M9.5 9.5v10"/></symbol>
+  <symbol id="icon-type" viewBox="0 0 24 24"><path d="M5 7V5.5h14V7M12 5.5V19M9 19h6"/></symbol>
+  <symbol id="icon-sparkle" viewBox="0 0 24 24"><path d="M12 3.5 13.2 7l3.3 1.2-3.3 1.2L12 13l-1.2-3.6-3.3-1.2L10.8 7z"/></symbol>
+  <symbol id="icon-keyboard" viewBox="0 0 24 24"><rect x="2.8" y="6.5" width="18.4" height="11" rx="2.4"/><path d="M6.5 10.2h.01M10 10.2h.01M14 10.2h.01M17.5 10.2h.01M7.5 14h9"/></symbol>
+  <symbol id="icon-undo" viewBox="0 0 24 24"><path d="M9 7 4.5 11.5 9 16"/><path d="M5 11.5h9a5 5 0 0 1 0 10h-2"/></symbol>
+</svg>
+
+  <div id="app" class="app-shell">
+    <aside class="rail" aria-label="Основная навигация">
+      <button class="brand" data-action="go-today" aria-label="Narra — открыть раздел «Сегодня»">
+        <span class="brand-mark" aria-hidden="true"><span>N</span></span>
+        <span class="brand-copy"><span class="brand-name">Narra</span><span class="brand-subtitle">личный дневник</span></span>
+      </button>
+      <button class="primary button-with-icon rail-cta" data-action="new-entry" title="Новая запись"><svg class="icon" aria-hidden="true" focusable="false"><use href="#icon-plus"></use></svg><span>Новая запись</span></button>
+      <nav class="rail-nav" aria-label="Основные разделы">
+        <button class="nav-item" data-route="today" title="Сегодня"><svg class="icon" aria-hidden="true" focusable="false"><use href="#icon-home"></use></svg><span>Сегодня</span></button>
+        <button class="nav-item" data-route="journal" title="Дневник"><svg class="icon" aria-hidden="true" focusable="false"><use href="#icon-journal"></use></svg><span>Дневник</span></button>
+        <button class="nav-item" data-route="insights" title="Наблюдения"><svg class="icon" aria-hidden="true" focusable="false"><use href="#icon-insights"></use></svg><span>Наблюдения</span></button>
+        <button class="nav-item" data-route="search" title="Поиск"><svg class="icon" aria-hidden="true" focusable="false"><use href="#icon-search"></use></svg><span>Поиск</span></button>
+      </nav>
+      <div class="rail-secondary" role="group" aria-label="Дополнительные разделы">
+        <span class="rail-label">Личное</span>
+        <button class="nav-item" data-route="lifemap" title="Карта жизни"><svg class="icon" aria-hidden="true" focusable="false"><use href="#icon-map"></use></svg><span>Карта жизни</span></button>
+        <button class="nav-item" data-route="memories" title="Воспоминания"><svg class="icon" aria-hidden="true" focusable="false"><use href="#icon-memories"></use></svg><span>Воспоминания</span></button>
+        <button class="nav-item" data-route="reviews" title="Обзоры"><svg class="icon" aria-hidden="true" focusable="false"><use href="#icon-reviews"></use></svg><span>Обзоры</span></button>
+        <button class="nav-item" data-route="settings" title="Настройки"><svg class="icon" aria-hidden="true" focusable="false"><use href="#icon-settings"></use></svg><span>Настройки</span></button>
+      </div>
+      <div class="rail-bottom">
+        <button class="nav-item" data-action="open-command" title="Команды (Ctrl K)"><svg class="icon" aria-hidden="true" focusable="false"><use href="#icon-command"></use></svg><span>Команды</span><kbd>Ctrl K</kbd></button>
+        <button class="nav-item" data-action="toggle-theme" title="Сменить тему"><svg class="icon" aria-hidden="true" focusable="false"><use href="#icon-theme" data-theme-icon></use></svg><span>Тема</span></button>
+      </div>
+    </aside>
+
+    <main id="main" tabindex="-1">
+      <section id="view" class="view" aria-label="Содержимое раздела">
+        <div class="boot" role="status"><span class="boot-mark" aria-hidden="true">N</span><span>Открываем дневник…</span></div>
+      </section>
+    </main>
+
+    <button class="compose-fab" data-action="new-entry" aria-label="Новая запись"><svg class="icon icon-lg" aria-hidden="true" focusable="false"><use href="#icon-plus"></use></svg></button>
+
+    <nav class="mobile-nav" aria-label="Основная навигация">
+      <button class="mobile-nav-item is-active" data-route="today"><svg class="icon" aria-hidden="true" focusable="false"><use href="#icon-home"></use></svg><span>Сегодня</span></button>
+      <button class="mobile-nav-item" data-route="journal"><svg class="icon" aria-hidden="true" focusable="false"><use href="#icon-journal"></use></svg><span>Дневник</span></button>
+      <span class="mobile-compose-spacer" aria-hidden="true"></span>
+      <button class="mobile-nav-item" data-route="search"><svg class="icon" aria-hidden="true" focusable="false"><use href="#icon-search"></use></svg><span>Поиск</span></button>
+      <button class="mobile-nav-item" data-action="open-more" aria-haspopup="dialog"><svg class="icon" aria-hidden="true" focusable="false"><use href="#icon-more"></use>  <symbol id="icon-book" viewBox="0 0 24 24"><path d="M5 4.5h11a2.5 2.5 0 0 1 2.5 2.5v13H7.5A2.5 2.5 0 0 1 5 17.5z"/><path d="M5 17.5A2.5 2.5 0 0 1 7.5 15h11"/></symbol>
+  <symbol id="icon-filter" viewBox="0 0 24 24"><path d="M4 6h16M7 12h10M10 18h4"/></symbol>
+  <symbol id="icon-image" viewBox="0 0 24 24"><rect x="3.5" y="4.5" width="17" height="15" rx="2.4"/><circle cx="9" cy="10" r="1.6"/><path d="m4 17 5-4.5 3.5 3 3-2.5 4.5 4"/></symbol>
+  <symbol id="icon-map" viewBox="0 0 24 24"><circle cx="12" cy="12" r="2.4"/><circle cx="5" cy="6" r="1.8"/><circle cx="19" cy="7" r="1.8"/><circle cx="6.5" cy="18.5" r="1.8"/><circle cx="18.5" cy="17.5" r="1.8"/><path d="m6.5 7 4 3.5M17.5 8l-4 3M8 17.2l2.8-3M17 16.3l-3.4-2.7"/></symbol>
+  <symbol id="icon-mic" viewBox="0 0 24 24"><rect x="9" y="3.5" width="6" height="11" rx="3"/><path d="M5.5 11.5a6.5 6.5 0 0 0 13 0M12 18v2.5M9 20.5h6"/></symbol>
+  <symbol id="icon-paperclip" viewBox="0 0 24 24"><path d="m19.5 11.5-7.2 7.2a4.6 4.6 0 0 1-6.5-6.5l7.5-7.5a3.1 3.1 0 0 1 4.4 4.4l-7.5 7.5a1.5 1.5 0 0 1-2.2-2.2l6.8-6.8"/></symbol>
+  <symbol id="icon-printer" viewBox="0 0 24 24"><path d="M7 9V4.5h10V9M7 17.5H5A1.5 1.5 0 0 1 3.5 16v-5A2 2 0 0 1 5.5 9h13a2 2 0 0 1 2 2v5a1.5 1.5 0 0 1-1.5 1.5h-2"/><rect x="7" y="14" width="10" height="6"/></symbol>
+  <symbol id="icon-table" viewBox="0 0 24 24"><rect x="3.5" y="4.5" width="17" height="15" rx="2.4"/><path d="M3.5 10h17M3.5 15h17M9.5 4.5v15"/></symbol>
+  <symbol id="icon-tag" viewBox="0 0 24 24"><path d="M3.5 12.2V5.5a2 2 0 0 1 2-2h6.7l8.3 8.3a2 2 0 0 1 0 2.8l-6.4 6.4a2 2 0 0 1-2.8 0z"/><circle cx="8" cy="8" r="1.3"/></symbol>
+  <symbol id="icon-users" viewBox="0 0 24 24"><circle cx="9" cy="8.5" r="3.2"/><path d="M3 20a6 6 0 0 1 12 0"/><path d="M16 5.6a3.2 3.2 0 0 1 0 5.8M17.5 14.2A6 6 0 0 1 21 20"/></symbol>
+</svg><span>Ещё</span></button>
+    </nav>
+
+    <div id="overlay-root"></div>
+    <div id="dialog-root"></div>
+    <div id="toast-region" class="toast-region" role="status" aria-live="polite" aria-atomic="false"></div>
+  </div>
+  <noscript><div class="noscript-card">Для локального сохранения и редактора Narra требуется JavaScript.</div></noscript>
+</body>
+</html>
