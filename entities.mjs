@@ -1,9 +1,9 @@
 /* Narra entities: people, places, themes, projects and life chapters, derived from what the user typed.
    Nothing here is scraped or guessed: an entity exists only because the user wrote its name on an entry.
    Pure and dependency-free. */
-import {foldRu} from "./domain.mjs?v=4.3.0";
-import {dayStates,associate,dayKey,addDays,median,MIN_N} from "./stats.mjs?v=4.3.0";
-import {contextItems} from "./checkin.mjs?v=4.3.0";
+import {foldRu} from "./domain.mjs?v=4.4.0";
+import {dayStates,associate,dayKey,addDays,median,MIN_N} from "./stats.mjs?v=4.4.0";
+import {contextItems} from "./checkin.mjs?v=4.4.0";
 
 export const ENTITY_TYPES=[
   {type:"person",plural:"Люди",singular:"Человек",field:"people"},

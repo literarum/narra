@@ -1,17 +1,17 @@
 /* Editor: a full-screen writing surface with Markdown tools, find, slash menu, focus mode, media, details, decisions,
    writing help and safe saving. Saving is atomic, versioned, and refuses to overwrite an entry edited elsewhere. */
-import {validateCanonicalEntry,nextRevision,searchEntries,parseRussianDateHint} from "./domain.mjs?v=4.3.0";
-import {applyFormat,activeFormats,continueList,shiftIndent,diffRange,renderMarkdown} from "./md.mjs?v=4.3.0";
-import {state,ctx,$,$$,escapeHtml,icon,uid,nowIso,fmtLong,fmtTime,fmtDate,localDateInputValue,dateInputToIso,splitCsv,words,chars,wordLabel,pluralRu,featureOn,activeEntries,entryById,mediaOf,kindLabels,capitalizeRu} from "./core.js?v=4.3.0";
-import {entryText,excerpt} from "./text.mjs?v=4.3.0";
-import {cleanDecision,cleanLinks} from "./domain.mjs?v=4.3.0";
-import {modalHeader,statusPill} from "./kit.js?v=4.3.0";
-import {enhance} from "./ui.mjs?v=4.3.0";
-import {STRUCTURE_TEMPLATE} from "./writing.mjs?v=4.3.0";
-import {contextMarkup,assistMarkup,assistResult,suggestionsMarkup,contextSummaryText,decisionMarkup,linksMarkup,smartSuggestions,viewMetaMarkup} from "./editor-panels.js?v=4.3.0";
-import {TextHistory} from "./history.mjs?v=4.3.0";
-import * as media from "./media.js?v=4.3.0";
-import * as store from "./store.js?v=4.3.0";
+import {validateCanonicalEntry,nextRevision,searchEntries,parseRussianDateHint} from "./domain.mjs?v=4.4.0";
+import {applyFormat,activeFormats,continueList,shiftIndent,diffRange,renderMarkdown} from "./md.mjs?v=4.4.0";
+import {state,ctx,$,$$,escapeHtml,icon,uid,nowIso,fmtLong,fmtTime,fmtDate,localDateInputValue,dateInputToIso,splitCsv,words,chars,wordLabel,pluralRu,featureOn,activeEntries,entryById,mediaOf,kindLabels,capitalizeRu} from "./core.js?v=4.4.0";
+import {entryText,excerpt} from "./text.mjs?v=4.4.0";
+import {cleanDecision,cleanLinks} from "./domain.mjs?v=4.4.0";
+import {modalHeader,statusPill} from "./kit.js?v=4.4.0";
+import {enhance} from "./ui.mjs?v=4.4.0";
+import {STRUCTURE_TEMPLATE} from "./writing.mjs?v=4.4.0";
+import {contextMarkup,assistMarkup,assistResult,suggestionsMarkup,contextSummaryText,decisionMarkup,linksMarkup,smartSuggestions,viewMetaMarkup} from "./editor-panels.js?v=4.4.0";
+import {TextHistory} from "./history.mjs?v=4.4.0";
+import * as media from "./media.js?v=4.4.0";
+import * as store from "./store.js?v=4.4.0";
 
 const FORMAT_GROUPS=[
   [["bold","bold","Полужирный","Ctrl+B"],["italic","italic","Курсив","Ctrl+I"],["strike","strike","Зачёркнутый",""],["code","code","Код",""]],
@@ -50,7 +50,7 @@ function editorMarkup(entry,mode="edit"){
       <button type="button" class="icon-button icon-button-quiet favorite-button only-desktop${entry.favorite?" is-active":""}" data-action="favorite" aria-pressed="${entry.favorite}" aria-label="${entry.favorite?"Убрать из избранного":"Добавить в избранное"}" title="Избранное">${icon("star")}</button>
       <button type="button" class="icon-button icon-button-quiet danger-quiet only-desktop" data-action="trash-entry" id="trash-button" aria-label="Переместить в корзину" title="В корзину"${entry.revision>0?"":" hidden"}>${icon("trash")}</button>
       <button type="button" class="icon-button icon-button-quiet only-mobile" data-action="editor-more" aria-label="Ещё" aria-haspopup="dialog">${icon("more")}</button>
-      <button type="button" class="icon-button icon-button-quiet focus-exit" data-action="toggle-focus" aria-label="Выйти из режима фокуса" title="Выйти из режима фокуса">${icon("x")}</button>
+      <button type="button" class="icon-button icon-button-quiet focus-exit" data-action="toggle-focus" aria-label="Выйти из режима фокуса" title="Выйти из режима фокуса (Esc)">${icon("focus-off")}<span>Выйти из фокуса</span><kbd class="only-desktop">Esc</kbd></button>
       <button type="button" class="primary button-with-icon edit-only" data-action="finish-editing">${icon("check")}<span>Готово</span></button>
       <button type="button" class="primary button-with-icon view-only" data-action="edit-entry">${icon("pen")}<span>Изменить</span></button>
     </div></div>
@@ -270,8 +270,8 @@ function setPreview(on,{focus=true}={}){
 export function toggleFocusMode(){
   const modal=$(".editor-modal");if(!modal)return;
   const active=modal.classList.toggle("is-focus-mode");
-  $$('[data-action="toggle-focus"]',modal).forEach(b=>b.setAttribute("aria-pressed",String(active)));
-  const label=$(".focus-toggle span",modal);if(label)label.textContent=active?"Выйти из фокуса":"Фокус";
+  $$('.focus-toggle[data-action="toggle-focus"]',modal).forEach(b=>b.setAttribute("aria-pressed",String(active)));
+  if(active){const t=$(".focus-exit",modal);t?.classList.add("is-hinted");setTimeout(()=>t?.classList.remove("is-hinted"),3200);}
   requestAnimationFrame(()=>{autosize($("#entry-title"));autosize($("#entry-body"));$("#entry-body")?.focus({preventScroll:true});});
 }
 

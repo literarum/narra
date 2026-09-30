@@ -1,7 +1,7 @@
 /* Photos and voice notes. Photos are re-drawn on a canvas, which drops all embedded metadata (location, camera, time),
    scaled down and stored encrypted with a thumbnail. Audio is stored as recorded. Nothing is uploaded anywhere. */
-import {state,ctx,$,$$,escapeHtml,icon,featureOn,mediaOf} from "./core.js?v=4.3.0";
-import * as store from "./store.js?v=4.3.0";
+import {state,ctx,$,$$,escapeHtml,icon,featureOn,mediaOf} from "./core.js?v=4.4.0";
+import * as store from "./store.js?v=4.4.0";
 
 export const LIMITS={imageIn:30*1024*1024,audioIn:30*1024*1024,perEntry:40,maxSide:2000,thumbSide:360,recordSeconds:600};
 const fmtSize=n=>n>=1048576?`${(n/1048576).toFixed(1).replace(".",",")} МБ`:`${Math.max(1,Math.round(n/1024))} КБ`;

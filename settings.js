@@ -1,16 +1,16 @@
 /* Settings: interface, feature switches, editor, check-in fields, privacy (lock and assistant), data, and an honest «about».
    Everything optional can be turned off here and its screens disappear; nothing that was written is deleted by a switch. */
-import {state,ctx,$,$$,escapeHtml,icon,FEATURES,APP_VERSION,featureOn,entryLabel,plural,kindLabels} from "./core.js?v=4.3.0";
-import {pageHeader,tabs,settingsGroup,switchRow,segmentedRow,selectHtml} from "./kit.js?v=4.3.0";
-import {CORE_DIMENSIONS,DEEP_DIMENSIONS,activeDimensions,cleanConfig,DEFAULT_CONFIG} from "./checkin.mjs?v=4.3.0";
-import {AI_FEATURES,NullProvider,runFeature,cleanAiState,REASON_TEXT} from "./ai.mjs?v=4.3.0";
-import {INACTIVITY_OPTIONS} from "./lock.mjs?v=4.3.0";
-import {SCHEMA,capitalizeRu} from "./domain.mjs?v=4.3.0";
-import {MIN_N,METHOD_VERSION} from "./stats.mjs?v=4.3.0";
-import {METHOD_ID} from "./insights-model.mjs?v=4.3.0";
-import {entryText} from "./text.mjs?v=4.3.0";
-import {entityMap} from "./derived.js?v=4.3.0";
-import * as store from "./store.js?v=4.3.0";
+import {state,ctx,$,$$,escapeHtml,icon,FEATURES,APP_VERSION,featureOn,entryLabel,plural,kindLabels} from "./core.js?v=4.4.0";
+import {pageHeader,tabs,settingsGroup,switchRow,segmentedRow,selectHtml} from "./kit.js?v=4.4.0";
+import {CORE_DIMENSIONS,DEEP_DIMENSIONS,activeDimensions,cleanConfig,DEFAULT_CONFIG} from "./checkin.mjs?v=4.4.0";
+import {AI_FEATURES,NullProvider,runFeature,cleanAiState,REASON_TEXT} from "./ai.mjs?v=4.4.0";
+import {INACTIVITY_OPTIONS} from "./lock.mjs?v=4.4.0";
+import {SCHEMA,capitalizeRu} from "./domain.mjs?v=4.4.0";
+import {MIN_N,METHOD_VERSION} from "./stats.mjs?v=4.4.0";
+import {METHOD_ID} from "./insights-model.mjs?v=4.4.0";
+import {entryText} from "./text.mjs?v=4.4.0";
+import {entityMap} from "./derived.js?v=4.4.0";
+import * as store from "./store.js?v=4.4.0";
 
 const TABS=[["basic","Основные"],["features","Функции"],["editor","Редактор"],["checkin","Отметки"],["privacy","Приватность"],["data","Данные"],["about","О Narra"]];
 const sw=(attrs,title,desc,checked,extra="")=>`<div class="setting-row"><div class="setting-row-text"><strong>${title}</strong>${desc?`<span>${desc}</span>`:""}</div><div class="setting-row-control"><label class="switch"><input type="checkbox" role="switch" ${attrs} ${checked?"checked":""} ${extra} aria-label="${escapeHtml(title.replace(/<[^>]+>/g,""))}"><span class="switch-track"></span></label></div></div>`;

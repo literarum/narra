@@ -1,14 +1,14 @@
 /* Insights («Наблюдения»): what the check-ins and entries say, described — never diagnosed.
    Every number comes with how many observations it rests on and which period; every chart has a table with the same data;
    an association is only shown when at least 10 days stand on each side, and it is worded as a coincidence, not a cause. */
-import {state,ctx,$,escapeHtml,icon,todayKey,checkinLabel,dayLabel,entryLabel,activeEntries,fmtDate,featureOn} from "./core.js?v=4.3.0";
-import {pageHeader,emptyState,tabs,chip} from "./kit.js?v=4.3.0";
-import {stateCards,contextAssociations,curateAssociations,describeAssociation,emotionStats,entityStats,rhythm,statePartOfDay,writingEffect,medianLabel,checkinWord} from "./insights-model.mjs?v=4.3.0";
-import {lineChart,barChart,monthStrip,dataTable} from "./charts.mjs?v=4.3.0";
-import {MIN_N,addDays,dayKey} from "./stats.mjs?v=4.3.0";
-import {activeDimensions,EMOTION_GROUP_OF,EMOTION_GROUPS,dimLabel} from "./checkin.mjs?v=4.3.0";
-import {ENTITY_TYPES} from "./entities.mjs?v=4.3.0";
-import {pluralRu} from "./domain.mjs?v=4.3.0";
+import {state,ctx,$,escapeHtml,icon,todayKey,checkinLabel,dayLabel,entryLabel,activeEntries,fmtDate,featureOn} from "./core.js?v=4.4.0";
+import {pageHeader,emptyState,tabs,chip} from "./kit.js?v=4.4.0";
+import {stateCards,contextAssociations,curateAssociations,describeAssociation,emotionStats,entityStats,rhythm,statePartOfDay,writingEffect,medianLabel,checkinWord} from "./insights-model.mjs?v=4.4.0";
+import {lineChart,barChart,monthStrip,dataTable} from "./charts.mjs?v=4.4.0";
+import {MIN_N,addDays,dayKey} from "./stats.mjs?v=4.4.0";
+import {activeDimensions,EMOTION_GROUP_OF,EMOTION_GROUPS,dimLabel} from "./checkin.mjs?v=4.4.0";
+import {ENTITY_TYPES} from "./entities.mjs?v=4.4.0";
+import {pluralRu} from "./domain.mjs?v=4.4.0";
 
 const TABS=[["overview","Обзор"],["states","Состояния"],["contexts","Что с чем совпадает"],["emotions","Эмоции"],["themes","Темы и люди"],["rhythm","Ритм письма"],["writing","Письмо"]];
 const PERIODS=[[30,"30 дней"],[90,"90 дней"],[365,"Год"],[0,"Всё время"]];
@@ -115,7 +115,7 @@ function emotionsTab(sc){
   const max=em.list[0].count,groupName=id=>EMOTION_GROUPS.find(g=>g.id===id)?.name||"Свои";
   const t=dataTable({caption:"Эмоции",headers:["Эмоция","Раз отмечена","В скольких днях","Обычно"],rows:em.list.map(e=>[e.name,String(e.count),String(e.days),INTENSITY[Math.round(e.typical)-1]||""])});
   return `<p class="evidence">${em.checkinsWithEmotions} ${pluralRu(em.checkinsWithEmotions,"отметка","отметки","отметок")} с эмоциями из ${em.total}</p>
-    <div class="card"><ul class="bar-list">${em.list.slice(0,12).map(e=>`<li><span class="bar-name">${escapeHtml(e.name)}<small>${escapeHtml(groupName(e.group))}</small></span>${meter(e.count,max)}<span class="bar-count">${e.count} ${pluralRu(e.count,"раз","раза","раз")}${e.typical?` · обычно ${INTENSITY[Math.round(e.typical)-1]}`:""}</span></li>`).join("")}</ul></div>
+    <div class="card"><ul class="bar-list">${em.list.slice(0,12).map(e=>`<li><span class="bar-name">${escapeHtml(e.name)}<small>${escapeHtml(groupName(e.group))}</small></span>${meter(e.count,max)}<span class="bar-count">${e.count} ${pluralRu(e.count,"раз","раза","раз")}${e.typical?`<small>обычно ${INTENSITY[Math.round(e.typical)-1]}</small>`:""}</span></li>`).join("")}</ul></div>
     ${em.together.length?`<section class="section"><h3>Чаще всего вместе</h3><ul class="plain-list">${em.together.map(p=>`<li>«${escapeHtml(p.a)}» и «${escapeHtml(p.b)}» — ${p.count} ${pluralRu(p.count,"раз","раза","раз")}</li>`).join("")}</ul></section>`:""}
     ${table(t)}`;
 }

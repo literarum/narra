@@ -1,9 +1,9 @@
 /* Narra core: shared state, preferences, formatting helpers and the `ctx` object that feature modules use.
    No storage, no rendering. Modules import from here; app.js fills `ctx` with the functions it owns. */
-import {pluralRu,capitalizeRu,wordCount} from "./domain.mjs?v=4.3.0";
-import {plural,strip} from "./text.mjs?v=4.3.0";
+import {pluralRu,capitalizeRu,wordCount} from "./domain.mjs?v=4.4.0";
+import {plural,strip} from "./text.mjs?v=4.4.0";
 
-export const APP_VERSION="4.3.0";
+export const APP_VERSION="4.4.0";
 export const DB_NAME_MAIN="narra-prototype-v1",DB_NAME_DEMO="narra-demo-v1";
 export const ROUTES=["today","journal","insights","lifemap","search","memories","reviews","settings"];
 export const VALID_ROUTES=new Set(ROUTES);
@@ -24,7 +24,7 @@ export const PREF_DEFAULTS={
   showStorageNotice:true,showCheckin:true,showMemory:true,showPrompt:true,showRecent:true,showContinue:true,
   /* feature switches: everything optional can be turned off, and its sections disappear */
   featInsights:true,featLifemap:true,featMemories:true,featReviews:true,featChapters:true,featDecisions:true,featMedia:true,
-  featWritingAssist:true,featEntitySuggest:true,featSemantic:false,featEmotionsInJournal:true,
+  featWritingAssist:true,featEntitySuggest:true,featSemantic:true,featEmotionsInJournal:true,
   onboarded:false,quickKey:"n",reminderOn:false,reminderTime:"21:00",lockMinutes:0,journalPage:40,hideDeleteHint:false
 };
 export const FEATURES=[
@@ -43,6 +43,9 @@ export function loadPrefs(){
   let stored={};
   try{const v=JSON.parse(safeStorageGet(PREF_KEY)||"{}");if(v&&typeof v==="object")stored=v;}catch{}
   const prefs={...PREF_DEFAULTS};
+  // 4.4: smart search is on by default; switch it on once for people who never chose otherwise
+  const migrated=safeStorageGet("narra-sem-default")==="1";
+  if(!migrated){if(stored.featSemantic===undefined||stored.featSemantic===false)stored.featSemantic=true;safeStorageSet("narra-sem-default","1");try{safeStorageSet(PREF_KEY,JSON.stringify({...stored}));}catch{}}
   for(const key of Object.keys(PREF_DEFAULTS))if(key in stored&&typeof stored[key]===typeof PREF_DEFAULTS[key])prefs[key]=stored[key];
   if(!["comfortable","compact"].includes(prefs.density))prefs.density="comfortable";
   if(!["serif","sans"].includes(prefs.editorFont))prefs.editorFont="serif";
@@ -68,7 +71,7 @@ export const state={
   calendarCursor:new Date(now.getFullYear(),now.getMonth(),1),calendarSelectedDate:null,
   reviewKind:"month",reviewCursor:new Date(now.getFullYear(),now.getMonth(),1),
   insightsTab:"overview",lifemapType:"person",lifemapKey:null,lifemapView:"list",settingsTab:"basic",memoriesMode:"day",
-  searchQuery:"",searchKind:"all",searchFavoriteOnly:false,searchTheme:"",searchFrom:"",searchTo:"",searchPerson:"",searchPlace:"",searchEmotion:"",searchMedia:false,searchChapter:"",searchNear:false,searchTimeHints:[],
+  searchQuery:"",searchKind:"all",searchFavoriteOnly:false,searchTheme:"",searchFrom:"",searchTo:"",searchPerson:"",searchPlace:"",searchEmotion:"",searchMedia:false,searchChapter:"",searchNear:true,searchTimeHints:[],
   smartSuggestionsEnabled:safeStorageGet("narra-smart-suggestions")!=="off",
   quickSaving:false,quickDraft:"",checkinDraft:{},checkinExpanded:false,checkinAgain:false,promptShift:0,
   theme:safeStorageGet("narra-theme")||"system",quickTimer:null,

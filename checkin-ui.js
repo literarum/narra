@@ -1,8 +1,8 @@
 /* Check-in: three quick signals by default; emotions, context, a note and deeper dimensions are opt-in and live in settings.
    Values are stored exactly as chosen. A skipped dimension stays empty — nothing is filled in or averaged. */
-import {state,ctx,$,$$,escapeHtml,icon,uid,nowIso,fmtTime,sameDay,checkinLabel,safeStorageGet,safeStorageSet} from "./core.js?v=4.3.0";
-import {activeDimensions,emotionGroups,contextGroups,MODE_OPTIONS,WEATHER_OPTIONS,checkinSummary,cleanCheckin,dimLabel,DEFAULT_CONFIG,cleanConfig,CORE_DIMENSIONS} from "./checkin.mjs?v=4.3.0";
-import * as store from "./store.js?v=4.3.0";
+import {state,ctx,$,$$,escapeHtml,icon,uid,nowIso,fmtTime,sameDay,checkinLabel,safeStorageGet,safeStorageSet} from "./core.js?v=4.4.0";
+import {activeDimensions,emotionGroups,contextGroups,MODE_OPTIONS,WEATHER_OPTIONS,checkinSummary,cleanCheckin,dimLabel,DEFAULT_CONFIG,cleanConfig,CORE_DIMENSIONS} from "./checkin.mjs?v=4.4.0";
+import * as store from "./store.js?v=4.4.0";
 
 const emptyDraft=()=>({values:{},emotions:[],context:{needs:[],triggers:[],activities:[],social:[],weather:"",mode:""},note:""});
 state.checkinDraft=emptyDraft();
@@ -62,7 +62,7 @@ export function checkinCard(){
   return `<article class="card checkin-card" aria-labelledby="checkin-title">
     <h2 id="checkin-title">Короткая отметка</h2><p class="subtle text-small">Необязательно. ${optional?"Выберите сигналы и сохраните — остальное можно добавить, если хочется.":"Выберите три сигнала — отметка сохранится сама."}</p>
     ${dims.map(d=>dimMarkup(d,draft,"today")).join("")}
-    ${optional?`<button type="button" class="link-button expand-toggle" data-action="checkin-expand" aria-expanded="${state.checkinExpanded}">${state.checkinExpanded?"Свернуть":"Добавить эмоции, контекст, заметку"}</button>`:""}
+    ${optional?`<button type="button" class="expand-toggle" data-action="checkin-expand" aria-expanded="${state.checkinExpanded}">${icon(state.checkinExpanded?"chevron-up":"plus")}<span class="et-full">${state.checkinExpanded?"Свернуть":"Добавить эмоции, контекст, заметку"}</span><span class="et-short">${state.checkinExpanded?"Свернуть":"Эмоции, контекст, заметка"}</span></button>`:""}
     ${blocks}
     ${ign?`<div class="adapt-hint" role="note"><span>Вы давно не отмечали «${escapeHtml(ign.name.toLocaleLowerCase("ru-RU"))}». Скрыть это поле?</span><span class="adapt-actions"><button class="link-button" data-action="adapt-hide" data-key="${ign.key}">Скрыть</button><button class="link-button" data-action="adapt-keep" data-key="${ign.key}">Оставить</button></span></div>`:""}
     <div class="checkin-actions"><button class="secondary" id="save-checkin" data-action="save-checkin" ${count||draft.emotions.length?"":"disabled"}>Сохранить отметку</button></div>

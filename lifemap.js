@@ -1,17 +1,17 @@
 /* Life map («Карта жизни»): people, places, themes, projects and life chapters — only what the user wrote on their entries.
    Each page shows the entries, the months they cluster in (empty months stay visible), neighbours, and state associations
    with the days behind them. Names can be renamed, merged and annotated without touching the entries themselves. */
-import {state,ctx,$,escapeHtml,icon,fmtDate,relDay,activeEntries,entryLabel,dayLabel,featureOn} from "./core.js?v=4.3.0";
-import {pageHeader,emptyState,tabs,chip,modalHeader} from "./kit.js?v=4.3.0";
-import {ENTITY_TYPES,collectEntities,listByType,entityPage,norm,entityKey,sortChapters,chapterEntries,chapterOf} from "./entities.mjs?v=4.3.0";
-import {entityMap} from "./derived.js?v=4.3.0";
-import {describeAssociation} from "./insights-model.mjs?v=4.3.0";
-import {monthStrip} from "./charts.mjs?v=4.3.0";
-import {activeDimensions,dimLabel} from "./checkin.mjs?v=4.3.0";
-import {benjaminiHochberg,dayKey,MIN_N} from "./stats.mjs?v=4.3.0";
-import {cleanEntityNote} from "./domain.mjs?v=4.3.0";
-import {entryRows} from "./entries-ui.js?v=4.3.0";
-import * as store from "./store.js?v=4.3.0";
+import {state,ctx,$,escapeHtml,icon,fmtDate,relDay,activeEntries,entryLabel,dayLabel,featureOn} from "./core.js?v=4.4.0";
+import {pageHeader,emptyState,tabs,chip,modalHeader} from "./kit.js?v=4.4.0";
+import {ENTITY_TYPES,collectEntities,listByType,entityPage,norm,entityKey,sortChapters,chapterEntries,chapterOf} from "./entities.mjs?v=4.4.0";
+import {entityMap} from "./derived.js?v=4.4.0";
+import {describeAssociation} from "./insights-model.mjs?v=4.4.0";
+import {monthStrip} from "./charts.mjs?v=4.4.0";
+import {activeDimensions,dimLabel} from "./checkin.mjs?v=4.4.0";
+import {benjaminiHochberg,dayKey,MIN_N} from "./stats.mjs?v=4.4.0";
+import {cleanEntityNote} from "./domain.mjs?v=4.4.0";
+import {entryRows} from "./entries-ui.js?v=4.4.0";
+import * as store from "./store.js?v=4.4.0";
 
 const TYPE_ICON={person:"users",place:"map",theme:"tag",project:"layout"};
 let sort="count",filterText="";

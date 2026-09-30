@@ -1,11 +1,11 @@
 /* Today: quick capture, a short check-in, one memory, one question, recent entries, first-run welcome. */
-import {state,ctx,$,$$,escapeHtml,icon,uid,nowIso,fmtLong,fmtTime,relDay,activeEntries,sameDay,todayKey,safeStorageGet,safeStorageSet,featureOn,PREF_KEY} from "./core.js?v=4.3.0";
-import {entryText} from "./text.mjs?v=4.3.0";
-import {pageHeader,modalHeader} from "./kit.js?v=4.3.0";
-import {entryRows} from "./entries-ui.js?v=4.3.0";
-import {checkinCard} from "./checkin-ui.js?v=4.3.0";
-import {memoryCard} from "./memories.js?v=4.3.0";
-import * as store from "./store.js?v=4.3.0";
+import {state,ctx,$,$$,escapeHtml,icon,uid,nowIso,fmtLong,fmtTime,relDay,activeEntries,sameDay,todayKey,safeStorageGet,safeStorageSet,featureOn,PREF_KEY} from "./core.js?v=4.4.0";
+import {entryText} from "./text.mjs?v=4.4.0";
+import {pageHeader,modalHeader} from "./kit.js?v=4.4.0";
+import {entryRows} from "./entries-ui.js?v=4.4.0";
+import {checkinCard} from "./checkin-ui.js?v=4.4.0";
+import {memoryCard} from "./memories.js?v=4.4.0";
+import * as store from "./store.js?v=4.4.0";
 
 const PROMPTS=[
   "Что сегодня оказалось важнее, чем выглядело сначала?","Какой момент этого дня хочется запомнить?","О чём вы сегодня думали чаще всего?",
@@ -90,7 +90,16 @@ function updateQuickState(){
   dot?.classList.toggle("is-busy",has);
   if(save)save.disabled=!has;
 }
-function clearQuick(){state.quickDraft="";const q=$("#quick-capture");if(q){q.value="";updateQuickState();}}
+/** Grows with the text up to a comfortable ceiling, then scrolls inside; the card never turns into a long sheet. */
+function autosizeQuick(q){
+  if(!q||!q.offsetParent)return;
+  const max=Math.min(220,Math.round(window.innerHeight*0.32));
+  q.style.height="auto";
+  const want=Math.min(max,Math.max(q.scrollHeight,0));
+  q.style.height=`${want}px`;
+  q.classList.toggle("is-capped",q.scrollHeight>max&&q.scrollTop+q.clientHeight<q.scrollHeight-2);
+}
+function clearQuick(){state.quickDraft="";const q=$("#quick-capture");if(q){q.value="";updateQuickState();autosizeQuick(q);}}
 async function quickToEntry(expand=false){
   if(state.quickSaving)return;
   const q=$("#quick-capture")?.value.trim()||"";
@@ -114,7 +123,10 @@ export function afterRender(route){
   const quick=$("#quick-capture");
   if(quick){
     if(state.quickDraft){quick.value=state.quickDraft;updateQuickState();}
-    quick.addEventListener("input",()=>{state.quickDraft=quick.value;updateQuickState();});
+    autosizeQuick(quick);
+    quick.addEventListener("input",()=>{state.quickDraft=quick.value;updateQuickState();autosizeQuick(quick);});
+    quick.addEventListener("scroll",()=>autosizeQuick(quick),{passive:true});
+    window.addEventListener("resize",()=>autosizeQuick($("#quick-capture")),{passive:true});
     quick.addEventListener("keydown",e=>{if((e.metaKey||e.ctrlKey)&&e.key==="Enter"){e.preventDefault();quickToEntry(false);}});
   }
 }

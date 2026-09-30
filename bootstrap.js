@@ -1,9 +1,10 @@
 (() => {
-  const BUILD = "4.3.0";
+  const BUILD = "4.4.0";
   const allowed = location.protocol === "http:" || location.protocol === "https:";
 
   function showStartup(message, details = "", steps = true) {
     const render = () => {
+      document.documentElement?.classList?.remove("boot-locked");
       document.body.classList.add("startup-error");
       const view = document.querySelector("#view");
       if (!view) return;
@@ -45,6 +46,18 @@
     showStartup("Этому браузеру нужно обновление.", "Narra работает в Safari и на iPhone начиная с iOS 16.4, в Chrome и Edge 111+, в Firefox 121+. Обновите систему или браузер — записи в этом браузере не затронуты.", false);
     return;
   }
+
+  // A locked diary must never flash before the password screen: hide the shell until the lock screen (or the diary) is ready.
+  try {
+    const root = document.documentElement;
+    const theme = localStorage.getItem("narra-theme");
+    if (theme === "dark" || theme === "light") root.dataset.theme = theme;
+    else if (window.matchMedia && matchMedia("(prefers-color-scheme: dark)").matches) root.dataset.theme = "dark";
+    if (localStorage.getItem("narra-lock-hint") === "1") root.classList.add("boot-locked");
+  } catch {}
+
+  // never leave a blank page: if the app has not taken over in 10 s, show the shell (and its own messages) again
+  if (typeof setTimeout === "function") setTimeout(() => document.documentElement?.classList?.remove("boot-locked"), 10000);
 
   const manifest = document.createElement("link");
   manifest.rel = "manifest";

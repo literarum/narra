@@ -2,10 +2,10 @@
    Diary text, titles, tags, check-in details, chapters, review notes and media are encrypted with a non-extractable key
    kept next to the data (protects against casual reading of the database, not against someone who has the whole browser profile —
    the interface says so). Dates and ids stay readable so the database can be indexed. */
-import {state,uid,nowIso,DB_NAME_MAIN,DB_NAME_DEMO} from "./core.js?v=4.3.0";
-import {pickEntryMeta,cleanMeta,cleanChapter,cleanReview,cleanEntityNote,ENTRY_META_DEFAULTS} from "./domain.mjs?v=4.3.0";
-import {cleanConfig,DEFAULT_CONFIG} from "./checkin.mjs?v=4.3.0";
-import {cleanAiState} from "./ai.mjs?v=4.3.0";
+import {state,uid,nowIso,DB_NAME_MAIN,DB_NAME_DEMO} from "./core.js?v=4.4.0";
+import {pickEntryMeta,cleanMeta,cleanChapter,cleanReview,cleanEntityNote,ENTRY_META_DEFAULTS} from "./domain.mjs?v=4.4.0";
+import {cleanConfig,DEFAULT_CONFIG} from "./checkin.mjs?v=4.4.0";
+import {cleanAiState} from "./ai.mjs?v=4.4.0";
 
 export const DB_VERSION=2;
 export const STORES={entries:"entries",versions:"versions",checkins:"checkins",meta:"meta",attachments:"attachments",blobs:"blobs",reviews:"reviews",chapters:"chapters",entities:"entities"};
@@ -160,7 +160,8 @@ export async function metaGetSecure(key,fallback){const r=await getRecord(STORES
 export async function metaSetSecure(key,value){return put(STORES.meta,{key,payloadEnc:await encryptJson(value)});}
 export const saveConfig=async cfg=>{state.config=cleanConfig(cfg);await metaSetSecure("checkin-config",state.config);};
 export const saveAiState=async s=>{state.ai=cleanAiState(s);await metaSet("ai-state",state.ai);};
-export const saveLock=async lock=>{if(lock)await metaSet("lock",lock);else await del(STORES.meta,"lock");state.lock=lock||null;}; // memory follows the disk, never the other way round
+export const syncLockHint=()=>{try{if(state.lock&&state.lock.enabled!==false)localStorage.setItem("narra-lock-hint","1");else localStorage.removeItem("narra-lock-hint");}catch{}};
+export const saveLock=async lock=>{if(lock)await metaSet("lock",lock);else await del(STORES.meta,"lock");state.lock=lock||null;syncLockHint();}; // memory follows the disk, never the other way round
 export const saveMutedTopics=async list=>{state.mutedTopics=[...new Set(list)];await metaSet("muted-topics",state.mutedTopics);};
 
 export async function loadData(){
@@ -173,7 +174,7 @@ export async function loadData(){
   state.entityNotes=(await Promise.all(entities.map(async r=>cleanEntityNote(await unpackSecure(r))))).filter(Boolean);
   state.config=cleanConfig(await metaGetSecure("checkin-config",DEFAULT_CONFIG));
   state.ai=cleanAiState(await metaGet("ai-state",null));
-  state.lock=await metaGet("lock",null);
+  state.lock=await metaGet("lock",null);syncLockHint();
   state.mutedMemoryIds=await metaGet("muted-memory-ids",[]);
   state.mutedTopics=await metaGet("muted-topics",[]);
 }

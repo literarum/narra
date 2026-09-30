@@ -318,7 +318,7 @@ export function circularMonthDayDistance(a, b){
 }
 
 /* ---------- canonical entry model ---------- */
-import {cleanCheckin as cleanCheckinRecord,cleanConfig} from "./checkin.mjs?v=4.3.0";
+import {cleanCheckin as cleanCheckinRecord,cleanConfig} from "./checkin.mjs?v=4.4.0";
 export const SCHEMA="narra.local-prototype.v4.2";
 export const SCHEMA_PREFIX="narra.local-prototype.";
 export const KINDS=["thought","event","day","memory","dream","decision","milestone","letter"];

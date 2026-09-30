@@ -1,19 +1,19 @@
 /* Backup, export, import, demo data and the self-check.
    Formats (schema-versioned): a full ZIP with manifest + JSON + media, a JSON file without media, a Markdown folder (ZIP), CSV.
    Nothing here talks to a network. Files are NOT encrypted; the interface says so before every export. */
-import {state,ctx,$,$$,escapeHtml,icon,uid,nowIso,downloadBlob,isoStamp,safeStorageSet,safeStorageRemove,APP_VERSION,entryLabel,plural} from "./core.js?v=4.3.0";
-import {SCHEMA,planImport,cleanEntry} from "./domain.mjs?v=4.3.0";
-import {createZip,readZip,utf8,toBytes,safeSegment} from "./zip.mjs?v=4.3.0";
-import {entryToMarkdown,entriesFromMarkdownFiles,MAX_MD_FILE} from "./importers.mjs?v=4.3.0";
-import {knownDimensions,dimValue} from "./checkin.mjs?v=4.3.0";
-import {chapterOf} from "./entities.mjs?v=4.3.0";
-import {wordCount} from "./domain.mjs?v=4.3.0";
-import {makeDemo} from "./demo.mjs?v=4.3.0";
-import {modalHeader} from "./kit.js?v=4.3.0";
-import {dayKey} from "./stats.mjs?v=4.3.0";
-import * as store from "./store.js?v=4.3.0";
-import * as media from "./media.js?v=4.3.0";
-import * as privacy from "./privacy.js?v=4.3.0";
+import {state,ctx,$,$$,escapeHtml,icon,uid,nowIso,downloadBlob,isoStamp,safeStorageSet,safeStorageRemove,APP_VERSION,entryLabel,plural} from "./core.js?v=4.4.0";
+import {SCHEMA,planImport,cleanEntry} from "./domain.mjs?v=4.4.0";
+import {createZip,readZip,utf8,toBytes,safeSegment} from "./zip.mjs?v=4.4.0";
+import {entryToMarkdown,entriesFromMarkdownFiles,MAX_MD_FILE} from "./importers.mjs?v=4.4.0";
+import {knownDimensions,dimValue} from "./checkin.mjs?v=4.4.0";
+import {chapterOf} from "./entities.mjs?v=4.4.0";
+import {wordCount} from "./domain.mjs?v=4.4.0";
+import {makeDemo} from "./demo.mjs?v=4.4.0";
+import {modalHeader} from "./kit.js?v=4.4.0";
+import {dayKey} from "./stats.mjs?v=4.4.0";
+import * as store from "./store.js?v=4.4.0";
+import * as media from "./media.js?v=4.4.0";
+import * as privacy from "./privacy.js?v=4.4.0";
 
 const EXT={"image/jpeg":"jpg","image/png":"png","image/webp":"webp","audio/webm":"webm","audio/mp4":"m4a","audio/mpeg":"mp3","audio/ogg":"ogg","audio/wav":"wav","audio/x-m4a":"m4a"};
 const extOf=mime=>EXT[String(mime||"").split(";")[0]]||"bin";

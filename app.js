@@ -1,19 +1,19 @@
 /* Narra 4.3 — application shell: routing, overlays, dialogs, command palette, global listeners, start-up.
    Everything a section does lives in its own module (today, journal, editor, insights, …); this file wires them together. */
-import {fuzzyScore,searchEntries,pluralRu,warmSearchIndex} from "./domain.mjs?v=4.3.0";
-import {enhance,closePopovers,popoverOpen,setDateOptions} from "./ui.mjs?v=4.3.0";
-import {entryText} from "./text.mjs?v=4.3.0";
-import {state,ctx,$,$$,escapeHtml,icon,relDay,kindLabels,activeEntries,isTyping,safeStorageGet,safeStorageSet,PREF_KEY,PREF_DEFAULTS,VALID_ROUTES,ROUTE_TITLES,ROUTE_FEATURE,SECONDARY_ROUTES,routeAllowed,featureOn,APP_VERSION,nowIso} from "./core.js?v=4.3.0";
-import {modalHeader,pageHeader,emptyState} from "./kit.js?v=4.3.0";
-import * as store from "./store.js?v=4.3.0";
-import * as today from "./today.js?v=4.3.0";
-import * as journal from "./journal.js?v=4.3.0";
-import * as search from "./search.js?v=4.3.0";
-import * as memories from "./memories.js?v=4.3.0";
-import * as editor from "./editor.js?v=4.3.0";
-import * as privacy from "./privacy.js?v=4.3.0";
-import * as media from "./media.js?v=4.3.0";
-import * as checkinUi from "./checkin-ui.js?v=4.3.0";
+import {fuzzyScore,searchEntries,pluralRu,warmSearchIndex} from "./domain.mjs?v=4.4.0";
+import {enhance,closePopovers,popoverOpen,setDateOptions} from "./ui.mjs?v=4.4.0";
+import {entryText} from "./text.mjs?v=4.4.0";
+import {state,ctx,$,$$,escapeHtml,icon,relDay,kindLabels,activeEntries,isTyping,safeStorageGet,safeStorageSet,PREF_KEY,PREF_DEFAULTS,VALID_ROUTES,ROUTE_TITLES,ROUTE_FEATURE,SECONDARY_ROUTES,routeAllowed,featureOn,APP_VERSION,nowIso} from "./core.js?v=4.4.0";
+import {modalHeader,pageHeader,emptyState} from "./kit.js?v=4.4.0";
+import * as store from "./store.js?v=4.4.0";
+import * as today from "./today.js?v=4.4.0";
+import * as journal from "./journal.js?v=4.4.0";
+import * as search from "./search.js?v=4.4.0";
+import * as memories from "./memories.js?v=4.4.0";
+import * as editor from "./editor.js?v=4.4.0";
+import * as privacy from "./privacy.js?v=4.4.0";
+import * as media from "./media.js?v=4.4.0";
+import * as checkinUi from "./checkin-ui.js?v=4.4.0";
 
 const MODULES=[today,journal,search,memories,editor,privacy,media,checkinUi];
 const VIEWS={},ACTIONS={};
@@ -127,6 +127,7 @@ function dismissToast(node,instant=false){
   node.classList.add("is-leaving");setTimeout(()=>node.remove(),220);
 }
 function showFatal(title,details){
+  document.documentElement.classList.remove("boot-locked");
   document.body.classList.add("startup-error");
   const view=$("#view");if(!view)return;
   view.innerHTML=`<section class="startup-card card" role="alert"><p class="eyebrow">Narra остановилась безопасно</p><h1>${escapeHtml(title)}</h1><p class="subtle">${escapeHtml(details||"Устраните проблему с хранилищем и перезагрузите страницу.")}</p><div class="privacy-callout">${icon("shield")}<div><strong>Запись остановлена</strong><p>После этой ошибки Narra не предпринимала попыток перезаписать локальные данные.</p></div></div><button class="primary button-with-icon" data-action="reload-page">${icon("refresh")}<span>Перезагрузить Narra</span></button></section>`;
@@ -228,12 +229,16 @@ function formDialog({title,text="",fields=[],confirmLabel="Сохранить",c
   const inputs=fields.map(f=>`<label class="field"><span class="label">${escapeHtml(f.label)}</span>${f.type==="select"?`<select data-select id="fd-${f.id}" aria-label="${escapeHtml(f.label)}">${f.options.map(([v,l])=>`<option value="${escapeHtml(v)}" ${String(f.value||"")===String(v)?"selected":""}>${escapeHtml(l)}</option>`).join("")}</select>`:f.type==="textarea"?`<textarea class="input" id="fd-${f.id}" rows="${f.rows||3}" placeholder="${escapeHtml(f.placeholder||"")}" maxlength="${f.max||2000}">${escapeHtml(f.value||"")}</textarea>`:`<input class="input" id="fd-${f.id}" type="${f.type||"text"}" value="${escapeHtml(f.value||"")}" placeholder="${escapeHtml(f.placeholder||"")}" autocomplete="${f.autocomplete||"off"}" maxlength="${f.max||200}" ${f.type==="date"?"data-datepicker data-clearable":""}>`}${f.hint?`<span class="hint-text">${escapeHtml(f.hint)}</span>`:""}</label>`).join("");
   root.innerHTML=`<div class="overlay" data-action="close-dialog-backdrop"><form class="modal confirm form-dialog" role="dialog" aria-modal="true" aria-label="${escapeHtml(title)}" tabindex="-1" novalidate>${modalHeader(title,"",iconName,"close-dialog")}<div class="modal-body">${text?`<p>${escapeHtml(text)}</p>`:""}${inputs}<p class="form-error" id="fd-error" role="alert" hidden></p></div><footer class="modal-footer"><button type="button" class="secondary" data-action="close-dialog">${escapeHtml(cancelLabel)}</button><button type="submit" class="primary${danger?" danger":""}">${escapeHtml(confirmLabel)}</button></footer></form></div>`;
   const form=root.querySelector("form");enhance(form);
+  // only the real submit button may submit: a stray default button (the ✕, a peek eye) must never close the window on Enter
+  form.querySelectorAll("button:not([type])").forEach(b=>{b.type="button";});
+  form.addEventListener("keydown",e=>{if(e.key==="Enter"&&!e.isComposing&&e.keyCode!==229&&!e.shiftKey&&e.target.matches?.("input")){e.preventDefault();if(!form.dataset.busy)form.requestSubmit();}});
   form.addEventListener("submit",async e=>{
     e.preventDefault();
+    if(form.dataset.busy)return;form.dataset.busy="1";
     const values={};for(const f of fields)values[f.id]=form.querySelector(`#fd-${f.id}`).value;
     const btn=form.querySelector('[type="submit"]');btn.disabled=true;
     let err;try{err=await onSubmit(values);}catch(error){console.error(error);err="Не получилось. Данные не изменились.";}
-    btn.disabled=false;
+    btn.disabled=false;delete form.dataset.busy;
     if(err){const box=$("#fd-error",form);box.textContent=err;box.hidden=false;}
     else closeDialog({restoreFocus:true});
   });
@@ -538,7 +543,7 @@ async function init(){
   });
   if(!routeAllowed(state.route))state.route="today";
   if(state.lock&&state.prefs.lockMinutes!==undefined&&state.lock.enabled!==false){await privacy.lockNow({initial:true});}
-  else render({enter:true});
+  else{store.syncLockHint();document.documentElement.classList.remove("boot-locked");render({enter:true});}
   privacy.startIdleWatch?.();
   warmSearch();
   if("serviceWorker" in navigator&&window.isSecureContext){
