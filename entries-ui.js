@@ -1,8 +1,8 @@
 /* Entry rows and lists shared by the today screen, the journal, search and the life map. */
-import {state,ctx,escapeHtml,icon,relDay,fmtTime,fmtMonthYear,kindLabels,words,wordLabel,mediaOf,activeEntries} from "./core.js?v=4.4.0";
-import {entryText,strip} from "./text.mjs?v=4.4.0";
-import {highlightRanges} from "./domain.mjs?v=4.4.0";
-import {highlightHtml,emptyState} from "./kit.js?v=4.4.0";
+import {state,ctx,escapeHtml,icon,relDay,fmtTime,fmtMonthYear,kindLabels,words,wordLabel,mediaOf,activeEntries} from "./core.js?v=4.5.0";
+import {entryText,strip} from "./text.mjs?v=4.5.0";
+import {highlightRanges} from "./domain.mjs?v=4.5.0";
+import {highlightHtml,emptyState} from "./kit.js?v=4.5.0";
 
 export function entryMetaMarkup(e){
   const themes=(e.themes||[]).slice(0,2).map(x=>"#"+x).join(" ");

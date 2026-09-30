@@ -1,6 +1,6 @@
 /* Narra Markdown import: turns .md files into entry drafts. Pure. Nothing is saved here; the caller shows a preview first. */
-import {cleanEntry,KINDS} from "./domain.mjs?v=4.4.0";
-import {strip} from "./text.mjs?v=4.4.0";
+import {cleanEntry,KINDS} from "./domain.mjs?v=4.5.0";
+import {strip} from "./text.mjs?v=4.5.0";
 
 export const MAX_MD_FILE=2*1024*1024,MAX_MD_FILES=3000;
 const list=v=>(Array.isArray(v)?v:String(v||"").split(",")).map(x=>String(x).trim().replace(/^#/,"")).filter(Boolean);

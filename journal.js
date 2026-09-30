@@ -1,15 +1,15 @@
 /* Journal: timeline with day headers, calendar, life chapters, trash; filters, bulk actions and paging. */
-import {state,ctx,$,$$,escapeHtml,icon,fmtLong,fmtMonthYear,fmtDate,relDay,fmtTime,localDateKey,entryLabel,activeEntries,trashedEntries,kindOptions,kindLabels,capitalizeRu,featureOn,uid,nowIso,downloadBlob,isoStamp,mediaOf,checkinLabel,plural} from "./core.js?v=4.4.0";
-import {entryText} from "./text.mjs?v=4.4.0";
-import {nextRevision} from "./domain.mjs?v=4.4.0";
-import {checkinSummary} from "./checkin.mjs?v=4.4.0";
-import {chapterOf,chapterEntries,sortChapters,chapterMembership,chapterPatch,NO_CHAPTER} from "./entities.mjs?v=4.4.0";
-import {entryToMarkdown} from "./importers.mjs?v=4.4.0";
-import {dayKey} from "./stats.mjs?v=4.4.0";
-import {pageHeader,emptyState,tabs,selectHtml,field,checkRow,modalHeader} from "./kit.js?v=4.4.0";
-import {entryRows,entryRow} from "./entries-ui.js?v=4.4.0";
-import {EMOTION_GROUPS} from "./checkin.mjs?v=4.4.0";
-import * as store from "./store.js?v=4.4.0";
+import {state,ctx,$,$$,escapeHtml,icon,fmtLong,fmtMonthYear,fmtDate,relDay,fmtTime,localDateKey,entryLabel,activeEntries,trashedEntries,kindOptions,kindLabels,capitalizeRu,featureOn,uid,nowIso,downloadBlob,isoStamp,mediaOf,checkinLabel,plural} from "./core.js?v=4.5.0";
+import {entryText} from "./text.mjs?v=4.5.0";
+import {nextRevision} from "./domain.mjs?v=4.5.0";
+import {checkinSummary} from "./checkin.mjs?v=4.5.0";
+import {chapterOf,chapterEntries,sortChapters,chapterMembership,chapterPatch,NO_CHAPTER} from "./entities.mjs?v=4.5.0";
+import {entryToMarkdown} from "./importers.mjs?v=4.5.0";
+import {dayKey} from "./stats.mjs?v=4.5.0";
+import {pageHeader,emptyState,tabs,selectHtml,field,checkRow,modalHeader} from "./kit.js?v=4.5.0";
+import {entryRows,entryRow} from "./entries-ui.js?v=4.5.0";
+import {EMOTION_GROUPS} from "./checkin.mjs?v=4.5.0";
+import * as store from "./store.js?v=4.5.0";
 
 const F=()=>state.journalFilters;
 const norm=s=>String(s||"").toLocaleLowerCase("ru-RU");
@@ -65,7 +65,7 @@ function filtersMarkup(found,total){
   const chapterField=featureOn("featChapters")&&chapters.length?field("Глава",selectHtml("jf-chapter",[["","Любая"],["none","Без главы"],...chapters.map(c=>[c.id,c.name])],f.chapter||"",{label:"Глава жизни"})):"";
   const emoField=state.checkins.some(c=>(c.emotions||[]).length)?field("Эмоция в тот день",selectHtml("jf-emotion",[["","Любая"],...emotions.map(x=>[x,x])],f.emotion||"",{label:"Эмоция в тот день"})):"";
   return `<details class="filters-panel" ${filtersActive()||state.filtersOpen?"open":""}><summary>${icon("filter")}<span>Фильтры</span>${count?`<span class="filter-count">${count}</span>`:""}</summary><div class="filters-body">
-    ${section("Период",`<div class="filters-row is-two">${field("С даты",`<input type="date" data-datepicker data-clearable data-placeholder="Любая дата" id="jf-from" value="${escapeHtml(f.from||"")}">`)}${field("По дату",`<input type="date" data-datepicker data-clearable data-placeholder="Любая дата" id="jf-to" value="${escapeHtml(f.to||"")}">`)}</div><div class="filters-presets" role="group" aria-label="Быстрый период">${presets}</div>`)}
+    ${section("Период",`<div class="filters-row is-two">${field("С даты",`<input type="date" data-datepicker data-clearable data-placeholder="Любая" id="jf-from" value="${escapeHtml(f.from||"")}">`)}${field("По дату",`<input type="date" data-datepicker data-clearable data-placeholder="Любая" id="jf-to" value="${escapeHtml(f.to||"")}">`)}</div><div class="filters-presets" role="group" aria-label="Быстрый период">${presets}</div>`)}
     ${section("О чём запись",`<div class="filters-row">${kindField}${chapterField}${emoField}</div>`)}
     ${section("Кто, где, о чём",`<div class="filters-row">${field("Человек",`<input class="input" id="jf-person" autocomplete="off" value="${escapeHtml(f.person||"")}" placeholder="Имя">`)}${field("Место",`<input class="input" id="jf-place" autocomplete="off" value="${escapeHtml(f.place||"")}" placeholder="Место">`)}${field("Тема",`<input class="input" id="jf-theme" autocomplete="off" value="${escapeHtml(f.theme||"")}" placeholder="Тема">`)}</div>`)}
     ${section("Только",`<div class="filters-chips">${featureOn("featMedia")?chipToggle("jf-media","С фото и аудио",f.media,"image"):""}${chipToggle("jf-favorite","Избранное",f.favorite,"star")}</div>`)}

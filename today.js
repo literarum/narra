@@ -1,11 +1,11 @@
 /* Today: quick capture, a short check-in, one memory, one question, recent entries, first-run welcome. */
-import {state,ctx,$,$$,escapeHtml,icon,uid,nowIso,fmtLong,fmtTime,relDay,activeEntries,sameDay,todayKey,safeStorageGet,safeStorageSet,featureOn,PREF_KEY} from "./core.js?v=4.4.0";
-import {entryText} from "./text.mjs?v=4.4.0";
-import {pageHeader,modalHeader} from "./kit.js?v=4.4.0";
-import {entryRows} from "./entries-ui.js?v=4.4.0";
-import {checkinCard} from "./checkin-ui.js?v=4.4.0";
-import {memoryCard} from "./memories.js?v=4.4.0";
-import * as store from "./store.js?v=4.4.0";
+import {state,ctx,$,$$,escapeHtml,icon,uid,nowIso,fmtLong,fmtTime,relDay,activeEntries,sameDay,todayKey,safeStorageGet,safeStorageSet,featureOn,PREF_KEY} from "./core.js?v=4.5.0";
+import {entryText} from "./text.mjs?v=4.5.0";
+import {pageHeader,modalHeader} from "./kit.js?v=4.5.0";
+import {entryRows} from "./entries-ui.js?v=4.5.0";
+import {checkinCard} from "./checkin-ui.js?v=4.5.0";
+import {memoryCard} from "./memories.js?v=4.5.0";
+import * as store from "./store.js?v=4.5.0";
 
 const PROMPTS=[
   "Что сегодня оказалось важнее, чем выглядело сначала?","Какой момент этого дня хочется запомнить?","О чём вы сегодня думали чаще всего?",

@@ -1,11 +1,11 @@
 /* Privacy: screen lock, inactivity timer and password re-entry before dangerous actions.
    The lock hides the diary and drops what was decrypted for display (text in memory, media links); it is a screen lock,
    not encryption of the data at rest — the settings screen says so in plain words. */
-import {state,ctx,$,$$,escapeHtml,icon,safeStorageGet,safeStorageSet,safeStorageRemove} from "./core.js?v=4.4.0";
-import {makeLock,verifyPasscode,retryDelayMs,passcodeProblem,INACTIVITY_OPTIONS,makeRecoveryCode,makeRecovery,verifyRecovery,hintProblem,HINT_MAX} from "./lock.mjs?v=4.4.0";
-import {modalHeader} from "./kit.js?v=4.4.0";
-import * as store from "./store.js?v=4.4.0";
-import * as media from "./media.js?v=4.4.0";
+import {state,ctx,$,$$,escapeHtml,icon,safeStorageGet,safeStorageSet,safeStorageRemove} from "./core.js?v=4.5.0";
+import {makeLock,verifyPasscode,retryDelayMs,passcodeProblem,INACTIVITY_OPTIONS,makeRecoveryCode,makeRecovery,verifyRecovery,hintProblem,HINT_MAX} from "./lock.mjs?v=4.5.0";
+import {modalHeader} from "./kit.js?v=4.5.0";
+import * as store from "./store.js?v=4.5.0";
+import * as media from "./media.js?v=4.5.0";
 
 const FAIL_KEY="narra-lock-fails";
 const readFails=()=>{try{const v=JSON.parse(safeStorageGet(FAIL_KEY)||"{}");return {n:Number(v.n)||0,at:Number(v.at)||0};}catch{return {n:0,at:0};}};
@@ -150,6 +150,7 @@ export async function lockNow({initial=false}={}){
   for(const id of ["overlay-root","dialog-root","toast-region"]){const n=$("#"+id);if(n)n.innerHTML="";}
   store.revokeMediaUrls();
   try{ctx.clearSearchMemory?.();}catch{}
+  state.aiKey="";
   Object.assign(state,{entries:[],checkins:[],attachments:[],chapters:[],reviews:[],entityNotes:[],journalSelected:new Set(),pendingImport:null});
   document.title="Narra — дневник закрыт";
   mountLock();

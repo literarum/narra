@@ -1,14 +1,14 @@
 /* Editor side panels: entry details, links, decision journal, suggestions and writing help. Markup only; editor.js binds them. */
-import {state,ctx,escapeHtml,icon,localDateInputValue,fmtDate,fmtLong,kindOptions,kindLabels,capitalizeRu,featureOn,activeEntries,entryById} from "./core.js?v=4.4.0";
-import {parseRussianDateHint,extractHashtags,suggestEntryKindRu} from "./domain.mjs?v=4.4.0";
-import {entryText} from "./text.mjs?v=4.4.0";
-import {suggestKnownEntities,chapterOf,sortChapters,NO_CHAPTER} from "./entities.mjs?v=4.4.0";
-import {detailQuestions,reflectiveQuestions,clarityFindings} from "./writing.mjs?v=4.4.0";
-import {relatedEntriesFor} from "./memories.js?v=4.4.0";
-import {entityMap} from "./derived.js?v=4.4.0";
-import {selectHtml} from "./kit.js?v=4.4.0";
-import {checkinSummary} from "./checkin.mjs?v=4.4.0";
-import {LINK_TYPES} from "./domain.mjs?v=4.4.0";
+import {state,ctx,escapeHtml,icon,localDateInputValue,fmtDate,fmtLong,kindOptions,kindLabels,capitalizeRu,featureOn,activeEntries,entryById} from "./core.js?v=4.5.0";
+import {parseRussianDateHint,extractHashtags,suggestEntryKindRu} from "./domain.mjs?v=4.5.0";
+import {entryText} from "./text.mjs?v=4.5.0";
+import {suggestKnownEntities,chapterOf,sortChapters,NO_CHAPTER} from "./entities.mjs?v=4.5.0";
+import {detailQuestions,reflectiveQuestions,clarityFindings} from "./writing.mjs?v=4.5.0";
+import {relatedEntriesFor} from "./memories.js?v=4.5.0";
+import {entityMap} from "./derived.js?v=4.5.0";
+import {selectHtml} from "./kit.js?v=4.5.0";
+import {checkinSummary} from "./checkin.mjs?v=4.5.0";
+import {LINK_TYPES} from "./domain.mjs?v=4.5.0";
 
 export const LINK_LABELS={related:"Связана",continuation:"Продолжение",decision_followup:"Итог решения",custom:"Другое"};
 const CONFIDENCE=[[0,"Не указано"],[1,"Совсем не уверен"],[2,"Скорее не уверен"],[3,"Сомневаюсь"],[4,"Скорее уверен"],[5,"Уверен"]];

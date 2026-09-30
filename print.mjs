@@ -1,8 +1,8 @@
 /* Narra print layouts: the review sheet and the yearly book. Pure functions that return HTML; the look is in styles.css (@media print).
    Monochrome by design: hierarchy comes from rules of different weight, small caps, numerals, tables and quotation marks, never from colour.
    No inline styles (the page runs under a strict CSP): everything is classes. */
-import {dayKey,addDays} from "./stats.mjs?v=4.4.0";
-import {SECTION_TITLES,SECTION_ORDER} from "./review.mjs?v=4.4.0";
+import {dayKey,addDays} from "./stats.mjs?v=4.5.0";
+import {SECTION_TITLES,SECTION_ORDER} from "./review.mjs?v=4.5.0";
 
 const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const MONTHS=["января","февраля","марта","апреля","мая","июня","июля","августа","сентября","октября","ноября","декабря"];

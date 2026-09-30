@@ -1,19 +1,19 @@
 /* Narra 4.3 — application shell: routing, overlays, dialogs, command palette, global listeners, start-up.
    Everything a section does lives in its own module (today, journal, editor, insights, …); this file wires them together. */
-import {fuzzyScore,searchEntries,pluralRu,warmSearchIndex} from "./domain.mjs?v=4.4.0";
-import {enhance,closePopovers,popoverOpen,setDateOptions} from "./ui.mjs?v=4.4.0";
-import {entryText} from "./text.mjs?v=4.4.0";
-import {state,ctx,$,$$,escapeHtml,icon,relDay,kindLabels,activeEntries,isTyping,safeStorageGet,safeStorageSet,PREF_KEY,PREF_DEFAULTS,VALID_ROUTES,ROUTE_TITLES,ROUTE_FEATURE,SECONDARY_ROUTES,routeAllowed,featureOn,APP_VERSION,nowIso} from "./core.js?v=4.4.0";
-import {modalHeader,pageHeader,emptyState} from "./kit.js?v=4.4.0";
-import * as store from "./store.js?v=4.4.0";
-import * as today from "./today.js?v=4.4.0";
-import * as journal from "./journal.js?v=4.4.0";
-import * as search from "./search.js?v=4.4.0";
-import * as memories from "./memories.js?v=4.4.0";
-import * as editor from "./editor.js?v=4.4.0";
-import * as privacy from "./privacy.js?v=4.4.0";
-import * as media from "./media.js?v=4.4.0";
-import * as checkinUi from "./checkin-ui.js?v=4.4.0";
+import {fuzzyScore,searchEntries,pluralRu,warmSearchIndex} from "./domain.mjs?v=4.5.0";
+import {enhance,closePopovers,popoverOpen,setDateOptions} from "./ui.mjs?v=4.5.0";
+import {entryText} from "./text.mjs?v=4.5.0";
+import {state,ctx,$,$$,escapeHtml,icon,relDay,kindLabels,activeEntries,isTyping,safeStorageGet,safeStorageSet,PREF_KEY,PREF_DEFAULTS,VALID_ROUTES,ROUTE_TITLES,ROUTE_FEATURE,SECONDARY_ROUTES,routeAllowed,featureOn,APP_VERSION,nowIso} from "./core.js?v=4.5.0";
+import {modalHeader,pageHeader,emptyState} from "./kit.js?v=4.5.0";
+import * as store from "./store.js?v=4.5.0";
+import * as today from "./today.js?v=4.5.0";
+import * as journal from "./journal.js?v=4.5.0";
+import * as search from "./search.js?v=4.5.0";
+import * as memories from "./memories.js?v=4.5.0";
+import * as editor from "./editor.js?v=4.5.0";
+import * as privacy from "./privacy.js?v=4.5.0";
+import * as media from "./media.js?v=4.5.0";
+import * as checkinUi from "./checkin-ui.js?v=4.5.0";
 
 const MODULES=[today,journal,search,memories,editor,privacy,media,checkinUi];
 const VIEWS={},ACTIONS={};
@@ -21,7 +21,7 @@ for(const m of MODULES){Object.assign(VIEWS,m.views||{});Object.assign(ACTIONS,m
 
 /* Sections that are not needed to open the journal load on first use (keeps the start-up bundle small).
    A view loads before its first render; an action that is not registered yet loads all of them and retries. */
-const LAZY_FILES={insights:"insights.js",lifemap:"lifemap.js",reviews:"reviews.js",settings:"settings.js",backup:"backup.js"};
+const LAZY_FILES={insights:"insights.js",lifemap:"lifemap.js",reviews:"reviews.js",settings:"settings.js",backup:"backup.js",assistant:"assistant.js",reminders:"reminders.js",device:"device.js"};
 const LAZY_ROUTES={insights:"insights",lifemap:"lifemap",reviews:"reviews",settings:"settings"};
 const lazyLoaded=new Map();
 const lazyPromises=new Map();
@@ -32,12 +32,14 @@ function loadLazy(name){
       lazyLoaded.set(name,m);MODULES.push(m);
       Object.assign(VIEWS,m.views||{});Object.assign(ACTIONS,m.actions||{});
       m.init?.(ctx);
+      if(name==="settings"){loadLazy("reminders").then(()=>loadLazy("device")).catch(()=>{});}
       return m;
     }).catch(error=>{lazyPromises.delete(name);throw error;}));
   }
   return lazyPromises.get(name);
 }
 const loadAllLazy=()=>Promise.all(Object.keys(LAZY_FILES).map(loadLazy));
+window.addEventListener("beforeinstallprompt",e=>{e.preventDefault();window.__narraInstall=e;});
 ACTIONS["reload-app"]=()=>location.reload();
 
 /* ---------- preferences & theme ---------- */
@@ -70,13 +72,13 @@ function applyTheme(){
 function reducedMotion(){return state.prefs.motion==="off"||matchMedia("(prefers-reduced-motion: reduce)").matches;}
 function animateIn(el){
   if(!el||reducedMotion()||!el.animate)return;
-  el.animate([{opacity:0,transform:"translateY(5px)"},{opacity:1,transform:"none"}],{duration:240,easing:"cubic-bezier(.2,.7,.2,1)"});
+  el.animate([{opacity:0,transform:"translateY(5px)"},{opacity:1,transform:"none"}],{duration:264,easing:"cubic-bezier(.2,.7,.2,1)"});
 }
 /** Fold a card away, then remove it. */
 function collapseAndRemove(node){
   if(reducedMotion()||!node.animate){node.remove();return;}
   const h=node.offsetHeight;node.style.overflow="hidden";
-  node.animate([{opacity:1,height:`${h}px`},{opacity:0,height:"0px",marginTop:"0px",marginBottom:"0px",paddingTop:"0px",paddingBottom:"0px"}],{duration:260,easing:"cubic-bezier(.2,.7,.2,1)"}).finished.then(()=>node.remove()).catch(()=>node.remove());
+  node.animate([{opacity:1,height:`${h}px`},{opacity:0,height:"0px",marginTop:"0px",marginBottom:"0px",paddingTop:"0px",paddingBottom:"0px"}],{duration:286,easing:"cubic-bezier(.2,.7,.2,1)"}).finished.then(()=>node.remove()).catch(()=>node.remove());
 }
 
 /* ---------- routing ---------- */
@@ -124,7 +126,7 @@ function dismissToast(node,instant=false){
   if(!node||node.classList.contains("is-leaving"))return;
   clearTimeout(node._timer);
   if(instant){node.remove();return;}
-  node.classList.add("is-leaving");setTimeout(()=>node.remove(),220);
+  node.classList.add("is-leaving");setTimeout(()=>node.remove(),242);
 }
 function showFatal(title,details){
   document.documentElement.classList.remove("boot-locked");
@@ -159,7 +161,9 @@ function render({enter=false}={}){
   closePopovers();
   if(state.locked)return;
   const need=LAZY_ROUTES[state.route];
+  updateNav(); // the tab bar follows the tap at once, even while a section is still loading
   if(need&&!lazyLoaded.has(need)){
+    if(!$("#view .boot"))$("#view").innerHTML=`<div class="boot" role="status"><span class="boot-mark" aria-hidden="true">N</span><span>Загружаем раздел…</span></div>`;
     loadLazy(need).then(()=>{if(LAZY_ROUTES[state.route]===need)render({enter});}).catch(error=>{console.error(error);$("#view").innerHTML=`<div class="card"><h2>Не получилось открыть раздел</h2><p class="subtle">Записи в безопасности. Проверьте соединение и попробуйте ещё раз.</p><button class="secondary" data-action="reload-app">Обновить страницу</button></div>`;});
     return;
   }
@@ -430,8 +434,9 @@ document.addEventListener("change",e=>{
   if(t?.dataset?.pref){
     const key=t.dataset.pref;
     if(key==="motion_on")setPref("motion",t.checked?"on":"off");
+    else if(t.type==="checkbox"&&/^notify/.test(key)&&t.checked){handleAction("notify-enable",{dataset:{key}}).catch(()=>toast("Не получилось включить уведомления."));return;}
     else if(t.type==="checkbox")setPref(key,t.checked);
-    else if(key==="weekStart"||key==="lockMinutes"||key==="journalPage")setPref(key,Number(t.value));
+    else if(key==="weekStart"||key==="lockMinutes"||key==="journalPage"||key==="notifyWeeklyDay")setPref(key,Number(t.value));
     else setPref(key,t.value);
     if(FEATURE_KEYS.has(key)||key==="onboarded")render();
     return;
@@ -443,7 +448,7 @@ document.addEventListener("input",e=>{
   if(g!==undefined){const b=$("#dialog-root [data-action=confirm-dialog]");if(b)b.disabled=e.target.value.trim().toLocaleLowerCase("ru-RU")!==g.toLocaleLowerCase("ru-RU");return;}
   for(const m of MODULES)if(m.on?.input?.(e)===true)return;
 });
-const FEATURE_KEYS=new Set(["featInsights","featLifemap","featMemories","featReviews","featChapters","featDecisions","featMedia","featWritingAssist","featEntitySuggest","featSemantic","featEmotionsInJournal","showCheckin","showMemory","showPrompt","showRecent","showContinue","reminderOn"]);
+const FEATURE_KEYS=new Set(["featInsights","featLifemap","featMemories","featReviews","featChapters","featDecisions","featMedia","featWritingAssist","featEntitySuggest","featSemantic","featEmotionsInJournal","showCheckin","showMemory","showPrompt","showRecent","showContinue","reminderOn","notifyDaily","notifyWeekly","notifyDecisions","notifyMemory"]);
 /* content of a closed <details> stays laid out in some browsers, but cannot receive focus */
 function inClosedDetails(x){
   for(let d=x.closest("details:not([open])");d;d=d.parentElement?.closest("details:not([open])")){
@@ -513,14 +518,25 @@ window.addEventListener("beforeunload",e=>{
 });
 matchMedia("(prefers-color-scheme: dark)").addEventListener?.("change",()=>{if(state.theme==="system")applyTheme();});
 window.addEventListener("resize",()=>{editor.onResize?.();});
-function syncViewportHeight(){
-  const vv=window.visualViewport;
-  document.documentElement.style.setProperty("--vvh",`${Math.round(vv?vv.height:window.innerHeight)}px`);
-  document.documentElement.style.setProperty("--vvt",`${Math.max(0,Math.round(vv?vv.offsetTop:0))}px`);
-  editor.onViewport?.();
+/* Visual viewport (on-screen keyboard). Updates are coalesced into one write per frame and the page is never scrolled from here:
+   iOS moves the viewport by itself, and fighting it with scrollTo() is what made content shake. */
+let vvFrame=0,vvLast={h:-1,t:-1,kb:null};
+function applyViewport(){
+  vvFrame=0;
+  const vv=window.visualViewport,h=Math.round(vv?vv.height:window.innerHeight),t=Math.max(0,Math.round(vv?vv.offsetTop:0));
+  const kb=Boolean(vv)&&window.innerHeight-vv.height>120&&(document.activeElement?.matches?.("input,textarea,select,[contenteditable]"));
+  const root=document.documentElement;
+  if(h!==vvLast.h){root.style.setProperty("--vvh",`${h}px`);}
+  if(t!==vvLast.t){root.style.setProperty("--vvt",`${t}px`);}
+  if(kb!==vvLast.kb)root.classList.toggle("kb-open",kb);
+  const heightChanged=h!==vvLast.h;
+  vvLast={h,t,kb};
+  if(heightChanged)editor.onViewport?.();
 }
-if(window.visualViewport){window.visualViewport.addEventListener("resize",syncViewportHeight);window.visualViewport.addEventListener("scroll",()=>{syncViewportHeight();if(state.editing||overlayOpen())window.scrollTo(0,0);});}
-syncViewportHeight();
+function syncViewportHeight(){if(!vvFrame)vvFrame=requestAnimationFrame(applyViewport);}
+if(window.visualViewport){window.visualViewport.addEventListener("resize",syncViewportHeight);window.visualViewport.addEventListener("scroll",syncViewportHeight);}
+document.addEventListener("focusin",syncViewportHeight);document.addEventListener("focusout",()=>setTimeout(syncViewportHeight,60));
+applyViewport();
 
 /* ---------- expose to modules ---------- */
 Object.assign(ctx,{render,routeTo,goTo,toast,overlay,closeOverlay,confirmDialog,resultDialog,formDialog,closeDialog,sheetDialog,animateIn,reducedMotion,collapseAndRemove,setPref,applyPrefs,applyTheme,commandPalette,reloadData,showFatal,overlayOpen,dialogOpen,checkStoragePersistence,requestStoragePersistence,handleAction,ACTIONS,VIEWS,setSegmentedActive,shiftMonth});
@@ -553,5 +569,15 @@ async function init(){
     }catch(error){console.warn("Не удалось зарегистрировать service worker",error);}
   }
   window.__narraReady=true;
+  openIntent();
+  /* background helpers (reminders, device features) load a few seconds after start, so they never compete with the first screen */
+  setTimeout(()=>(window.requestIdleCallback||(f=>f()))(()=>{loadLazy("reminders").then(()=>loadLazy("device")).catch(()=>{});}),4000);
+}
+/** Shortcuts, share sheet and notification taps arrive as ?quick=1 / ?new=1 / ?go=… / ?text=… */
+async function openIntent(){
+  const s=location.search;
+  if(!/[?&](quick|new|go|title|text|url)(=|&|$)/.test(s))return;
+  try{history.replaceState(null,"",location.pathname+location.hash);}catch{}
+  try{(await loadLazy("reminders")).handleIntent(s);}catch{}
 }
 init().catch(err=>{console.error(err);showFatal("Не удалось открыть локальный дневник",err?.message||"Браузер заблокировал необходимую возможность локального хранения.");});

@@ -1,7 +1,7 @@
 /* Photos and voice notes. Photos are re-drawn on a canvas, which drops all embedded metadata (location, camera, time),
    scaled down and stored encrypted with a thumbnail. Audio is stored as recorded. Nothing is uploaded anywhere. */
-import {state,ctx,$,$$,escapeHtml,icon,featureOn,mediaOf} from "./core.js?v=4.4.0";
-import * as store from "./store.js?v=4.4.0";
+import {state,ctx,$,$$,escapeHtml,icon,featureOn,mediaOf} from "./core.js?v=4.5.0";
+import * as store from "./store.js?v=4.5.0";
 
 export const LIMITS={imageIn:30*1024*1024,audioIn:30*1024*1024,perEntry:40,maxSide:2000,thumbSide:360,recordSeconds:600};
 const fmtSize=n=>n>=1048576?`${(n/1048576).toFixed(1).replace(".",",")} МБ`:`${Math.max(1,Math.round(n/1024))} КБ`;
@@ -84,7 +84,7 @@ export function stripMarkup(entryId){
     ${a.kind==="image"?`<img class="attach-thumb" data-media-thumb="${escapeHtml(a.id)}" alt="" width="64" height="64">`:`<span class="attach-thumb attach-audio">${icon("mic")}</span>`}
     <div class="attach-body"><input class="input attach-caption" data-attachment-caption="${escapeHtml(a.id)}" maxlength="300" value="${escapeHtml(a.caption)}" placeholder="${a.kind==="image"?"Подпись к фото":"Подпись к записи голоса"}" aria-label="Подпись" autocomplete="off">
       <small>${a.kind==="audio"&&a.duration?`${fmtDur(a.duration)} · `:""}${fmtSize(a.size)}</small></div>
-    <div class="attach-actions"><button type="button" class="icon-button icon-button-quiet" data-action="attach-insert" data-id="${escapeHtml(a.id)}" aria-label="Вставить в текст" title="Вставить в текст">${icon("plus")}</button><button type="button" class="icon-button icon-button-quiet danger-quiet" data-action="attach-delete" data-id="${escapeHtml(a.id)}" aria-label="Удалить вложение" title="Удалить">${icon("trash")}</button></div></li>`).join("")}</ul></section>`;
+    <div class="attach-actions">${a.kind==="audio"&&state.ai?.enabled&&state.ai.features?.transcribe?`<button type="button" class="icon-button icon-button-quiet" data-action="ai-transcribe" data-id="${escapeHtml(a.id)}" aria-label="Расшифровать в текст" title="Расшифровать в текст">${icon("sparkle")}</button>`:""}<button type="button" class="icon-button icon-button-quiet" data-action="attach-insert" data-id="${escapeHtml(a.id)}" aria-label="Вставить в текст" title="Вставить в текст">${icon("plus")}</button><button type="button" class="icon-button icon-button-quiet danger-quiet" data-action="attach-delete" data-id="${escapeHtml(a.id)}" aria-label="Удалить вложение" title="Удалить">${icon("trash")}</button></div></li>`).join("")}</ul></section>`;
 }
 export const refMarkdown=a=>`![${(a.caption||a.name||"").replace(/[\]\n]/g," ").slice(0,80)}](narra-media:${a.id})`;
 

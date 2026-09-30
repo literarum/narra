@@ -1,16 +1,16 @@
 /* Settings: interface, feature switches, editor, check-in fields, privacy (lock and assistant), data, and an honest «about».
    Everything optional can be turned off here and its screens disappear; nothing that was written is deleted by a switch. */
-import {state,ctx,$,$$,escapeHtml,icon,FEATURES,APP_VERSION,featureOn,entryLabel,plural,kindLabels} from "./core.js?v=4.4.0";
-import {pageHeader,tabs,settingsGroup,switchRow,segmentedRow,selectHtml} from "./kit.js?v=4.4.0";
-import {CORE_DIMENSIONS,DEEP_DIMENSIONS,activeDimensions,cleanConfig,DEFAULT_CONFIG} from "./checkin.mjs?v=4.4.0";
-import {AI_FEATURES,NullProvider,runFeature,cleanAiState,REASON_TEXT} from "./ai.mjs?v=4.4.0";
-import {INACTIVITY_OPTIONS} from "./lock.mjs?v=4.4.0";
-import {SCHEMA,capitalizeRu} from "./domain.mjs?v=4.4.0";
-import {MIN_N,METHOD_VERSION} from "./stats.mjs?v=4.4.0";
-import {METHOD_ID} from "./insights-model.mjs?v=4.4.0";
-import {entryText} from "./text.mjs?v=4.4.0";
-import {entityMap} from "./derived.js?v=4.4.0";
-import * as store from "./store.js?v=4.4.0";
+import {state,ctx,$,$$,escapeHtml,icon,FEATURES,APP_VERSION,featureOn,entryLabel,plural,kindLabels} from "./core.js?v=4.5.0";
+import {pageHeader,tabs,settingsGroup,switchRow,segmentedRow,selectHtml} from "./kit.js?v=4.5.0";
+import {CORE_DIMENSIONS,DEEP_DIMENSIONS,activeDimensions,cleanConfig,DEFAULT_CONFIG} from "./checkin.mjs?v=4.5.0";
+import {AI_FEATURES,PROVIDERS,providerById,detectProvider,listModels,pickModel,createProvider,runFeature,cleanAiState,REASON_TEXT} from "./ai.mjs?v=4.5.0";
+import {INACTIVITY_OPTIONS} from "./lock.mjs?v=4.5.0";
+import {capitalizeRu} from "./domain.mjs?v=4.5.0";
+import {MIN_N,METHOD_VERSION} from "./stats.mjs?v=4.5.0";
+import {METHOD_ID} from "./insights-model.mjs?v=4.5.0";
+import {entryText} from "./text.mjs?v=4.5.0";
+import {entityMap} from "./derived.js?v=4.5.0";
+import * as store from "./store.js?v=4.5.0";
 
 const TABS=[["basic","Основные"],["features","Функции"],["editor","Редактор"],["checkin","Отметки"],["privacy","Приватность"],["data","Данные"],["about","О Narra"]];
 const sw=(attrs,title,desc,checked,extra="")=>`<div class="setting-row"><div class="setting-row-text"><strong>${title}</strong>${desc?`<span>${desc}</span>`:""}</div><div class="setting-row-control"><label class="switch"><input type="checkbox" role="switch" ${attrs} ${checked?"checked":""} ${extra} aria-label="${escapeHtml(title.replace(/<[^>]+>/g,""))}"><span class="switch-track"></span></label></div></div>`;
@@ -37,14 +37,41 @@ function basicTab(){
       +sw('data-pref="showPrompt"',"Вопрос дня","Необязательная подсказка, с чего начать.",state.prefs.showPrompt)
       +sw('data-pref="showRecent"',"Недавние записи","",state.prefs.showRecent)
       +sw('data-pref="showContinue"',"«Продолжить»","Возврат к незавершённой записи.",state.prefs.showContinue))}
+    ${deviceGroup()}
     ${settingsGroup("keyboard","Клавиатура",
       sw('data-pref="shortcuts"',"Подсказки клавиш","Показывать сочетания клавиш в подсказках.",state.prefs.shortcuts)
       +segmentedRow("quickKey","Клавиша новой записи","Работает, когда курсор не в поле ввода.",[["n","N"],["c","C"],["off","Выкл."]]),
       "Ctrl/⌘ K — палитра команд, «/» — поиск.")}
-    ${settingsGroup("info","Напоминание",
-      sw('data-pref="reminderOn"',"Напомнить о записи","Спокойная карточка на экране «Сегодня» после выбранного времени. Без уведомлений браузера и без текста дневника.",state.prefs.reminderOn)
-      +(state.prefs.reminderOn?row("Время","",`<input class="input input-time" type="time" data-pref="reminderTime" value="${escapeHtml(state.prefs.reminderTime)}" aria-label="Время напоминания">`):""),
-      "Настоящие push-уведомления требуют сервера; в локальной версии их нет, и это сделано намеренно.")}`;
+    ${settingsGroup("bell","Напоминания",
+      sw('data-pref="notifyDaily"',"Напомнить о записи","Раз в день, если вы ещё ничего не записали. В уведомлении нет текста дневника.",state.prefs.notifyDaily)
+      +(state.prefs.notifyDaily?row("Время","",`<input class="input input-time" type="time" data-pref="reminderTime" value="${escapeHtml(state.prefs.reminderTime)}" aria-label="Время напоминания">`):"")
+      +sw('data-pref="notifyWeekly"',"Итоги недели","Напоминание заглянуть в обзор недели.",state.prefs.notifyWeekly)
+      +(state.prefs.notifyWeekly?row("День",``,prefSelect("notifyWeeklyDay",[["0","воскресенье"],["1","понедельник"],["5","пятница"],["6","суббота"]],"День итогов недели")):"")
+      +sw('data-pref="notifyDecisions"',"Вернуться к решению","В день, который вы выбрали в журнале решений.",state.prefs.notifyDecisions)
+      +sw('data-pref="notifyMemory"',"Запись из прошлого","В день, когда у вас есть записи с этой же даты в прошлые годы.",state.prefs.notifyMemory)
+      +row("Проверка",notifyStatus(),`<button class="secondary" data-action="notify-test">Показать пример</button>`)
+      +sw('data-pref="reminderOn"',"Карточка на экране «Сегодня»","Мягкое напоминание внутри приложения, если время записи уже прошло.",state.prefs.reminderOn),
+      "Расписание хранится только на этом устройстве. Приложение не отправляет ничего на сервер.")}`;
+}
+function deviceGroup(){
+  const rows=[];
+  const standalone=matchMedia("(display-mode: standalone)").matches||navigator.standalone===true;
+  if(!standalone)rows.push(row("Установить приложение","Откроется в своём окне, без адресной строки, с ярлыками «Новая запись» и «Быстрая заметка».",`<button class="secondary" data-action="install-app">Установить</button>`));
+  else rows.push(row("Установлено","Narra запущена как приложение.",""));
+  if(navigator.wakeLock)rows.push(sw('data-pref="keepAwake"',"Экран не гаснет при письме","Пока открыта запись, устройство не засыпает.",state.prefs.keepAwake));
+  if(navigator.vibrate)rows.push(sw('data-pref="haptics"',"Отклик вибрацией","Лёгкая вибрация при нажатиях.",state.prefs.haptics));
+  if(navigator.setAppBadge)rows.push(sw('data-pref="badge"',"Значок на иконке","Число ожидающих напоминаний.",state.prefs.badge));
+  if(typeof window.showDirectoryPicker==="function")rows.push(row("Копии в папку",state.prefs.autoBackup?"Раз в сутки при открытии Narra сохраняется полная копия. Последние 7 хранятся.":"Автоматические копии дневника в выбранную папку на устройстве.",state.prefs.autoBackup?`<button class="secondary" data-action="autobackup-now">Сохранить сейчас</button><button class="ghost" data-action="autobackup-off">Отключить</button>`:`<button class="secondary" data-action="autobackup-choose">Выбрать папку</button>`));
+  if(globalThis.SpeechRecognition||globalThis.webkitSpeechRecognition)rows.push(row("Диктовка","Кнопка с микрофоном в редакторе печатает то, что вы говорите.",""));
+  rows.push(row("Открытие файлов","Резервные копии .narra и .zip можно открыть двойным щелчком в установленном приложении.",""));
+  return settingsGroup("phone","Это устройство",rows.join(""),"Возможности зависят от браузера; недоступные не показываются.");
+}
+function notifyStatus(){
+  const g=globalThis.Notification?Notification.permission:"unsupported";
+  if(g==="granted")return "Разрешены. Приходят, пока Narra открыта или свёрнута, а на телефоне и компьютере с установленным приложением — и в фоне, если система это позволяет.";
+  if(g==="denied")return "Запрещены в настройках браузера или системы. Разрешите их для этого сайта.";
+  if(g==="unsupported")return /iP(hone|ad|od)/.test(navigator.userAgent)?"На iPhone уведомления доступны после добавления Narra на экран «Домой».":"Этот браузер не поддерживает уведомления.";
+  return "Разрешение будет запрошено при включении.";
 }
 
 /* ---------- feature switches ---------- */
@@ -54,7 +81,7 @@ function featuresTab(){
   return `<p class="subtle settings-lead">Включайте только то, чем пользуетесь. Выключенное пропадает из меню и с экранов; записи и данные остаются на месте и вернутся при включении.</p>
     <div class="features-actions"><span class="subtle text-small">Включено: ${on} из ${FEATURES.length}</span>${btn("features-minimal","Оставить только дневник")}${btn("features-all","Включить всё")}</div>
     ${groups.map(g=>settingsGroup(g==="Разделы"?"layout":g==="Записи"?"pen":"search",g,FEATURES.filter(f=>f.group===g).map(f=>sw(`data-pref="${f.key}"`,f.name,f.desc,featureOn(f.key))).join(""))).join("")}
-    ${settingsGroup("sparkle","Внешний помощник",row("Помощник на основе ИИ","Выключен и не подключён. Управление — в разделе «Приватность».",btn("open-privacy","Открыть настройки")))}`;
+    ${settingsGroup("sparkle","Внешний помощник",row("Помощник на основе ИИ","Необязательный. Подключается ключом от любого ИИ-сервиса; управление — в разделе «Приватность».",btn("open-privacy","Открыть настройки")))}`;
 }
 
 /* ---------- editor ---------- */
@@ -91,14 +118,16 @@ function checkinTab(){
 
 /* ---------- privacy ---------- */
 function aiBlock(){
-  const ai=cleanAiState(state.ai),n=ai.log.length;
+  const ai=cleanAiState(state.ai),n=ai.log.length,p=providerById(ai.provider),ready=Boolean(p&&(state.aiKey||p.needsKey===false));
   const feats=ai.enabled?AI_FEATURES.map(f=>sw(`data-ai="feature:${f.id}"`,f.name,`Отправляется: ${escapeHtml(f.sends)}. Только после вашего подтверждения.`,ai.features[f.id])).join(""):"";
-  return `${settingsGroup("sparkle","Внешний помощник (ИИ)",
+  const conn=ready
+    ?row("Подключено",`${escapeHtml(p.name)} · ${escapeHtml(ai.model||p.model)}${p.local?" · работает на вашем компьютере":""}`,`${btn("ai-connect","Изменить")}${btn("ai-test","Проверить")}${btn("ai-disconnect","Отключить",{cls:"ghost danger-quiet"})}`)
+    :row("Подключение","Вставьте ключ доступа от любого ИИ-сервиса — сервис и модель подберутся сами. Подойдут OpenAI, Claude, Gemini, OpenRouter, Groq, Mistral, DeepSeek, xAI, а также локальные модели (Ollama, LM Studio) и любой сервис, совместимый с OpenAI.",btn("ai-connect","Добавить ключ",{cls:"primary"}));
+  return `${settingsGroup("sparkle","Помощник на основе ИИ",
     sw('data-ai="enabled"',"Разрешить помощника","Выключен по умолчанию. Пока он выключен, ничего никуда не отправляется и кнопки помощника нигде не показываются.",ai.enabled)
-    +row("Подключение",`${NullProvider.name}. В этой версии нет внешнего сервиса, а политика безопасности браузера запрещает сетевые запросы наружу.`,btn("ai-test","Проверить",{attrs:ai.enabled?"":"disabled"}))
-    +feats,
-    "Если помощник когда-нибудь подключат, для каждой функции нужно отдельное согласие, а перед отправкой вы увидите весь текст, который уйдёт. Результат — черновик, он ничего не меняет, пока вы его не примете.")}
-    ${ai.enabled?settingsGroup("history","Журнал обращений",`<div class="setting-row is-stacked"><div class="setting-row-text"><strong>${n?`Записей: ${n}`:"Обращений не было"}</strong><span>В журнале только служебные данные: какая функция, когда, сколько знаков. Текста записей там нет.</span></div>${n?`<ul class="log-list">${ai.log.slice(-6).reverse().map(l=>`<li>${escapeHtml(AI_FEATURES.find(f=>f.id===l.feature)?.name||l.feature)} — ${l.status==="blocked"?"заблокировано":l.status==="ok"?"выполнено":"не удалось"}, ${new Intl.DateTimeFormat("ru-RU",{dateStyle:"short",timeStyle:"short"}).format(new Date(l.at))}</li>`).join("")}</ul><div class="setting-row-control">${btn("ai-clear-log","Очистить журнал")}</div>`:""}</div>`):""}`;
+    +(ai.enabled?conn+feats:""),
+    "Запросы уходят напрямую с вашего устройства выбранному сервису, без посредников. Для каждой функции нужно отдельное согласие, а перед отправкой вы видите весь текст, который уйдёт. Ключ хранится только на этом устройстве в зашифрованном виде и не попадает в резервные копии. Результат — черновик: он ничего не меняет, пока вы его не примете.")}
+    ${ai.enabled?settingsGroup("history","Журнал обращений",`<div class="setting-row is-stacked"><div class="setting-row-text"><strong>${n?`Записей: ${n}`:"Обращений не было"}</strong><span>В журнале только служебные данные: какая функция, когда, сколько знаков. Текста записей там нет.</span></div>${n?`<ul class="log-list">${ai.log.slice(-6).reverse().map(l=>`<li>${escapeHtml(AI_FEATURES.find(f=>f.id===l.feature)?.name||l.feature)} — ${l.status==="blocked"?"заблокировано":l.status==="ok"?"выполнено":"не удалось"}, ${new Intl.DateTimeFormat("ru-RU",{day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"}).format(new Date(l.at))}, ${l.chars} зн.</li>`).join("")}</ul><div class="setting-actions">${btn("ai-clear-log","Очистить журнал")}</div>`:""}</div>`):""}`;
 }
 function privacyTab(){
   const lock=state.lock,min=state.prefs.lockMinutes;
@@ -138,16 +167,16 @@ function dataTab(){
 /* ---------- about ---------- */
 function aboutTab(){
   const shortcuts=[["Ctrl/⌘ K","Палитра команд"],["N","Новая запись"],["/","Поиск"],["Ctrl/⌘ Enter","Готово, закрыть запись"],["Ctrl/⌘ F","Найти в тексте записи (в редакторе) или поиск"],["Esc","Закрыть окно"]];
-  return `${settingsGroup("info","Narra",row("Версия",`${APP_VERSION}. Формат данных: ${escapeHtml(SCHEMA)}.`,"")+row("Обновление приложения","Проверить, нет ли новой версии файлов Narra. Записи не затрагиваются.",`<button class="secondary" data-action="refresh-app-shell">Проверить</button>`)+row("Где хранятся записи","Только в этом браузере, на этом устройстве. Нет аккаунта, сервера и синхронизации.",""))}
+  return `${settingsGroup("info","Narra",row("Версия",`Narra ${APP_VERSION}`,"")+row("Обновление приложения","Проверить, нет ли новой версии файлов Narra. Записи не затрагиваются.",`<button class="secondary" data-action="refresh-app-shell">Проверить</button>`)+row("Где хранятся записи","Только в этом браузере, на этом устройстве. Нет аккаунта, сервера и синхронизации.",""))}
     ${settingsGroup("insights","Как считаются наблюдения",
       row("Что это","Описание совпадений в ваших записях: «в дни с этой темой напряжение чаще выше». Это не причины и не диагнозы.","")
       +row("Когда показываются",`Не раньше чем по ${MIN_N} дням с отметками и по ${MIN_N} дням с этой меткой. Всегда видно, по какому числу дней и за какой период.`,"")
       +row("Метод","Сравнение порядковых значений без предположения о «среднем» (ранговые методы), с поправкой на множественные сравнения. Пропуски не заполняются.","")
       +row("Идентификатор метода",`${escapeHtml(METHOD_ID)} · ${escapeHtml(METHOD_VERSION)}`,""))}
     ${settingsGroup("keyboard","Клавиши",shortcuts.map(([k,t])=>row(t,"",`<kbd>${k}</kbd>`)).join(""))}
-    ${settingsGroup("shield","Чего в этой версии нет",
-      `<div class="setting-row is-stacked"><ul class="plain-list"><li>Аккаунтов, входа по ключу доступа и синхронизации между устройствами — это серверные возможности.</li><li>Внешнего ИИ: подготовлен безопасный слой подключения, но он не подключён.</li><li>Шифрования резервных файлов.</li><li>Push-уведомлений.</li><li>Поиска по смыслу на нейросети: есть только список родственных слов.</li></ul></div>`,
-      "Это локальный прототип для одного пользователя на одном устройстве. Он не заменяет клиническую помощь и не ставит диагнозов.")}`;
+    ${settingsGroup("shield","Что важно знать",
+      `<div class="setting-row is-stacked"><ul class="plain-list"><li>Записи хранятся на этом устройстве. Чтобы перенести их на другое, сделайте резервную копию и откройте её там.</li><li>Файл резервной копии можно защитить паролем — без пароля он читается как обычный файл.</li><li>Поиск по смыслу работает на устройстве и опирается на родственные слова, а не на нейросеть.</li><li>Уведомления приходят без текста дневника. Точное время в фоне зависит от системы устройства.</li></ul></div>`,
+      "Narra не заменяет консультацию специалиста и не ставит диагнозов.")}`;
 }
 
 export function settingsView(){
@@ -194,10 +223,47 @@ export const actions={
     });
   },
   "cfg-clear-own":async el=>{const c=cfg();await store.saveConfig({...c,extra:{...c.extra,[el.dataset.key]:[]}});ctx.render();},
+  "ai-connect":()=>{
+    const ai=cleanAiState(state.ai);
+    ctx.formDialog({title:state.aiKey?"Изменить подключение":"Подключить помощника",iconName:"sparkle",confirmLabel:"Подключить",
+      text:"Достаточно вставить ключ — сервис определится по нему. Остальное можно не трогать.",
+      fields:[
+        {id:"key",label:"Ключ доступа (API key)",type:"password",autocomplete:"off",max:400,hint:"Он хранится только на этом устройстве, в зашифрованном виде."},
+        {id:"provider",label:"Сервис",type:"select",value:ai.provider||"",options:[["","Определить по ключу"],...PROVIDERS.map(p=>[p.id,p.name])]},
+        {id:"model",label:"Модель (необязательно)",type:"text",max:120,value:ai.model||"",hint:"Пусто — подберём недорогую подходящую."},
+        {id:"baseUrl",label:"Адрес API (только для своих и локальных сервисов)",type:"text",max:300,value:ai.baseUrl||"",hint:"Например, https://api.example.com/v1"},
+      ]},async v=>{
+      const key=String(v.key||"").trim(),id=v.provider||detectProvider(key)||(ai.provider&&!key?ai.provider:null);
+      if(!id)return "Не удалось определить сервис по ключу. Выберите его в списке «Сервис».";
+      const p=providerById(id),cfg={provider:id,model:String(v.model||"").trim(),baseUrl:String(v.baseUrl||"").trim()};
+      const useKey=key||(id===ai.provider?state.aiKey:"");
+      if(p.needsKey!==false&&!useKey)return "Вставьте ключ доступа.";
+      if(p.custom&&!cfg.baseUrl)return "Для этого сервиса нужен адрес API.";
+      if(cfg.baseUrl&&!/^https?:\/\/[^\s]+$/i.test(cfg.baseUrl))return "Адрес должен начинаться с https:// (для локальной модели — http://localhost).";
+      let ids=[];
+      try{ids=await listModels(cfg,useKey);}
+      catch(error){
+        if(p.custom||p.local){
+          try{await createProvider({...cfg,model:cfg.model||p.model},useKey).run("summarize","Проверка связи.");}catch(e2){return e2.friendly?e2.message:"Не удалось связаться с сервисом.";}
+        }else return error.friendly?error.message:"Не удалось проверить ключ.";
+      }
+      if(cfg.model&&ids.length&&!ids.includes(cfg.model))return `Такой модели у сервиса нет. Например: ${ids.slice(0,4).join(", ")}.`;
+      cfg.model=cfg.model||pickModel(ids,p.model);
+      if(!cfg.model)return "Не удалось подобрать модель: укажите её название.";
+      await store.saveAiSecret(useKey);
+      await store.saveAiState({...ai,enabled:true,provider:id,model:cfg.model,baseUrl:p.custom||p.local?cfg.baseUrl:(cfg.baseUrl||"")});
+      setTimeout(()=>{ctx.render();ctx.toast(`Помощник подключён: ${p.name}, ${cfg.model}.`);},60);
+      return "";
+    });
+  },
+  "ai-disconnect":()=>ctx.confirmDialog({title:"Отключить помощника?",text:"Ключ будет удалён с этого устройства. Записи не затрагиваются. Подключить снова можно в любой момент.",confirmLabel:"Отключить",iconName:"sparkle"},async()=>{
+    const ai=cleanAiState(state.ai);await store.saveAiSecret("");await store.saveAiState({...ai,provider:null,model:"",baseUrl:""});ctx.render();ctx.toast("Помощник отключён, ключ удалён.");
+  }),
   "ai-test":async()=>{
-    const res=await runFeature({state:state.ai,provider:NullProvider,featureId:"questions",items:[{id:"probe",title:"Проверка",text:"Проверка связи. Текст записей не используется."}],confirmed:true});
-    if(res.log){const ai=cleanAiState(state.ai);await store.saveAiState({...ai,log:[...ai.log,res.log]});ctx.render();}
-    ctx.toast(res.ok?"Помощник ответил.":(res.message||REASON_TEXT[res.reason]||"Помощник недоступен."));
+    const ai=cleanAiState(state.ai);
+    const res=await runFeature({state:{...ai,enabled:true,features:{...ai.features,summarize:true}},provider:createProvider(ai,state.aiKey),featureId:"summarize",items:[{id:"probe",title:"Проверка",text:"Проверка связи. Текст записей не используется."}],confirmed:true});
+    if(res.log){await store.saveAiState({...ai,log:[...ai.log,res.log]});ctx.render();}
+    ctx.toast(res.ok?"Помощник ответил — всё работает.":(res.message||REASON_TEXT[res.reason]||"Помощник недоступен."));
   },
   "refresh-app-shell":async()=>{
     if(!("serviceWorker" in navigator)){ctx.toast("В этом браузере обновление файлов не требуется.");return;}

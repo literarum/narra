@@ -1,9 +1,9 @@
 /* Narra demo data: a synthetic, clearly fictional diary used by demo mode and by tests.
    Seeded and deterministic. Effects are planted on purpose (days with work → higher tension, days with a walk → better mood),
    so the tests can check that the insights find exactly what was planted and nothing else. Pure, no DOM. */
-import {cleanEntry} from "./domain.mjs?v=4.4.0";
-import {cleanCheckin} from "./checkin.mjs?v=4.4.0";
-import {addDays} from "./stats.mjs?v=4.4.0";
+import {cleanEntry} from "./domain.mjs?v=4.5.0";
+import {cleanCheckin} from "./checkin.mjs?v=4.5.0";
+import {addDays} from "./stats.mjs?v=4.5.0";
 
 export function rng(seed){let a=seed>>>0;return()=>{a=(a+0x6D2B79F5)>>>0;let t=a;t=Math.imul(t^(t>>>15),t|1);t^=t+Math.imul(t^(t>>>7),t|61);return((t^(t>>>14))>>>0)/4294967296;};}
 

@@ -1,5 +1,5 @@
 (() => {
-  const BUILD = "4.4.0";
+  const BUILD = "4.5.0";
   const allowed = location.protocol === "http:" || location.protocol === "https:";
 
   function showStartup(message, details = "", steps = true) {

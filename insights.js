@@ -1,14 +1,14 @@
 /* Insights («Наблюдения»): what the check-ins and entries say, described — never diagnosed.
    Every number comes with how many observations it rests on and which period; every chart has a table with the same data;
    an association is only shown when at least 10 days stand on each side, and it is worded as a coincidence, not a cause. */
-import {state,ctx,$,escapeHtml,icon,todayKey,checkinLabel,dayLabel,entryLabel,activeEntries,fmtDate,featureOn} from "./core.js?v=4.4.0";
-import {pageHeader,emptyState,tabs,chip} from "./kit.js?v=4.4.0";
-import {stateCards,contextAssociations,curateAssociations,describeAssociation,emotionStats,entityStats,rhythm,statePartOfDay,writingEffect,medianLabel,checkinWord} from "./insights-model.mjs?v=4.4.0";
-import {lineChart,barChart,monthStrip,dataTable} from "./charts.mjs?v=4.4.0";
-import {MIN_N,addDays,dayKey} from "./stats.mjs?v=4.4.0";
-import {activeDimensions,EMOTION_GROUP_OF,EMOTION_GROUPS,dimLabel} from "./checkin.mjs?v=4.4.0";
-import {ENTITY_TYPES} from "./entities.mjs?v=4.4.0";
-import {pluralRu} from "./domain.mjs?v=4.4.0";
+import {state,ctx,$,escapeHtml,icon,todayKey,checkinLabel,dayLabel,entryLabel,activeEntries,fmtDate,featureOn} from "./core.js?v=4.5.0";
+import {pageHeader,emptyState,tabs,chip} from "./kit.js?v=4.5.0";
+import {stateCards,contextAssociations,curateAssociations,describeAssociation,emotionStats,entityStats,rhythm,statePartOfDay,writingEffect,medianLabel,checkinWord} from "./insights-model.mjs?v=4.5.0";
+import {lineChart,barChart,monthStrip,dataTable} from "./charts.mjs?v=4.5.0";
+import {MIN_N,addDays,dayKey} from "./stats.mjs?v=4.5.0";
+import {activeDimensions,EMOTION_GROUP_OF,EMOTION_GROUPS,dimLabel} from "./checkin.mjs?v=4.5.0";
+import {ENTITY_TYPES} from "./entities.mjs?v=4.5.0";
+import {pluralRu} from "./domain.mjs?v=4.5.0";
 
 const TABS=[["overview","Обзор"],["states","Состояния"],["contexts","Что с чем совпадает"],["emotions","Эмоции"],["themes","Темы и люди"],["rhythm","Ритм письма"],["writing","Письмо"]];
 const PERIODS=[[30,"30 дней"],[90,"90 дней"],[365,"Год"],[0,"Всё время"]];

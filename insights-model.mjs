@@ -1,10 +1,10 @@
 /* Narra insights model: everything the Insights screen shows, computed as plain data. Pure and testable.
    Rules: at least 10 observations on each side, days as the unit, medians and ranks (the scales are ordinal), missing data stays missing,
    several comparisons are corrected (Benjamini–Hochberg), and the wording that goes with a result is associative — never causal. */
-import {activeDimensions,dimLabel,dimValue,knownDimensions,EMOTION_GROUP_OF} from "./checkin.mjs?v=4.4.0";
-import {dayKey,addDays,median,spread,distribution,dailySeries,rollingMedian,baselineCompare,pairedChange,dayStates,associate,cooccurrence,timeOfDay,TIME_BUCKETS,weeklyCounts,MIN_N,STRONG_N,METHOD_VERSION,benjaminiHochberg,daysBetween,quantile} from "./stats.mjs?v=4.4.0";
-import {collectEntities,contextDayMap,labelFor,buildAliasMap,monthDistribution,listByType} from "./entities.mjs?v=4.4.0";
-import {wordCount,pluralRu} from "./domain.mjs?v=4.4.0";
+import {activeDimensions,dimLabel,dimValue,knownDimensions,EMOTION_GROUP_OF} from "./checkin.mjs?v=4.5.0";
+import {dayKey,addDays,median,spread,distribution,dailySeries,rollingMedian,baselineCompare,pairedChange,dayStates,associate,cooccurrence,timeOfDay,TIME_BUCKETS,weeklyCounts,MIN_N,STRONG_N,METHOD_VERSION,benjaminiHochberg,daysBetween,quantile} from "./stats.mjs?v=4.5.0";
+import {collectEntities,contextDayMap,labelFor,buildAliasMap,monthDistribution,listByType} from "./entities.mjs?v=4.5.0";
+import {wordCount,pluralRu} from "./domain.mjs?v=4.5.0";
 
 export const METHOD_ID="day-state-v1";
 const plural={n:(n,a,b,c)=>pluralRu(n,a,b,c)};

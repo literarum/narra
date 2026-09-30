@@ -2,17 +2,17 @@
    The draft is assembled from the person's own entries and check-ins — no model writes anything. Every factual line can show its sources
    and can be hidden; the person's own words live in separate fields, so rebuilding a draft never destroys them.
    The yearly review can be printed as a small book. */
-import {state,ctx,$,$$,escapeHtml,icon,uid,nowIso,downloadBlob,isoStamp,localDateKey,entryLabel,fmtDate,featureOn} from "./core.js?v=4.4.0";
-import {pageHeader,emptyState,tabs} from "./kit.js?v=4.4.0";
-import {PERIOD_KINDS,periodRange,shiftPeriod,buildReview,SECTION_TITLES,SECTION_ORDER,reviewToMarkdown,buildBook} from "./review.mjs?v=4.4.0";
-import {entryText,plural} from "./text.mjs?v=4.4.0";
-import {renderMarkdown} from "./md.mjs?v=4.4.0";
-import {capitalizeRu} from "./domain.mjs?v=4.4.0";
-import {dayKey} from "./stats.mjs?v=4.4.0";
-import {reviewSheetHtml as sheetHtml,bookSheetHtml as bookPrint} from "./print.mjs?v=4.4.0";
-import {aliasMap} from "./derived.js?v=4.4.0";
-import * as store from "./store.js?v=4.4.0";
-import * as media from "./media.js?v=4.4.0";
+import {state,ctx,$,$$,escapeHtml,icon,uid,nowIso,downloadBlob,isoStamp,localDateKey,entryLabel,fmtDate,featureOn} from "./core.js?v=4.5.0";
+import {pageHeader,emptyState,tabs} from "./kit.js?v=4.5.0";
+import {PERIOD_KINDS,periodRange,shiftPeriod,buildReview,SECTION_TITLES,SECTION_ORDER,reviewToMarkdown,buildBook} from "./review.mjs?v=4.5.0";
+import {entryText,plural} from "./text.mjs?v=4.5.0";
+import {renderMarkdown} from "./md.mjs?v=4.5.0";
+import {capitalizeRu} from "./domain.mjs?v=4.5.0";
+import {dayKey} from "./stats.mjs?v=4.5.0";
+import {reviewSheetHtml as sheetHtml,bookSheetHtml as bookPrint} from "./print.mjs?v=4.5.0";
+import {aliasMap} from "./derived.js?v=4.5.0";
+import * as store from "./store.js?v=4.5.0";
+import * as media from "./media.js?v=4.5.0";
 
 let showHidden=false,saveTimer=null,saveState="idle";
 const range=()=>periodRange(state.reviewKind,state.reviewCursor);

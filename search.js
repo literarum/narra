@@ -1,17 +1,17 @@
 /* Search: words, phrases and filters over the whole diary, on this device only.
    Understands time phrases («весной 2025», «в марте», «на прошлой неделе») and shows them as removable chips.
    Optional «близость слов» (feature switch) adds entries with related words and says why each was included. */
-import {state,ctx,$,escapeHtml,icon,kindOptions,kindLabels,capitalizeRu,featureOn,activeEntries,mediaOf,entryLabel,matchLabel} from "./core.js?v=4.4.0";
-import {searchEntries,foldRu,stemRu} from "./domain.mjs?v=4.4.0";
-import {parseTimeHints,hybridSearch,expandQuery} from "./semantic.mjs?v=4.4.0";
-import {EMOTION_GROUPS} from "./checkin.mjs?v=4.4.0";
-import {chapterOf,sortChapters} from "./entities.mjs?v=4.4.0";
-import {dayKey} from "./stats.mjs?v=4.4.0";
-import {pageHeader,emptyState,selectHtml,field,checkRow,chip} from "./kit.js?v=4.4.0";
-import {entryRow} from "./entries-ui.js?v=4.4.0";
-import {entityMap,semanticIndex} from "./derived.js?v=4.4.0";
-import {listByType} from "./entities.mjs?v=4.4.0";
-import * as media from "./media.js?v=4.4.0";
+import {state,ctx,$,escapeHtml,icon,kindOptions,kindLabels,capitalizeRu,featureOn,activeEntries,mediaOf,entryLabel,matchLabel} from "./core.js?v=4.5.0";
+import {searchEntries,foldRu,stemRu} from "./domain.mjs?v=4.5.0";
+import {parseTimeHints,hybridSearch,expandQuery} from "./semantic.mjs?v=4.5.0";
+import {EMOTION_GROUPS} from "./checkin.mjs?v=4.5.0";
+import {chapterOf,sortChapters} from "./entities.mjs?v=4.5.0";
+import {dayKey} from "./stats.mjs?v=4.5.0";
+import {pageHeader,emptyState,selectHtml,field,checkRow,chip} from "./kit.js?v=4.5.0";
+import {entryRow} from "./entries-ui.js?v=4.5.0";
+import {entityMap,semanticIndex} from "./derived.js?v=4.5.0";
+import {listByType} from "./entities.mjs?v=4.5.0";
+import * as media from "./media.js?v=4.5.0";
 
 const norm=s=>String(s||"").toLocaleLowerCase("ru-RU");
 const PAGE=30;
@@ -164,8 +164,8 @@ function filtersMarkup(){
   const chapters=sortChapters(state.chapters),emotions=EMOTION_GROUPS.flatMap(g=>g.items),n=filtersCount();
   return `<details class="filters-panel" ${n?"open":""}><summary>${icon("filter")}<span>Фильтры</span>${n?`<span class="filter-count">${n}</span>`:""}</summary><div class="filters-grid">
     ${field("Тип",selectHtml("sf-kind",[["all","Все типы"],...kindOptions.map(([k,v])=>[k,capitalizeRu(v)])],state.searchKind,{label:"Тип записи"}))}
-    ${field("С даты",`<input type="date" data-datepicker data-clearable data-placeholder="Любая дата" id="sf-from" value="${escapeHtml(state.searchFrom)}">`)}
-    ${field("По дату",`<input type="date" data-datepicker data-clearable data-placeholder="Любая дата" id="sf-to" value="${escapeHtml(state.searchTo)}">`)}
+    ${field("С даты",`<input type="date" data-datepicker data-clearable data-placeholder="Любая" id="sf-from" value="${escapeHtml(state.searchFrom)}">`)}
+    ${field("По дату",`<input type="date" data-datepicker data-clearable data-placeholder="Любая" id="sf-to" value="${escapeHtml(state.searchTo)}">`)}
     ${field("Тема",`<input class="input" id="sf-theme" autocomplete="off" value="${escapeHtml(state.searchTheme)}" placeholder="тема">`)}
     ${field("Человек",`<input class="input" id="sf-person" autocomplete="off" value="${escapeHtml(state.searchPerson)}" placeholder="имя">`)}
     ${field("Место",`<input class="input" id="sf-place" autocomplete="off" value="${escapeHtml(state.searchPlace)}" placeholder="место">`)}

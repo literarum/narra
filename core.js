@@ -1,9 +1,9 @@
 /* Narra core: shared state, preferences, formatting helpers and the `ctx` object that feature modules use.
    No storage, no rendering. Modules import from here; app.js fills `ctx` with the functions it owns. */
-import {pluralRu,capitalizeRu,wordCount} from "./domain.mjs?v=4.4.0";
-import {plural,strip} from "./text.mjs?v=4.4.0";
+import {pluralRu,capitalizeRu,wordCount} from "./domain.mjs?v=4.5.0";
+import {plural,strip} from "./text.mjs?v=4.5.0";
 
-export const APP_VERSION="4.4.0";
+export const APP_VERSION="4.5.0";
 export const DB_NAME_MAIN="narra-prototype-v1",DB_NAME_DEMO="narra-demo-v1";
 export const ROUTES=["today","journal","insights","lifemap","search","memories","reviews","settings"];
 export const VALID_ROUTES=new Set(ROUTES);
@@ -25,7 +25,7 @@ export const PREF_DEFAULTS={
   /* feature switches: everything optional can be turned off, and its sections disappear */
   featInsights:true,featLifemap:true,featMemories:true,featReviews:true,featChapters:true,featDecisions:true,featMedia:true,
   featWritingAssist:true,featEntitySuggest:true,featSemantic:true,featEmotionsInJournal:true,
-  onboarded:false,quickKey:"n",reminderOn:false,reminderTime:"21:00",lockMinutes:0,journalPage:40,hideDeleteHint:false
+  onboarded:false,quickKey:"n",reminderOn:false,reminderTime:"21:00",notifyDaily:false,notifyWeekly:false,notifyWeeklyDay:0,notifyDecisions:false,notifyMemory:false,autoBackup:false,keepAwake:true,haptics:true,badge:true,lockMinutes:0,journalPage:40,hideDeleteHint:false
 };
 export const FEATURES=[
   {key:"featInsights",name:"Наблюдения",desc:"Сводки по отметкам и записям: состояния, контексты, эмоции, темы, ритм.",group:"Разделы"},
@@ -55,6 +55,7 @@ export function loadPrefs(){
   if(!VALID_ROUTES.has(prefs.startRoute))prefs.startRoute="today";
   if(!["n","c","off"].includes(prefs.quickKey))prefs.quickKey="n";
   if(!/^([01]\d|2[0-3]):[0-5]\d$/.test(prefs.reminderTime))prefs.reminderTime="21:00";
+  if(![0,1,2,3,4,5,6].includes(prefs.notifyWeeklyDay))prefs.notifyWeeklyDay=0;
   if(![0,1,5,15,60].includes(prefs.lockMinutes))prefs.lockMinutes=0;
   if(![20,40,80].includes(prefs.journalPage))prefs.journalPage=40;
   return prefs;
@@ -66,7 +67,7 @@ const now=new Date();
 export const state={
   prefs:loadPrefs(),route:"today",mode:safeStorageGet("narra-mode")==="demo"?"demo":"main",
   entries:[],checkins:[],attachments:[],chapters:[],reviews:[],entityNotes:[],
-  config:null,ai:null,lock:null,locked:false,mutedMemoryIds:[],mutedTopics:[],
+  config:null,ai:null,aiKey:"",lock:null,locked:false,mutedMemoryIds:[],mutedTopics:[],
   journalView:"timeline",journalLimit:40,journalFilters:{},journalSelect:false,journalSelected:new Set(),
   calendarCursor:new Date(now.getFullYear(),now.getMonth(),1),calendarSelectedDate:null,
   reviewKind:"month",reviewCursor:new Date(now.getFullYear(),now.getMonth(),1),

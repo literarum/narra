@@ -1,19 +1,20 @@
 /* Backup, export, import, demo data and the self-check.
    Formats (schema-versioned): a full ZIP with manifest + JSON + media, a JSON file without media, a Markdown folder (ZIP), CSV.
-   Nothing here talks to a network. Files are NOT encrypted; the interface says so before every export. */
-import {state,ctx,$,$$,escapeHtml,icon,uid,nowIso,downloadBlob,isoStamp,safeStorageSet,safeStorageRemove,APP_VERSION,entryLabel,plural} from "./core.js?v=4.4.0";
-import {SCHEMA,planImport,cleanEntry} from "./domain.mjs?v=4.4.0";
-import {createZip,readZip,utf8,toBytes,safeSegment} from "./zip.mjs?v=4.4.0";
-import {entryToMarkdown,entriesFromMarkdownFiles,MAX_MD_FILE} from "./importers.mjs?v=4.4.0";
-import {knownDimensions,dimValue} from "./checkin.mjs?v=4.4.0";
-import {chapterOf} from "./entities.mjs?v=4.4.0";
-import {wordCount} from "./domain.mjs?v=4.4.0";
-import {makeDemo} from "./demo.mjs?v=4.4.0";
-import {modalHeader} from "./kit.js?v=4.4.0";
-import {dayKey} from "./stats.mjs?v=4.4.0";
-import * as store from "./store.js?v=4.4.0";
-import * as media from "./media.js?v=4.4.0";
-import * as privacy from "./privacy.js?v=4.4.0";
+   Nothing here talks to a network. Files are plain unless the person picks the password-protected copy (seal.mjs); the interface says which. */
+import {state,ctx,$,$$,escapeHtml,icon,uid,nowIso,downloadBlob,isoStamp,safeStorageSet,safeStorageRemove,APP_VERSION,entryLabel,plural} from "./core.js?v=4.5.0";
+import {SCHEMA,planImport,cleanEntry} from "./domain.mjs?v=4.5.0";
+import {seal,unseal,isSealed} from "./seal.mjs?v=4.5.0";
+import {createZip,readZip,utf8,toBytes,safeSegment} from "./zip.mjs?v=4.5.0";
+import {entryToMarkdown,entriesFromMarkdownFiles,MAX_MD_FILE} from "./importers.mjs?v=4.5.0";
+import {knownDimensions,dimValue} from "./checkin.mjs?v=4.5.0";
+import {chapterOf} from "./entities.mjs?v=4.5.0";
+import {wordCount} from "./domain.mjs?v=4.5.0";
+import {makeDemo} from "./demo.mjs?v=4.5.0";
+import {modalHeader} from "./kit.js?v=4.5.0";
+import {dayKey} from "./stats.mjs?v=4.5.0";
+import * as store from "./store.js?v=4.5.0";
+import * as media from "./media.js?v=4.5.0";
+import * as privacy from "./privacy.js?v=4.5.0";
 
 const EXT={"image/jpeg":"jpg","image/png":"png","image/webp":"webp","audio/webm":"webm","audio/mp4":"m4a","audio/mpeg":"mp3","audio/ogg":"ogg","audio/wav":"wav","audio/x-m4a":"m4a"};
 const extOf=mime=>EXT[String(mime||"").split(";")[0]]||"bin";
@@ -90,15 +91,40 @@ export async function buildMarkdownZip(){
 /* ---------- export UI ---------- */
 function exportMenu(){
   const opt=(action,iconName,title,text)=>`<button class="more-menu-item" data-action="${action}">${icon(iconName)}<span><strong>${title}</strong><small>${text}</small></span>${icon("chevron-right")}</button>`;
-  ctx.overlay(`${modalHeader("Резервная копия и экспорт","Файлы сохраняются на это устройство. Они не зашифрованы.","backup")}<div class="modal-body more-menu">
+  ctx.overlay(`${modalHeader("Резервная копия и экспорт","Файлы сохраняются на это устройство. Обычные копии не зашифрованы.","backup")}<div class="modal-body more-menu">
     ${opt("export-zip","backup","Полная копия (ZIP)","Записи, история, отметки, главы, обзоры, фото и аудио. Лучший вариант для восстановления.")}
+    ${opt("export-zip-enc","shield","Полная копия с паролем","То же, что ZIP, но файл зашифрован вашим паролем. Без пароля его не открыть — храните пароль отдельно.")}
     ${opt("export-json","journal","Только данные (JSON)","Без фото и аудио. Полный текст и история версий.")}
     ${opt("export-md","pen","Markdown-папка (ZIP)","Отдельный файл для каждой записи; читается любым редактором.")}
     ${opt("export-csv-entries","table","Записи в CSV","Таблица для Excel и анализа.")}
     ${opt("export-csv-checkins","state","Отметки состояния в CSV","Числовые значения, эмоции и контекст по времени.")}
   </div><p class="setting-note modal-note">${icon("info")} В русском Excel CSV открывайте через «Данные → Из текста/CSV», кодировка UTF-8.</p>`,"modal","Резервная копия");
 }
+function askSealPassword(){
+  ctx.closeOverlay({restoreFocus:false});
+  ctx.formDialog({title:"Пароль для копии",text:"Файл будет зашифрован этим паролем. Восстановить пароль нельзя — без него копию не открыть.",iconName:"shield",confirmLabel:"Сохранить копию",fields:[
+    {id:"p1",label:"Пароль",type:"password",autocomplete:"new-password",max:200,hint:"Не меньше 8 знаков."},
+    {id:"p2",label:"Повторите пароль",type:"password",autocomplete:"new-password",max:200}]},async v=>{
+    if(v.p1.length<8)return "Пароль должен быть не короче 8 знаков.";
+    if(v.p1!==v.p2)return "Пароли не совпадают.";
+    if(!await privacy.reauth("Копия содержит весь дневник. Подтвердите паролем от Narra."))return "Копия не создана.";
+    ctx.toast("Шифруем копию…",null,{duration:3000});
+    const {zip,manifest}=await buildFullZip();
+    const bytes=await seal(new Uint8Array(await new Blob([zip]).arrayBuffer()),v.p1);
+    downloadBlob(bytes,"application/octet-stream",`narra-backup-${isoStamp()}.narra`);
+    ctx.toast(`Защищённая копия сохранена: записей ${manifest.counts.entries}. Пароль восстановить нельзя.`);
+    return "";
+  });
+}
+async function askOpenPassword(name){
+  return new Promise(resolve=>{
+    let done=false;
+    ctx.formDialog({title:"Пароль от копии",text:`Файл «${name}» защищён паролем.`,iconName:"shield",confirmLabel:"Открыть",fields:[{id:"p",label:"Пароль",type:"password",autocomplete:"current-password",max:200}]},async v=>{done=true;resolve(v.p);return "";});
+    const off=setInterval(()=>{if(!document.querySelector("#dialog-root form")){clearInterval(off);if(!done)resolve(null);}},300);
+  });
+}
 async function doExport(kind){
+  if(kind==="zip-enc")return askSealPassword();
   if(!await privacy.reauth("Экспорт выгружает весь дневник открытым текстом. Подтвердите паролем."))return;
   ctx.closeOverlay({restoreFocus:false});
   ctx.toast("Готовим файл…",null,{duration:2500});
@@ -115,24 +141,35 @@ async function doExport(kind){
 
 /* ---------- import ---------- */
 const readText=f=>f.text();
-async function readAny(files){
-  const list=[...files];
-  if(!list.length)return null;
-  const zips=list.filter(f=>/\.zip$/i.test(f.name)),jsons=list.filter(f=>/\.json$/i.test(f.name)),mds=list.filter(f=>/\.(md|markdown|txt)$/i.test(f.name));
-  if(zips.length){
-    const items=readZip(new Uint8Array(await zips[0].arrayBuffer())),byName=new Map(items.map(i=>[i.name,i]));
+async function readZipSource(bytes,name){
+    const items=readZip(bytes),byName=new Map(items.map(i=>[i.name,i]));
     const main=byName.get("narra.json");
     if(main){
       let payload;try{payload=JSON.parse(utf8(await main.read()));}catch{throw new Error("Файл narra.json в архиве повреждён.");}
-      return {source:"zip",payload,zipItems:byName,name:zips[0].name};
+      return {source:"zip",payload,zipItems:byName,name};
     }
     const mdItems=items.filter(i=>/\.(md|markdown)$/i.test(i.name)&&!/(^|\/)README/i.test(i.name));
     if(mdItems.length){
       const files=[];for(const i of mdItems){if(i.size>MAX_MD_FILE)continue;files.push({name:i.name.split("/").pop(),text:utf8(await i.read()),path:i.name});}
-      return {source:"markdown-zip",files,zipItems:byName,name:zips[0].name};
+      return {source:"markdown-zip",files,zipItems:byName,name};
     }
     throw new Error("В архиве нет ни narra.json, ни файлов Markdown.");
+}
+async function readAny(files){
+  const list=[...files];
+  if(!list.length)return null;
+  for(const f of list){
+    const head=new Uint8Array(await f.slice(0,8).arrayBuffer());
+    if(!/\.narra$/i.test(f.name)&&!isSealed(new Uint8Array([...head,...new Uint8Array(64)])))continue;
+    const all=new Uint8Array(await f.arrayBuffer());
+    if(!isSealed(all))continue;
+    const pass=await askOpenPassword(f.name);
+    if(pass==null)return null;
+    const zipBytes=await unseal(all,pass);
+    return readZipSource(zipBytes,f.name);
   }
+  const zips=list.filter(f=>/\.zip$/i.test(f.name)),jsons=list.filter(f=>/\.json$/i.test(f.name)),mds=list.filter(f=>/\.(md|markdown|txt)$/i.test(f.name));
+  if(zips.length)return readZipSource(new Uint8Array(await zips[0].arrayBuffer()),zips[0].name);
   if(jsons.length){
     let payload;try{payload=JSON.parse(await readText(jsons[0]));}catch{throw new Error("Файл не читается как JSON.");}
     return {source:"json",payload,name:jsons[0].name};
@@ -141,7 +178,7 @@ async function readAny(files){
     const files=[];for(const f of mds){if(f.size>MAX_MD_FILE)continue;files.push({name:f.name,text:await readText(f),path:f.name});}
     return {source:"markdown",files,name:mds.length===1?mds[0].name:`${mds.length} файлов`};
   }
-  throw new Error("Поддерживаются файлы .zip, .json и .md.");
+  throw new Error("Поддерживаются файлы .zip, .narra, .json и .md.");
 }
 const sameKey=e=>`${dayKey(e.happenedAt)}|${(e.title||"").trim()}|${e.body.trim()}`;
 function planMarkdown(src){
@@ -159,10 +196,10 @@ function previewMarkup(plan,src){
     ${row(s.newEntries,`${entryLabel(s.newEntries)} будет добавлено`)}${row(s.updatedEntries,"записей в файле новее — они обновятся, старый текст останется в истории")}${row(s.conflictEntries,"записей отличаются от ваших — они добавятся отдельными копиями")}
     ${row(s.newCheckins,"отметок состояния")}${row(s.newVersions,"версий из истории")}${row(s.newChapters,"глав жизни")}${row(s.newReviews,"обзоров")}${mediaCount?row(mediaCount,"вложений (если записи будут добавлены)"):""}</ul>`}
     ${s.skippedEntries?`<p class="subtle text-small">Пропущено как уже имеющиеся: ${s.skippedEntries}.</p>`:""}${s.invalidEntries?`<p class="subtle text-small">Не удалось прочитать: ${s.invalidEntries}.</p>`:""}
-    ${plan.fromSchema&&plan.fromSchema!==SCHEMA&&plan.fromSchema!=="markdown"?`<p class="subtle text-small">Формат файла: ${escapeHtml(plan.fromSchema)}. Он будет приведён к текущему автоматически.</p>`:""}
+    ${plan.fromSchema&&plan.fromSchema!==SCHEMA&&plan.fromSchema!=="markdown"?`<p class="subtle text-small">Файл создан в другой версии Narra. Он будет приведён к текущей автоматически.</p>`:""}
   </div><footer class="modal-footer"><button class="secondary" data-action="close-overlay">Отмена</button><button class="primary" data-action="import-apply" ${plan.nothingToDo?"disabled":""}>Восстановить</button></footer>`;
 }
-async function beginImport(files){
+export async function beginImport(files){
   try{
     const src=await readAny(files);if(!src)return;
     const plan=src.source.startsWith("markdown")?planMarkdown(src):planImport(src.payload,{entries:state.entries,checkins:state.checkins,versions:[],chapters:state.chapters,reviews:state.reviews});
@@ -172,7 +209,7 @@ async function beginImport(files){
   }catch(error){console.error(error);ctx.toast(error?.message||"Не удалось прочитать файл.");}
 }
 function pickFiles(){
-  const input=document.createElement("input");input.type="file";input.multiple=true;input.accept=".zip,.json,.md,.markdown,.txt";input.hidden=true;
+  const input=document.createElement("input");input.type="file";input.multiple=true;input.accept=".zip,.narra,.json,.md,.markdown,.txt";input.hidden=true;
   input.addEventListener("change",()=>{const f=[...input.files];input.remove();if(f.length)beginImport(f);});
   input.addEventListener("cancel",()=>input.remove());
   document.body.append(input);input.click();
@@ -301,7 +338,7 @@ async function eraseAll(){
 export const views={};
 export const actions={
   "export":()=>exportMenu(),
-  "export-zip":()=>doExport("zip"),"export-json":()=>doExport("json"),"export-md":()=>doExport("md"),
+  "export-zip":()=>doExport("zip"),"export-zip-enc":()=>doExport("zip-enc"),"export-json":()=>doExport("json"),"export-md":()=>doExport("md"),
   "export-csv-entries":()=>doExport("csv-entries"),"export-csv-checkins":()=>doExport("csv-checkins"),
   "import":()=>pickFiles(),
   "import-apply":()=>applyImport(),
