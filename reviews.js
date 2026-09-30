@@ -2,16 +2,17 @@
    The draft is assembled from the person's own entries and check-ins — no model writes anything. Every factual line can show its sources
    and can be hidden; the person's own words live in separate fields, so rebuilding a draft never destroys them.
    The yearly review can be printed as a small book. */
-import {state,ctx,$,$$,escapeHtml,icon,uid,nowIso,downloadBlob,isoStamp,localDateKey,entryLabel,fmtDate,featureOn} from "./core.js?v=4.2.0";
-import {pageHeader,emptyState,tabs} from "./kit.js?v=4.2.0";
-import {PERIOD_KINDS,periodRange,shiftPeriod,buildReview,SECTION_TITLES,SECTION_ORDER,reviewToMarkdown,buildBook} from "./review.mjs?v=4.2.0";
-import {entryText,plural} from "./text.mjs?v=4.2.0";
-import {renderMarkdown} from "./md.mjs?v=4.2.0";
-import {capitalizeRu} from "./domain.mjs?v=4.2.0";
-import {dayKey} from "./stats.mjs?v=4.2.0";
-import {aliasMap} from "./derived.js?v=4.2.0";
-import * as store from "./store.js?v=4.2.0";
-import * as media from "./media.js?v=4.2.0";
+import {state,ctx,$,$$,escapeHtml,icon,uid,nowIso,downloadBlob,isoStamp,localDateKey,entryLabel,fmtDate,featureOn} from "./core.js?v=4.3.0";
+import {pageHeader,emptyState,tabs} from "./kit.js?v=4.3.0";
+import {PERIOD_KINDS,periodRange,shiftPeriod,buildReview,SECTION_TITLES,SECTION_ORDER,reviewToMarkdown,buildBook} from "./review.mjs?v=4.3.0";
+import {entryText,plural} from "./text.mjs?v=4.3.0";
+import {renderMarkdown} from "./md.mjs?v=4.3.0";
+import {capitalizeRu} from "./domain.mjs?v=4.3.0";
+import {dayKey} from "./stats.mjs?v=4.3.0";
+import {reviewSheetHtml as sheetHtml,bookSheetHtml as bookPrint} from "./print.mjs?v=4.3.0";
+import {aliasMap} from "./derived.js?v=4.3.0";
+import * as store from "./store.js?v=4.3.0";
+import * as media from "./media.js?v=4.3.0";
 
 let showHidden=false,saveTimer=null,saveState="idle";
 const range=()=>periodRange(state.reviewKind,state.reviewCursor);
@@ -94,29 +95,31 @@ async function shift(delta){
 }
 
 /* ---------- printing ---------- */
-function printRoot(html){
+async function printRoot(html){
   $("#print-root")?.remove();
   const root=document.createElement("div");root.id="print-root";root.className="print-root";root.innerHTML=html;document.body.append(root);
   document.body.classList.add("print-mode");
-  const done=()=>{root.remove();document.body.classList.remove("print-mode");window.removeEventListener("afterprint",done);};
+  let finished=false;
+  const done=()=>{if(finished)return;finished=true;root.remove();document.body.classList.remove("print-mode");window.removeEventListener("afterprint",done);};
   window.addEventListener("afterprint",done);
+  setTimeout(done,180000); // some browsers (iOS home-screen apps) never report afterprint: do not leave the diary hidden
   media.hydrate(root);
-  setTimeout(()=>window.print(),350);
+  // pictures are decoded asynchronously: give them a moment (at most 4 s) so the printout is not missing them
+  const pending=[...root.querySelectorAll("img")].filter(i=>!i.complete);
+  if(pending.length)await Promise.race([Promise.all(pending.map(i=>new Promise(r=>{i.addEventListener("load",r,{once:true});i.addEventListener("error",r,{once:true});}))),new Promise(r=>setTimeout(r,4000))]);
+  await new Promise(r=>setTimeout(r,350));
+  window.print();
 }
 function reviewPrintHtml(r){
-  const review=build(r),saved=savedFor(r.id),hidden=new Set(saved.hidden||[]);
-  return `<article class="print-review"><h1>${escapeHtml(capitalizeRu(r.label))}</h1><p class="print-sub">${review.stats.entries} ${plural.entry(review.stats.entries)} · ${review.stats.words} ${plural.word(review.stats.words)}</p>${SECTION_ORDER.map(k=>{
-    const facts=(review.sections[k]||[]).filter(f=>!hidden.has(f.id)),own=(saved.sections?.[k]||"").trim();
-    if(!facts.length&&!own)return "";
-    return `<section><h2>${SECTION_TITLES[k]}</h2>${facts.length?`<ul>${facts.map(f=>`<li>${escapeHtml(f.text)}</li>`).join("")}</ul>`:""}${own?`<p class="own">${escapeHtml(own).replace(/\n/g,"<br>")}</p>`:""}</section>`;
-  }).join("")}</article>`;
+  const review=build(r),saved=savedFor(r.id),hidden=new Set(saved.hidden||[]),counts=new Map();
+  for(const e of state.entries){if(e.deletedAt)continue;const k=dayKey(e.happenedAt);if(k>=r.from&&k<=r.to)counts.set(k,(counts.get(k)||0)+1);}
+  return sheetHtml({review,saved,hidden,counts,label:capitalizeRu(r.label)});
 }
 function bookHtml(r){
   const book=buildBook({range:r,entries:state.entries,checkins:state.checkins,config:state.config,chapters:state.chapters,notes:state.entityNotes,saved:savedFor(r.id),includeAll:false,now:new Date()});
-  const saved=book.saved,own=SECTION_ORDER.map(k=>({k,text:(saved.sections?.[k]||"").trim()})).filter(x=>x.text);
-  return `<article class="print-book"><section class="book-cover"><p class="book-kicker">Мой дневник</p><h1>${escapeHtml(book.cover.title)}</h1><p>${escapeHtml(book.cover.subtitle)}</p></section>
-    ${book.months.map(m=>`<section class="book-chapter"><h2>${escapeHtml(m.month)}</h2><p class="print-sub">Записей за месяц: ${m.count}${m.entries.length<m.count?`, здесь — избранное и самое подробное`:""}</p>${m.entries.map(e=>`<div class="book-entry"><h3>${escapeHtml(entryText(e,120).title)}</h3><p class="print-date">${escapeHtml(fmtDate(e.happenedAt,{year:"numeric"}))}</p><div class="book-body">${renderMarkdown(e.body)}</div></div>`).join("")}</section>`).join("")}
-    ${own.length?`<section class="book-chapter"><h2>Итоги года</h2>${own.map(x=>`<h3>${escapeHtml(SECTION_TITLES[x.k])}</h3><p>${escapeHtml(x.text).replace(/\n/g,"<br>")}</p>`).join("")}</section>`:""}</article>`;
+  const own=SECTION_ORDER.map(k=>({title:SECTION_TITLES[k],text:(book.saved.sections?.[k]||"").trim()})).filter(x=>x.text);
+  const months=book.months.map(m=>({...m,entries:m.entries.map(e=>({...e,title:entryText(e,120).title,dateLabel:fmtDate(e.happenedAt,{year:"numeric"})}))}));
+  return bookPrint({book:{...book,months},renderBody:e=>renderMarkdown(e.body),ownSections:own});
 }
 
 export const views={reviews:reviewsView};

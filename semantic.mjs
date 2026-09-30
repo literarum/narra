@@ -2,7 +2,7 @@
    No neural network, no network access: a curated Russian concept lexicon + TF-IDF over word stems.
    It is honest about what it is — related words the user can see and switch off — and it never replaces exact search.
    Also parses time hints inside a query ("весной", "в марте 2025", "в прошлом году"). Pure and dependency-free. */
-import {stemRu,foldRu,parseQuery,scoreEntry} from "./domain.mjs?v=4.2.0";
+import {stemRu,foldRu,parseQuery,scoreEntry} from "./domain.mjs?v=4.3.0";
 
 /** [id, label, words...]  Words are ordinary dictionary forms; matching is by stem prefix. */
 const RAW=[

@@ -1,15 +1,15 @@
 /* Journal: timeline with day headers, calendar, life chapters, trash; filters, bulk actions and paging. */
-import {state,ctx,$,$$,escapeHtml,icon,fmtLong,fmtMonthYear,fmtDate,relDay,fmtTime,localDateKey,entryLabel,activeEntries,trashedEntries,kindOptions,kindLabels,capitalizeRu,featureOn,uid,nowIso,downloadBlob,isoStamp,mediaOf,checkinLabel,plural} from "./core.js?v=4.2.0";
-import {entryText} from "./text.mjs?v=4.2.0";
-import {nextRevision} from "./domain.mjs?v=4.2.0";
-import {checkinSummary} from "./checkin.mjs?v=4.2.0";
-import {chapterOf,chapterEntries,sortChapters} from "./entities.mjs?v=4.2.0";
-import {entryToMarkdown} from "./importers.mjs?v=4.2.0";
-import {dayKey} from "./stats.mjs?v=4.2.0";
-import {pageHeader,emptyState,tabs,selectHtml,field,checkRow,modalHeader} from "./kit.js?v=4.2.0";
-import {entryRows,entryRow} from "./entries-ui.js?v=4.2.0";
-import {EMOTION_GROUPS} from "./checkin.mjs?v=4.2.0";
-import * as store from "./store.js?v=4.2.0";
+import {state,ctx,$,$$,escapeHtml,icon,fmtLong,fmtMonthYear,fmtDate,relDay,fmtTime,localDateKey,entryLabel,activeEntries,trashedEntries,kindOptions,kindLabels,capitalizeRu,featureOn,uid,nowIso,downloadBlob,isoStamp,mediaOf,checkinLabel,plural} from "./core.js?v=4.3.0";
+import {entryText} from "./text.mjs?v=4.3.0";
+import {nextRevision} from "./domain.mjs?v=4.3.0";
+import {checkinSummary} from "./checkin.mjs?v=4.3.0";
+import {chapterOf,chapterEntries,sortChapters,chapterMembership,chapterPatch,NO_CHAPTER} from "./entities.mjs?v=4.3.0";
+import {entryToMarkdown} from "./importers.mjs?v=4.3.0";
+import {dayKey} from "./stats.mjs?v=4.3.0";
+import {pageHeader,emptyState,tabs,selectHtml,field,checkRow,modalHeader} from "./kit.js?v=4.3.0";
+import {entryRows,entryRow} from "./entries-ui.js?v=4.3.0";
+import {EMOTION_GROUPS} from "./checkin.mjs?v=4.3.0";
+import * as store from "./store.js?v=4.3.0";
 
 const F=()=>state.journalFilters;
 const norm=s=>String(s||"").toLocaleLowerCase("ru-RU");
@@ -32,7 +32,8 @@ export function applyFilters(entries,f=F()){
     if(theme&&!(e.themes||[]).some(x=>norm(x).includes(theme)))return false;
     if(emoDays&&!emoDays.has(dayKey(e.happenedAt)))return false;
     if(mediaIds&&!mediaIds.has(e.id))return false;
-    if(f.chapter&&chapterOf(e,state.chapters)?.id!==f.chapter)return false;
+    if(f.chapter==="none"){if(chapterOf(e,state.chapters))return false;}
+    else if(f.chapter&&chapterOf(e,state.chapters)?.id!==f.chapter)return false;
     const t=new Date(e.happenedAt);if(from&&t<from)return false;if(to&&t>to)return false;
     return true;
   });
@@ -54,21 +55,21 @@ function timelineMarkup(entries){
   const more=entries.length>limit?`<div class="load-more"><button class="secondary" data-action="journal-more">Показать ещё ${Math.min(state.prefs.journalPage,entries.length-limit)}</button><span class="subtle text-small">Показано ${limit} из ${entries.length}</span></div>`:"";
   return html+more;
 }
-function filtersMarkup(){
+const chipToggle=(id,label,checked,iconName)=>`<label class="chip-toggle${checked?" is-on":""}"><input id="${id}" type="checkbox" ${checked?"checked":""}><span>${icon(iconName)}<span>${label}</span></span></label>`;
+function filtersMarkup(found,total){
   const f=F(),chapters=sortChapters(state.chapters),emotions=EMOTION_GROUPS.flatMap(g=>g.items);
   const count=[f.kind,f.person,f.place,f.theme,f.emotion,f.media,f.favorite,f.chapter,f.from,f.to].filter(Boolean).length;
-  return `<details class="filters-panel" ${filtersActive()?"open":""}><summary>${icon("filter")}<span>Фильтры</span>${count?`<span class="filter-count">${count}</span>`:""}</summary><div class="filters-grid">
-    ${field("С даты",`<input type="date" data-datepicker data-clearable data-placeholder="Любая дата" id="jf-from" value="${escapeHtml(f.from||"")}">`)}
-    ${field("По дату",`<input type="date" data-datepicker data-clearable data-placeholder="Любая дата" id="jf-to" value="${escapeHtml(f.to||"")}">`)}
-    ${field("Тип",selectHtml("jf-kind",[["","Все типы"],...kindOptions.map(([k,v])=>[k,capitalizeRu(v)])],f.kind||"",{label:"Тип записи"}))}
-    ${featureOn("featChapters")&&chapters.length?field("Глава",selectHtml("jf-chapter",[["","Любая"],...chapters.map(c=>[c.id,c.name])],f.chapter||"",{label:"Глава жизни"})):""}
-    ${field("Человек",`<input class="input" id="jf-person" autocomplete="off" value="${escapeHtml(f.person||"")}" placeholder="имя">`)}
-    ${field("Место",`<input class="input" id="jf-place" autocomplete="off" value="${escapeHtml(f.place||"")}" placeholder="место">`)}
-    ${field("Тема",`<input class="input" id="jf-theme" autocomplete="off" value="${escapeHtml(f.theme||"")}" placeholder="тема">`)}
-    ${state.checkins.some(c=>(c.emotions||[]).length)?field("Эмоция в тот день",selectHtml("jf-emotion",[["","Любая"],...emotions.map(x=>[x,x])],f.emotion||"",{label:"Эмоция в тот день"})):""}
-    ${featureOn("featMedia")?checkRow("jf-media","Только с фото и аудио",f.media):""}
-    ${checkRow("jf-favorite","Только избранное",f.favorite)}
-    ${filtersActive()?`<button class="ghost" data-action="journal-filters-reset">Сбросить фильтры</button>`:""}
+  const section=(title,body)=>`<div class="filters-section"><p class="filters-title">${title}</p>${body}</div>`;
+  const presets=[[7,"7 дней"],[30,"30 дней"],[365,"Год"]].map(([d,l])=>`<button type="button" class="chip" data-action="jf-range" data-days="${d}">${l}</button>`).join("");
+  const kindField=field("Тип",selectHtml("jf-kind",[["","Все типы"],...kindOptions.map(([k,v])=>[k,capitalizeRu(v)])],f.kind||"",{label:"Тип записи"}));
+  const chapterField=featureOn("featChapters")&&chapters.length?field("Глава",selectHtml("jf-chapter",[["","Любая"],["none","Без главы"],...chapters.map(c=>[c.id,c.name])],f.chapter||"",{label:"Глава жизни"})):"";
+  const emoField=state.checkins.some(c=>(c.emotions||[]).length)?field("Эмоция в тот день",selectHtml("jf-emotion",[["","Любая"],...emotions.map(x=>[x,x])],f.emotion||"",{label:"Эмоция в тот день"})):"";
+  return `<details class="filters-panel" ${filtersActive()||state.filtersOpen?"open":""}><summary>${icon("filter")}<span>Фильтры</span>${count?`<span class="filter-count">${count}</span>`:""}</summary><div class="filters-body">
+    ${section("Период",`<div class="filters-row is-two">${field("С даты",`<input type="date" data-datepicker data-clearable data-placeholder="Любая дата" id="jf-from" value="${escapeHtml(f.from||"")}">`)}${field("По дату",`<input type="date" data-datepicker data-clearable data-placeholder="Любая дата" id="jf-to" value="${escapeHtml(f.to||"")}">`)}</div><div class="filters-presets" role="group" aria-label="Быстрый период">${presets}</div>`)}
+    ${section("О чём запись",`<div class="filters-row">${kindField}${chapterField}${emoField}</div>`)}
+    ${section("Кто, где, о чём",`<div class="filters-row">${field("Человек",`<input class="input" id="jf-person" autocomplete="off" value="${escapeHtml(f.person||"")}" placeholder="Имя">`)}${field("Место",`<input class="input" id="jf-place" autocomplete="off" value="${escapeHtml(f.place||"")}" placeholder="Место">`)}${field("Тема",`<input class="input" id="jf-theme" autocomplete="off" value="${escapeHtml(f.theme||"")}" placeholder="Тема">`)}</div>`)}
+    ${section("Только",`<div class="filters-chips">${featureOn("featMedia")?chipToggle("jf-media","С фото и аудио",f.media,"image"):""}${chipToggle("jf-favorite","Избранное",f.favorite,"star")}</div>`)}
+    <div class="filters-foot"><span class="filters-found" role="status">${filtersActive()?`Найдено: ${found} из ${total}`:`Всего записей: ${total}`}</span>${filtersActive()?`<button class="ghost" data-action="journal-filters-reset">Сбросить фильтры</button>`:""}</div>
   </div></details>`;
 }
 function bulkBar(){
@@ -78,6 +79,7 @@ function bulkBar(){
     <button class="secondary" data-action="bulk-export" ${n?"":"disabled"}>${icon("download")}<span>Экспорт</span></button>
     <button class="secondary" data-action="bulk-theme" ${n?"":"disabled"}>${icon("tag")}<span>Тема</span></button>
     ${featureOn("featChapters")&&state.chapters.length?`<button class="secondary" data-action="bulk-chapter" ${n?"":"disabled"}>${icon("book")}<span>В главу</span></button>`:""}
+    ${featureOn("featChapters")&&state.chapters.length?`<button class="secondary" data-action="bulk-unchapter" ${n?"":"disabled"}>${icon("x")}<span>Вне глав</span></button>`:""}
     <button class="secondary danger" data-action="bulk-trash" ${n?"":"disabled"}>${icon("trash")}<span>В корзину</span></button>
     <button class="ghost" data-action="bulk-all">Все показанные</button><button class="ghost" data-action="bulk-done">Готово</button></div></div>`;
 }
@@ -114,7 +116,7 @@ function chaptersMarkup(){
   const chapters=sortChapters(state.chapters),all=activeEntries();
   const loose=all.filter(e=>!chapterOf(e,state.chapters)).length;
   return `<div class="chapters"><div class="section-heading"><div><h2>Главы жизни</h2><p class="subtle text-small">Периоды с названием: «Переезд», «Новая работа», «Учёба». Запись попадает в главу по вашему выбору или по датам.</p></div><button class="secondary button-with-icon" data-action="chapter-new">${icon("plus")}<span>Новая глава</span></button></div>
-    ${chapters.length?`<div class="chapter-list">${chapters.map(c=>{const n=chapterEntries(c,all,state.chapters).length;return `<article class="card chapter-card"><div><h3>${escapeHtml(c.name)}</h3><p class="subtle text-small">${escapeHtml(rangeText(c))}</p>${c.description?`<p>${escapeHtml(c.description)}</p>`:""}<p class="chapter-count">${n} ${entryLabel(n)}</p></div><div class="chapter-actions"><button class="secondary" data-action="chapter-open" data-id="${escapeHtml(c.id)}">Открыть записи</button><button class="ghost" data-action="chapter-edit" data-id="${escapeHtml(c.id)}">Изменить</button><button class="ghost danger-quiet" data-action="chapter-delete" data-id="${escapeHtml(c.id)}">Удалить</button></div></article>`;}).join("")}</div>${loose?`<p class="subtle text-small">Записей вне глав: ${loose}.</p>`:""}`
+    ${chapters.length?`<div class="chapter-list">${chapters.map(c=>{const n=chapterEntries(c,all,state.chapters).length;return `<article class="card chapter-card"><div><h3>${escapeHtml(c.name)}</h3><p class="subtle text-small">${escapeHtml(rangeText(c))}</p>${c.description?`<p>${escapeHtml(c.description)}</p>`:""}<p class="chapter-count">${n} ${entryLabel(n)}</p></div><div class="chapter-actions"><button class="secondary" data-action="chapter-open" data-id="${escapeHtml(c.id)}">Открыть записи</button><button class="secondary" data-action="chapter-members" data-id="${escapeHtml(c.id)}">Состав</button><button class="ghost" data-action="chapter-edit" data-id="${escapeHtml(c.id)}">Изменить</button><button class="ghost danger-quiet" data-action="chapter-delete" data-id="${escapeHtml(c.id)}">Удалить</button></div></article>`;}).join("")}</div>${loose?`<p class="subtle text-small">Записей вне глав: ${loose}.</p>`:""}`
       :emptyState("Глав пока нет","Создайте первую главу — записи будут собираться по ней автоматически или вручную.",`<button class="secondary button-with-icon" data-action="chapter-new">${icon("plus")}<span>Новая глава</span></button>`,"book")}</div>`;
 }
 function chapterForm(existing){
@@ -126,6 +128,42 @@ function chapterForm(existing){
       const rec={id:existing?.id||uid(),name,start:v.start||"",end:v.end||"",description:v.description.trim(),sort:existing?.sort??state.chapters.length};
       await store.saveChapter(rec);await store.loadData();ctx.render();ctx.toast(existing?"Глава обновлена.":"Глава создана.");
     });
+}
+/* ----- who is in a chapter: every entry can be put in or kept out by hand ----- */
+const cmState={id:null,want:new Map(),q:""};
+function cmRows(){
+  const c=state.chapters.find(x=>x.id===cmState.id);if(!c)return "";
+  const q=norm(cmState.q).trim();
+  let list=activeEntries().slice().sort((a,b)=>new Date(b.happenedAt)-new Date(a.happenedAt));
+  if(q)list=list.filter(e=>norm(`${e.title} ${e.body}`).includes(q));
+  const shown=list.slice(0,150);
+  if(!shown.length)return `<p class="subtle text-small cm-empty">Ничего не найдено.</p>`;
+  return `<ul class="cm-list">${shown.map(e=>{
+    const m=chapterMembership(e,c,state.chapters),want=cmState.want.has(e.id)?cmState.want.get(e.id):m!=="";
+    const t=entryText(e,80);
+    return `<li><label class="check cm-row"><input type="checkbox" data-cm="${escapeHtml(e.id)}" ${want?"checked":""}><span class="check-box"></span><span class="cm-text"><strong>${escapeHtml(t.title)}</strong><small>${escapeHtml(fmtDate(e.happenedAt,{year:"numeric"}))}${m==="dates"&&want?" · по датам главы":""}${m===""&&chapterOf(e,state.chapters)?` · сейчас в главе «${escapeHtml(chapterOf(e,state.chapters).name)}»`:""}</small></span></label></li>`;
+  }).join("")}</ul>${list.length>shown.length?`<p class="subtle text-small">Показаны первые ${shown.length} из ${list.length}. Уточните поиск.</p>`:""}`;
+}
+function cmChanges(){
+  const c=state.chapters.find(x=>x.id===cmState.id);if(!c)return [];
+  const out=[];
+  for(const [id,want] of cmState.want){const e=state.entries.find(x=>x.id===id);if(!e)continue;const p=chapterPatch(e,c,state.chapters,want);if(p)out.push([id,p]);}
+  return out;
+}
+function cmSheet(){
+  const c=state.chapters.find(x=>x.id===cmState.id);if(!c)return "";
+  const n=cmChanges().length,inNow=activeEntries().filter(e=>{const w=cmState.want.get(e.id);return w===undefined?chapterMembership(e,c,state.chapters)!=="":w;}).length;
+  return `${modalHeader(`Состав главы «${c.name}»`,"Отметьте записи, которые входят в главу. Остальные останутся без неё.","book","close-dialog")}<div class="modal-body cm-body">
+    <div class="search-field cm-search"><input class="input" id="cm-search" type="search" autocomplete="off" placeholder="Найти запись" aria-label="Найти запись" value="${escapeHtml(cmState.q)}"></div>
+    <p class="subtle text-small cm-count" id="cm-count" role="status">В главе: ${inNow}${n?` · изменений: ${n}`:""}</p>
+    <div id="cm-rows">${cmRows()}</div></div>
+    <footer class="modal-footer"><button class="secondary" data-action="close-dialog">Отмена</button><button class="primary" data-action="cm-save" id="cm-save" ${n?"":"disabled"}>Сохранить${n?` (${n})`:""}</button></footer>`;
+}
+function cmRefresh(){
+  const rows=$("#cm-rows"),count=$("#cm-count"),save=$("#cm-save"),n=cmChanges().length,c=state.chapters.find(x=>x.id===cmState.id);
+  if(rows)rows.innerHTML=cmRows();
+  if(c&&count){const inNow=activeEntries().filter(e=>{const w=cmState.want.get(e.id);return w===undefined?chapterMembership(e,c,state.chapters)!=="":w;}).length;count.textContent=`В главе: ${inNow}${n?` · изменений: ${n}`:""}`;}
+  if(save){save.disabled=!n;save.textContent=n?`Сохранить (${n})`:"Сохранить";}
 }
 /* ----- bulk ----- */
 async function bulkUpdate(ids,patch,source){
@@ -144,14 +182,13 @@ export function journalView(){
   if(featureOn("featChapters"))items.push(["chapters","Главы"]);
   items.push(["trash",`Корзина${trashCount?` · ${trashCount}`:""}`]);
   if(!items.some(i=>i[0]===state.journalView))state.journalView="timeline";
-  const v=state.journalView,filtered=v==="timeline"?applyFilters(activeEntries()):null;
+  const v=state.journalView,filtered=v==="timeline"||v==="calendar"?applyFilters(activeEntries()):null;
   const content=v==="calendar"?calendarMarkup():v==="trash"?trashMarkup():v==="chapters"?chaptersMarkup():timelineMarkup(filtered);
   const showTools=v==="timeline"||v==="calendar";
-  const summary=v==="timeline"&&filtersActive()?`<p class="filter-summary" role="status">Найдено: ${filtered.length} из ${activeEntries().length}</p>`:"";
-  return `${pageHeader("Ваша история","Дневник","Хронология без оценок и давления.")}
+    return `${pageHeader("Ваша история","Дневник","Хронология без оценок и давления.")}
   <div class="journal-controls">${tabs("journal",items,v,{label:"Вид дневника"})}
     <div class="journal-tools">${v==="timeline"?`<button class="secondary button-with-icon" data-action="bulk-toggle" aria-pressed="${state.journalSelect}">${icon("check")}<span>${state.journalSelect?"Выбор включён":"Выбрать"}</span></button>`:""}<button class="secondary button-with-icon" data-action="export">${icon("backup")}<span>Резервная копия</span></button></div></div>
-  ${showTools?filtersMarkup():""}${summary}${v==="timeline"?bulkBar():""}<div id="panel-journal" role="tabpanel" aria-labelledby="tab-journal-${v}">${content}</div>`;
+  ${showTools?filtersMarkup(filtered?filtered.length:0,activeEntries().length):""}${v==="timeline"?bulkBar():""}<div id="panel-journal" role="tabpanel" aria-labelledby="tab-journal-${v}">${content}</div>`;
 }
 export const views={journal:journalView};
 export const actions={
@@ -168,18 +205,20 @@ export const actions={
     ctx.closeOverlay();ctx.routeTo("journal");
   },
   "open-trash":()=>{state.journalView="trash";ctx.routeTo("journal");},
+  "jf-range":el=>{const d=Number(el.dataset.days),to=new Date(),from=new Date();from.setDate(from.getDate()-d+1);const f=F();f.from=localDateKey(from);f.to=localDateKey(to);state.journalLimit=state.prefs.journalPage;ctx.render();},
   "journal-more":()=>{state.journalLimit+=state.prefs.journalPage;ctx.render();},
   "journal-filters-reset":()=>{state.journalFilters={};state.journalLimit=state.prefs.journalPage;ctx.render();},
   "purge-entry":el=>{
     const id=el.dataset.id;
-    ctx.confirmDialog({title:"Удалить навсегда?",text:"Запись, вся её история версий и вложения будут стёрты без возможности восстановления.",confirmLabel:"Удалить навсегда",danger:true,iconName:"trash"},async()=>{
-      try{await store.purgeEntries([id]);await store.loadData();ctx.render();ctx.toast("Запись удалена навсегда.");}catch(error){console.error(error);ctx.toast("Не удалось удалить запись.");}
+    const e=state.entries.find(x=>x.id===id),label=e?entryText(e).title:"запись";
+    ctx.confirmDialog({title:"Удалить навсегда?",text:`«${label}», вся её история версий и вложения будут стёрты.`,detail:"Вернуть их будет невозможно. Если сомневаетесь — оставьте запись в корзине.",ack:"Я понимаю, что это действие нельзя отменить",confirmLabel:"Удалить навсегда",cancelLabel:"Оставить в корзине",danger:true,iconName:"trash"},async()=>{
+      try{await store.purgeEntries([id]);await store.loadData();ctx.render();ctx.toast("Запись удалена навсегда.");}catch(error){console.error(error);ctx.toast("Не удалось удалить запись. Она осталась в корзине.");}
     });
   },
   "purge-all":()=>{
     const ids=trashedEntries().map(e=>e.id);if(!ids.length)return;
-    ctx.confirmDialog({title:"Очистить корзину?",text:`Будет удалено записей: ${ids.length}. Вместе с историей версий и вложениями — без возможности восстановления.`,confirmLabel:"Очистить корзину",danger:true,iconName:"trash"},async()=>{
-      try{await store.purgeEntries(ids);await store.loadData();ctx.render();ctx.toast("Корзина очищена.");}catch(error){console.error(error);ctx.toast("Не удалось очистить корзину.");}
+    ctx.confirmDialog({title:"Очистить корзину?",text:`Будет удалено записей: ${ids.length} — вместе с историей версий и вложениями.`,detail:"Вернуть их будет невозможно. Перед этим можно сохранить резервную копию: Дневник → Резервная копия.",ack:"Я понимаю, что это действие нельзя отменить",confirmLabel:"Очистить корзину",cancelLabel:"Оставить",danger:true,iconName:"trash"},async()=>{
+      try{await store.purgeEntries(ids);await store.loadData();ctx.render();ctx.toast(`Корзина очищена. Удалено записей: ${ids.length}.`);}catch(error){console.error(error);ctx.toast("Не удалось очистить корзину. Записи остались на месте.");}
     });
   },
   "bulk-toggle":()=>{state.journalSelect=!state.journalSelect;state.journalSelected=new Set();ctx.render();},
@@ -201,11 +240,25 @@ export const actions={
   }),
   "bulk-trash":()=>{
     const ids=selected();if(!ids.length)return;
-    ctx.confirmDialog({title:"Переместить в корзину?",text:`Записей: ${ids.length}. Их можно будет восстановить из корзины.`,confirmLabel:"В корзину",danger:true,iconName:"trash"},async()=>{
-      await bulkUpdate(ids,()=>({deletedAt:nowIso()}),"bulk_trash");state.journalSelected=new Set();state.journalSelect=false;ctx.render();ctx.toast(`В корзине: ${ids.length}.`);
+    ctx.confirmDialog({title:"Переместить в корзину?",text:`Записей: ${ids.length}. Они исчезнут из дневника, но останутся в корзине.`,detail:"Оттуда их можно вернуть в любой момент — пока вы сами не удалите их навсегда.",confirmLabel:"В корзину",cancelLabel:"Оставить",danger:true,iconName:"trash"},async()=>{
+      await bulkUpdate(ids,()=>({deletedAt:nowIso()}),"bulk_trash");state.journalSelected=new Set();state.journalSelect=false;ctx.render();
+      ctx.resultDialog({title:"Записи в корзине",text:`Перемещено записей: ${ids.length}.`,hint:"Найти их можно в разделе «Дневник» → «Корзина». Там же их можно вернуть.",actions:[{label:"Открыть корзину",action:"open-trash",primary:true}],hidePref:"hideDeleteHint"});
     });
   },
   "chapter-new":()=>chapterForm(null),
+  "chapter-members":el=>{cmState.id=el.dataset.id;cmState.want=new Map();cmState.q="";ctx.sheetDialog(cmSheet(),"Состав главы");},
+  "cm-save":async el=>{
+    const changes=cmChanges(),c=state.chapters.find(x=>x.id===cmState.id);if(!changes.length||!c)return;
+    el.disabled=true;
+    try{
+      for(const [id,p] of changes){const e=state.entries.find(x=>x.id===id);if(!e)continue;await store.commitEntrySnapshot({...e,...p,updatedAt:nowIso(),revision:nextRevision(e.revision)},"chapter_members");}
+      await store.loadData();store.notifyChange("entry");ctx.closeDialog({restoreFocus:false});ctx.render();ctx.toast(`Состав главы «${c.name}» обновлён.`);
+    }catch(error){console.error(error);el.disabled=false;ctx.toast("Не удалось сохранить состав главы. Записи не изменены.");}
+  },
+  "bulk-unchapter":async()=>{
+    const ids=selected();if(!ids.length)return;
+    await bulkUpdate(ids,()=>({chapterId:NO_CHAPTER}),"bulk_unchapter");state.journalSelected=new Set();ctx.render();ctx.toast("Записи больше не входят ни в одну главу.");
+  },
   "chapter-edit":el=>chapterForm(state.chapters.find(c=>c.id===el.dataset.id)),
   "chapter-open":el=>{state.journalFilters={chapter:el.dataset.id};state.journalView="timeline";state.journalLimit=state.prefs.journalPage;ctx.render();},
   "chapter-delete":el=>{
@@ -221,13 +274,18 @@ export const on={
     const map={"jf-from":"from","jf-to":"to","jf-kind":"kind","jf-chapter":"chapter","jf-emotion":"emotion"};
     if(map[t.id]){f[map[t.id]]=t.value;state.journalLimit=state.prefs.journalPage;ctx.render();return true;}
     if(t.id==="jf-media"||t.id==="jf-favorite"){f[t.id==="jf-media"?"media":"favorite"]=t.checked;state.journalLimit=state.prefs.journalPage;ctx.render();return true;}
+    if(t.dataset?.cm){cmState.want.set(t.dataset.cm,t.checked);cmRefresh();return true;}
     if(t.dataset?.selectEntry){if(t.checked)state.journalSelected.add(t.dataset.selectEntry);else state.journalSelected.delete(t.dataset.selectEntry);ctx.render();return true;}
     return false;
   },
   input:e=>{
     const map={"jf-person":"person","jf-place":"place","jf-theme":"theme"},t=e.target;
+    if(t.id==="cm-search"){cmState.q=t.value;cmRefresh();return true;}
     if(map[t.id]){F()[map[t.id]]=t.value;clearTimeout(state.jfTimer);state.jfTimer=setTimeout(()=>{const pos=t.selectionStart;ctx.render();const n=$("#"+t.id);if(n){n.focus();n.setSelectionRange(pos,pos);}},260);return true;}
     return false;
   },
 };
 export {entryRow,checkinLabel,plural,mediaOf,kindLabels};
+
+/* remember whether the filter panel was opened by hand, so a re-render never folds it under the person's finger */
+document.addEventListener("toggle",e=>{if(e.target?.classList?.contains("filters-panel"))state.filtersOpen=e.target.open;},true);

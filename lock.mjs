@@ -31,3 +31,34 @@ export function passcodeProblem(pass){
   return "";
 }
 export const INACTIVITY_OPTIONS=[[0,"Не блокировать"],[1,"Через 1 минуту"],[5,"Через 5 минут"],[15,"Через 15 минут"],[60,"Через час"]];
+
+/* ---------- recovery: a hint and a one-time recovery code ----------
+   The hint is plain text shown on the lock screen and must never contain the password.
+   The recovery code (20 characters, ~100 bits) is shown once, stored only as a salted PBKDF2 hash, and is spent when used. */
+const ALPHABET="ABCDEFGHJKMNPQRSTVWXYZ23456789"; // no I, L, O, U, 0, 1: nothing to confuse when copying by hand
+export function makeRecoveryCode(){
+  const bytes=crypto.getRandomValues(new Uint8Array(20));let s="";
+  for(const b of bytes)s+=ALPHABET[b%ALPHABET.length];
+  return s.match(/.{4}/g).join("-");
+}
+export function normalizeRecoveryCode(input){
+  return String(input||"").toUpperCase().normalize("NFKC").replace(/[^A-Z0-9]/g,"").replace(/O/g,"0").replace(/[IL]/g,"1");
+}
+// Both sides are compared in canonical form (upper case, no separators), so spaces, dashes and case never matter.
+const canon=s=>normalizeRecoveryCode(s);
+export async function makeRecovery(code,{iterations=DEFAULT_ITERATIONS}={}){
+  const salt=newSalt();return {salt,iterations,hash:await hashPasscode(canon(code),salt,iterations),createdAt:new Date().toISOString()};
+}
+export async function verifyRecovery(code,rec){
+  if(canon(code).length!==20)return false;
+  return verifyPasscode(canon(code),rec);
+}
+export const HINT_MAX=80;
+/** Returns a problem text, or "" when the hint is fine. */
+export function hintProblem(hint,pass){
+  const h=String(hint||"").trim();if(!h)return "";
+  if(h.length>HINT_MAX)return `Подсказка длиннее ${HINT_MAX} символов.`;
+  const low=h.toLocaleLowerCase("ru-RU"),p=String(pass||"").toLocaleLowerCase("ru-RU");
+  if(p&&(low.includes(p)||p.includes(low)))return "Подсказка не должна содержать сам пароль — её видит любой, кто откроет экран входа.";
+  return "";
+}

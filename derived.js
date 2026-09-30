@@ -1,7 +1,7 @@
 /* Derived data, computed from the entries in memory and cached until the data is reloaded. Never stored. */
-import {state,activeEntries} from "./core.js?v=4.2.0";
-import {buildAliasMap,collectEntities,entitiesOf} from "./entities.mjs?v=4.2.0";
-import {buildIndex} from "./semantic.mjs?v=4.2.0";
+import {state,activeEntries} from "./core.js?v=4.3.0";
+import {buildAliasMap,collectEntities,entitiesOf} from "./entities.mjs?v=4.3.0";
+import {buildIndex} from "./semantic.mjs?v=4.3.0";
 
 const cache={entries:null,notes:null,alias:null,entities:null,index:null};
 function sync(){

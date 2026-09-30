@@ -1,17 +1,17 @@
 /* Life map («Карта жизни»): people, places, themes, projects and life chapters — only what the user wrote on their entries.
    Each page shows the entries, the months they cluster in (empty months stay visible), neighbours, and state associations
    with the days behind them. Names can be renamed, merged and annotated without touching the entries themselves. */
-import {state,ctx,$,escapeHtml,icon,fmtDate,relDay,activeEntries,entryLabel,dayLabel,featureOn} from "./core.js?v=4.2.0";
-import {pageHeader,emptyState,tabs,chip,modalHeader} from "./kit.js?v=4.2.0";
-import {ENTITY_TYPES,collectEntities,listByType,entityPage,norm,entityKey,sortChapters,chapterEntries,chapterOf} from "./entities.mjs?v=4.2.0";
-import {entityMap} from "./derived.js?v=4.2.0";
-import {describeAssociation} from "./insights-model.mjs?v=4.2.0";
-import {monthStrip} from "./charts.mjs?v=4.2.0";
-import {activeDimensions,dimLabel} from "./checkin.mjs?v=4.2.0";
-import {benjaminiHochberg,dayKey,MIN_N} from "./stats.mjs?v=4.2.0";
-import {cleanEntityNote} from "./domain.mjs?v=4.2.0";
-import {entryRows} from "./entries-ui.js?v=4.2.0";
-import * as store from "./store.js?v=4.2.0";
+import {state,ctx,$,escapeHtml,icon,fmtDate,relDay,activeEntries,entryLabel,dayLabel,featureOn} from "./core.js?v=4.3.0";
+import {pageHeader,emptyState,tabs,chip,modalHeader} from "./kit.js?v=4.3.0";
+import {ENTITY_TYPES,collectEntities,listByType,entityPage,norm,entityKey,sortChapters,chapterEntries,chapterOf} from "./entities.mjs?v=4.3.0";
+import {entityMap} from "./derived.js?v=4.3.0";
+import {describeAssociation} from "./insights-model.mjs?v=4.3.0";
+import {monthStrip} from "./charts.mjs?v=4.3.0";
+import {activeDimensions,dimLabel} from "./checkin.mjs?v=4.3.0";
+import {benjaminiHochberg,dayKey,MIN_N} from "./stats.mjs?v=4.3.0";
+import {cleanEntityNote} from "./domain.mjs?v=4.3.0";
+import {entryRows} from "./entries-ui.js?v=4.3.0";
+import * as store from "./store.js?v=4.3.0";
 
 const TYPE_ICON={person:"users",place:"map",theme:"tag",project:"layout"};
 let sort="count",filterText="";
@@ -52,7 +52,11 @@ function neighbourMap(center,groups){
     const a=(i/nodes.length)*Math.PI*2-Math.PI/2,x=cx+Math.cos(a)*rx,y=cy+Math.sin(a)*ry,w=1+Math.round(n.count/max*3);
     return `<line class="map-edge w${w}" x1="${cx}" y1="${cy}" x2="${x.toFixed(1)}" y2="${y.toFixed(1)}"/><g class="map-node t-${n.type}"><circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${(7+n.count/max*7).toFixed(1)}"/><text x="${x.toFixed(1)}" y="${(y+(y<cy?-16:24)).toFixed(1)}" text-anchor="middle">${escapeHtml(cut(n.name,16))}</text></g>`;
   }).join("");
-  return `<svg class="chart map-chart" viewBox="0 0 ${W} ${H}" aria-hidden="true" preserveAspectRatio="xMidYMid meet">${items}<g class="map-center"><circle cx="${cx}" cy="${cy}" r="24"/><text x="${cx}" y="${cy+4}" text-anchor="middle">${escapeHtml(cut(center,10))}</text></g></svg>`;
+  const words=String(center).split(/\s+/).filter(Boolean),lines=[];
+  for(const w of words){const last=lines[lines.length-1];if(last&&(last+" "+w).length<=9)lines[lines.length-1]=last+" "+w;else lines.push(w);}
+  const shown=lines.slice(0,2).map(l=>cut(l,9)),longest=Math.max(...shown.map(l=>l.length),3),R=Math.min(46,Math.max(26,longest*3.5+11));
+  const tspans=shown.map((l,i)=>`<tspan x="${cx}" y="${(cy+4-(shown.length-1)*6+i*12).toFixed(1)}">${escapeHtml(l)}</tspan>`).join("");
+  return `<svg class="chart map-chart" viewBox="0 0 ${W} ${H}" aria-hidden="true" preserveAspectRatio="xMidYMid meet">${items}<g class="map-center"><circle cx="${cx}" cy="${cy}" r="${R.toFixed(1)}"/><text text-anchor="middle">${tspans}</text></g></svg>`;
 }
 function associationBlock(page){
   const dims=activeDimensions(state.config),rows=page.associations.map((a,i)=>({a,dim:dims.find(d=>d.key===a.metric)})).filter(x=>x.dim);

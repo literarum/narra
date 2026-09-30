@@ -1,15 +1,15 @@
 /* Memories: a few explainable selections from the user's own entries. Nothing is invented and there is no endless feed.
    Every card says why it is shown; entries, people, places and themes can be muted. */
-import {state,ctx,$,escapeHtml,icon,relDay,dayOffset,activeEntries,todayKey,safeStorageGet,safeStorageSet,featureOn,yearsLabel,pluralRu,kindLabels} from "./core.js?v=4.2.0";
-import {relatedEntryScore,circularMonthDayDistance} from "./domain.mjs?v=4.2.0";
-import {entryText,excerpt,openChecklistItems} from "./text.mjs?v=4.2.0";
-import {pageHeader,emptyState,tabs,modalHeader} from "./kit.js?v=4.2.0";
-import {entryRow,entryRows} from "./entries-ui.js?v=4.2.0";
-import {entitiesOf,chapterOf,chapterEntries,sortChapters} from "./entities.mjs?v=4.2.0";
-import {aliasMap,semanticIndex,hasMutedTopic,entityMap} from "./derived.js?v=4.2.0";
-import {similar,whyRelated} from "./semantic.mjs?v=4.2.0";
-import {dayKey} from "./stats.mjs?v=4.2.0";
-import * as store from "./store.js?v=4.2.0";
+import {state,ctx,$,escapeHtml,icon,relDay,dayOffset,activeEntries,todayKey,safeStorageGet,safeStorageSet,featureOn,yearsLabel,pluralRu,kindLabels} from "./core.js?v=4.3.0";
+import {relatedEntryScore,circularMonthDayDistance} from "./domain.mjs?v=4.3.0";
+import {entryText,excerpt,openChecklistItems} from "./text.mjs?v=4.3.0";
+import {pageHeader,emptyState,tabs,modalHeader} from "./kit.js?v=4.3.0";
+import {entryRow,entryRows} from "./entries-ui.js?v=4.3.0";
+import {entitiesOf,chapterOf,chapterEntries,sortChapters} from "./entities.mjs?v=4.3.0";
+import {aliasMap,semanticIndex,hasMutedTopic,entityMap} from "./derived.js?v=4.3.0";
+import {similar,whyRelated} from "./semantic.mjs?v=4.3.0";
+import {dayKey} from "./stats.mjs?v=4.3.0";
+import * as store from "./store.js?v=4.3.0";
 
 export function memoryCandidates(){
   return activeEntries().filter(e=>!e.sensitive&&e.body?.trim()&&!state.mutedMemoryIds.includes(e.id)&&!hasMutedTopic(e));

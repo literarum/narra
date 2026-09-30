@@ -1,11 +1,11 @@
 /* Today: quick capture, a short check-in, one memory, one question, recent entries, first-run welcome. */
-import {state,ctx,$,$$,escapeHtml,icon,uid,nowIso,fmtLong,fmtTime,relDay,activeEntries,sameDay,todayKey,safeStorageGet,safeStorageSet,featureOn,PREF_KEY} from "./core.js?v=4.2.0";
-import {entryText} from "./text.mjs?v=4.2.0";
-import {pageHeader,modalHeader} from "./kit.js?v=4.2.0";
-import {entryRows} from "./entries-ui.js?v=4.2.0";
-import {checkinCard} from "./checkin-ui.js?v=4.2.0";
-import {memoryCard} from "./memories.js?v=4.2.0";
-import * as store from "./store.js?v=4.2.0";
+import {state,ctx,$,$$,escapeHtml,icon,uid,nowIso,fmtLong,fmtTime,relDay,activeEntries,sameDay,todayKey,safeStorageGet,safeStorageSet,featureOn,PREF_KEY} from "./core.js?v=4.3.0";
+import {entryText} from "./text.mjs?v=4.3.0";
+import {pageHeader,modalHeader} from "./kit.js?v=4.3.0";
+import {entryRows} from "./entries-ui.js?v=4.3.0";
+import {checkinCard} from "./checkin-ui.js?v=4.3.0";
+import {memoryCard} from "./memories.js?v=4.3.0";
+import * as store from "./store.js?v=4.3.0";
 
 const PROMPTS=[
   "Что сегодня оказалось важнее, чем выглядело сначала?","Какой момент этого дня хочется запомнить?","О чём вы сегодня думали чаще всего?",
@@ -14,11 +14,34 @@ const PROMPTS=[
   "Что вас сегодня утомило, а что — наполнило?","Чему вы научились за последнюю неделю?","Что вы хотели бы услышать сейчас от близкого человека?",
   "Какое место сегодня показалось особенным?","Что сегодня было по-настоящему вашим решением?","Какой запах, звук или свет запомнился?",
   "Что из прошлого недавно вспомнилось без повода?","О чём вы сейчас не решаетесь написать?","Что хотелось бы сохранить прямо таким, как есть?",
-  "С кем хочется поделиться этим днём?"
+  "С кем хочется поделиться этим днём?",
+  "Что сегодня было трудным — и что помогло с этим справиться?","Кто сегодня был рядом, даже если вы не разговаривали?","Что вы сегодня сделали для себя?",
+  "Какое решение вы сейчас обдумываете и что в нём самое важное?","Что бы вы изменили в сегодняшнем дне, если бы могли?","Какая мысль сегодня возвращалась снова и снова?",
+  "Что сегодня было похоже на вчера, а что — совсем другим?","Чего вы ждёте от ближайшей недели?","Что сегодня заставило вас улыбнуться?",
+  "О чём вы промолчали сегодня, хотя хотелось сказать?","Что вы сегодня заметили вокруг, чего раньше не замечали?","Какой маленький шаг вперёд вы сделали?",
+  "Что помогает вам восстанавливаться, когда устаёте?","Что вы сейчас считаете лишним в своей жизни?","Какая привычка сегодня помогла, а какая мешала?",
+  "О чём вы мечтали в детстве и что от этого осталось?","Что вы бы сказали себе вчерашнему?","Какой вопрос вы сегодня задавали себе?",
+  "Что в вашем окружении сейчас поддерживает вас?","Что вы хотите не забыть об этой неделе?"
 ];
-export function dailyPrompt(){
-  const day=Math.floor((new Date()-new Date(new Date().getFullYear(),0,0))/86400000);
-  return PROMPTS[(day+state.promptShift)%PROMPTS.length];
+const USED_KEY="narra-prompts-used";
+function usedPrompts(){try{const v=JSON.parse(safeStorageGet(USED_KEY)||"[]");return Array.isArray(v)?v.filter(Number.isInteger):[];}catch{return [];}}
+function markPromptUsed(i){const u=usedPrompts().filter(x=>x!==i);u.push(i);safeStorageSet(USED_KEY,JSON.stringify(u.slice(-(PROMPTS.length-6))));}
+function promptIndex(){
+  const day=Math.floor((new Date()-new Date(new Date().getFullYear(),0,0))/86400000),used=new Set(usedPrompts());
+  let i=(day+state.promptShift)%PROMPTS.length;
+  for(let n=0;n<PROMPTS.length&&used.has(i);n++)i=(i+1)%PROMPTS.length;
+  return i;
+}
+export function dailyPrompt(){return PROMPTS[promptIndex()];}
+/** After a long pause: one kind sentence, no counters, no streaks. Shown once the diary has at least a few entries. */
+export function pauseNote(entries,now=new Date()){
+  const act=entries.filter(e=>!e.deletedAt);
+  if(act.length<3)return "";
+  const last=act.reduce((a,e)=>Math.max(a,new Date(e.createdAt||e.happenedAt).getTime()),0); // when it was written, not the date it is about
+  const days=Math.floor((now.getTime()-last)/86400000);
+  if(days<5)return "";
+  const n=days>=60?"больше двух месяцев":days>=30?"больше месяца":`${days} ${days%10===1&&days%100!==11?"день":days%10>=2&&days%10<=4&&(days%100<12||days%100>14)?"дня":"дней"}`;
+  return `<p class="pause-note">${icon("moon")}<span>С последней записи прошло ${n}. Ничего страшного — можно начать с одной фразы.</span></p>`;
 }
 const promptMarkup=()=>`<section class="section" id="prompt-section"><div class="section-heading"><h2>Вопрос для размышления</h2></div><article class="card prompt-card"><p>${escapeHtml(dailyPrompt())}</p><div class="prompt-actions"><button class="ghost button-with-icon" data-action="next-prompt" aria-label="Другой вопрос">${icon("refresh")}<span>Другой</span></button><button class="secondary" data-action="use-prompt">Ответить</button></div></article></section>`;
 export const greetingText=(now=new Date())=>{const h=now.getHours();return h<5?"Доброй ночи":h<12?"Доброе утро":h<18?"Добрый день":"Добрый вечер";};
@@ -45,7 +68,7 @@ export function todayView(){
   const unfinished=p.showContinue?activeEntries().filter(e=>!e.completedAt).sort((a,b)=>new Date(b.updatedAt)-new Date(a.updatedAt))[0]:null;
   const recent=activeEntries().slice(0,4);
   const memory=p.showMemory&&featureOn("featMemories")?memoryCard():"";
-  return `${pageHeader(fmtLong(now),greetingText(now),"Спокойное место для того, что хочется сохранить.")}${welcomeMarkup()}${storageNoticeMarkup()}${reminderMarkup()}
+  return `${pageHeader(fmtLong(now),greetingText(now),"Спокойное место для того, что хочется сохранить.")}${welcomeMarkup()}${pauseNote(state.entries)}${storageNoticeMarkup()}${reminderMarkup()}
     ${unfinished?`<article class="card continue-card"><div><p class="eyebrow">Продолжить</p><h3>${escapeHtml(entryText(unfinished).title)}</h3><p>Последнее изменение: ${escapeHtml(relDay(unfinished.updatedAt))}, ${escapeHtml(fmtTime(unfinished.updatedAt))}</p></div><button class="secondary" data-action="open-entry" data-id="${escapeHtml(unfinished.id)}">Продолжить</button></article>`:""}
     <div class="hero-grid${p.showCheckin?"":" is-single"}">
       <article class="card quick-card"><div><p class="eyebrow">Быстрая запись</p><h2>Что сейчас хочется запомнить?</h2></div>
@@ -111,8 +134,8 @@ export const actions={
   "save-quick":()=>quickToEntry(false),
   "expand-quick":()=>quickToEntry(true),
   "quick-focus":()=>{ctx.goTo("today");setTimeout(()=>$("#quick-capture")?.focus(),80);},
-  "use-prompt":()=>{const text=`${dailyPrompt()}\n\n`;ctx.openEditor(null,{body:text,prefill:text});},
-  "next-prompt":()=>{state.promptShift++;const p=$("#prompt-section .prompt-card p");if(p){p.textContent=dailyPrompt();ctx.animateIn(p);}},
+  "use-prompt":()=>{const i=promptIndex(),text=`${PROMPTS[i]}\n\n`;markPromptUsed(i);state.promptShift++;ctx.openEditor(null,{body:text,prefill:text});},
+  "next-prompt":()=>{markPromptUsed(promptIndex());state.promptShift++;const p=$("#prompt-section .prompt-card p");if(p){p.textContent=dailyPrompt();ctx.animateIn(p);}},
   "dismiss-reminder":el=>{safeStorageSet("narra-reminder-dismissed",todayKey());const n=el.closest(".reminder-card");if(n)ctx.collapseAndRemove(n);},
   "onboard-open":()=>ctx.sheetDialog(tourSheet(0),"Коротко о главном"),
   "onboard-step":el=>{const s=Number(el.dataset.step);const box=$("#dialog-root .sheet");if(box)box.innerHTML=tourSheet(Math.max(0,Math.min(TOUR.length-1,s)));},

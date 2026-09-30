@@ -1,16 +1,17 @@
 /* Editor: a full-screen writing surface with Markdown tools, find, slash menu, focus mode, media, details, decisions,
    writing help and safe saving. Saving is atomic, versioned, and refuses to overwrite an entry edited elsewhere. */
-import {validateCanonicalEntry,nextRevision,searchEntries,parseRussianDateHint} from "./domain.mjs?v=4.2.0";
-import {applyFormat,activeFormats,continueList,shiftIndent,diffRange,renderMarkdown} from "./md.mjs?v=4.2.0";
-import {state,ctx,$,$$,escapeHtml,icon,uid,nowIso,fmtLong,fmtTime,fmtDate,localDateInputValue,dateInputToIso,splitCsv,words,chars,wordLabel,pluralRu,featureOn,activeEntries,entryById,mediaOf,kindLabels,capitalizeRu} from "./core.js?v=4.2.0";
-import {entryText,excerpt} from "./text.mjs?v=4.2.0";
-import {cleanDecision,cleanLinks} from "./domain.mjs?v=4.2.0";
-import {modalHeader,statusPill} from "./kit.js?v=4.2.0";
-import {enhance} from "./ui.mjs?v=4.2.0";
-import {STRUCTURE_TEMPLATE} from "./writing.mjs?v=4.2.0";
-import {contextMarkup,assistMarkup,assistResult,suggestionsMarkup,contextSummaryText,decisionMarkup,linksMarkup,smartSuggestions} from "./editor-panels.js?v=4.2.0";
-import * as media from "./media.js?v=4.2.0";
-import * as store from "./store.js?v=4.2.0";
+import {validateCanonicalEntry,nextRevision,searchEntries,parseRussianDateHint} from "./domain.mjs?v=4.3.0";
+import {applyFormat,activeFormats,continueList,shiftIndent,diffRange,renderMarkdown} from "./md.mjs?v=4.3.0";
+import {state,ctx,$,$$,escapeHtml,icon,uid,nowIso,fmtLong,fmtTime,fmtDate,localDateInputValue,dateInputToIso,splitCsv,words,chars,wordLabel,pluralRu,featureOn,activeEntries,entryById,mediaOf,kindLabels,capitalizeRu} from "./core.js?v=4.3.0";
+import {entryText,excerpt} from "./text.mjs?v=4.3.0";
+import {cleanDecision,cleanLinks} from "./domain.mjs?v=4.3.0";
+import {modalHeader,statusPill} from "./kit.js?v=4.3.0";
+import {enhance} from "./ui.mjs?v=4.3.0";
+import {STRUCTURE_TEMPLATE} from "./writing.mjs?v=4.3.0";
+import {contextMarkup,assistMarkup,assistResult,suggestionsMarkup,contextSummaryText,decisionMarkup,linksMarkup,smartSuggestions,viewMetaMarkup} from "./editor-panels.js?v=4.3.0";
+import {TextHistory} from "./history.mjs?v=4.3.0";
+import * as media from "./media.js?v=4.3.0";
+import * as store from "./store.js?v=4.3.0";
 
 const FORMAT_GROUPS=[
   [["bold","bold","Полужирный","Ctrl+B"],["italic","italic","Курсив","Ctrl+I"],["strike","strike","Зачёркнутый",""],["code","code","Код",""]],
@@ -38,23 +39,24 @@ function mediaTools(){
   return `<div class="tool-group" role="group" aria-label="Вложения"><button type="button" class="tool-button" data-action="attach-photo" aria-label="Добавить фото" title="Добавить фото">${icon("image")}</button><button type="button" class="tool-button" data-action="attach-audio" aria-label="Добавить аудио" title="Добавить аудиофайл">${icon("paperclip")}</button>${media.canRecord()?`<button type="button" class="tool-button" data-action="record-toggle" aria-pressed="false" aria-label="Записать голос" title="Записать голос">${icon("mic")}</button>`:""}</div>
     <input type="file" id="attach-file-photo" accept="image/*" multiple hidden><input type="file" id="attach-file-audio" accept="audio/*" hidden>`;
 }
-function editorMarkup(entry){
+function editorMarkup(entry,mode="edit"){
   const [wc,cc]=statsText(entry.body),p=state.prefs;
-  return `<div class="editor-top"><div class="editor-top-left"><button type="button" class="icon-button icon-button-quiet" data-action="close-editor" aria-label="Закрыть редактор" title="Закрыть (Esc)">${icon("arrow-left")}</button><span class="save-state" id="editor-save" role="status"><i class="save-dot"></i><span>${escapeHtml(state.saveStatus)}</span></span></div>
+  return `<div class="editor-top"><div class="editor-top-left"><button type="button" class="icon-button icon-button-quiet" data-action="close-editor" aria-label="Закрыть редактор" title="Закрыть (Esc)">${icon("arrow-left")}</button><span class="save-state edit-only" id="editor-save" role="status"><i class="save-dot"></i><span>${escapeHtml(state.saveStatus)}</span></span></div>
     <div class="editor-top-right">
-      <button type="button" class="icon-button icon-button-quiet only-desktop" data-action="editor-find" aria-label="Найти в записи" title="Найти в записи${p.shortcuts?" (Ctrl+F)":""}">${icon("search")}</button>
-      <button type="button" class="icon-button icon-button-quiet" data-action="toggle-preview" id="preview-toggle" aria-pressed="false" aria-label="Показать, как выглядит текст" title="Просмотр">${icon("eye")}</button>
+      <button type="button" class="icon-button icon-button-quiet only-desktop edit-only" data-action="editor-find" aria-label="Найти в записи" title="Найти в записи${p.shortcuts?" (Ctrl+F)":""}">${icon("search")}</button>
+      <button type="button" class="icon-button icon-button-quiet edit-only" data-action="toggle-preview" id="preview-toggle" aria-pressed="false" aria-label="Показать, как выглядит текст" title="Просмотр">${icon("eye")}</button>
       <button type="button" class="icon-button icon-button-quiet only-desktop" data-action="entry-checkin" aria-label="Отметить состояние" title="Отметить состояние">${icon("state")}</button>
       <button type="button" class="icon-button icon-button-quiet only-desktop" data-action="versions" aria-label="История версий" title="История версий">${icon("history")}</button>
       <button type="button" class="icon-button icon-button-quiet favorite-button only-desktop${entry.favorite?" is-active":""}" data-action="favorite" aria-pressed="${entry.favorite}" aria-label="${entry.favorite?"Убрать из избранного":"Добавить в избранное"}" title="Избранное">${icon("star")}</button>
       <button type="button" class="icon-button icon-button-quiet danger-quiet only-desktop" data-action="trash-entry" id="trash-button" aria-label="Переместить в корзину" title="В корзину"${entry.revision>0?"":" hidden"}>${icon("trash")}</button>
       <button type="button" class="icon-button icon-button-quiet only-mobile" data-action="editor-more" aria-label="Ещё" aria-haspopup="dialog">${icon("more")}</button>
       <button type="button" class="icon-button icon-button-quiet focus-exit" data-action="toggle-focus" aria-label="Выйти из режима фокуса" title="Выйти из режима фокуса">${icon("x")}</button>
-      <button type="button" class="primary button-with-icon" data-action="finish-editing">${icon("check")}<span>Готово</span></button>
+      <button type="button" class="primary button-with-icon edit-only" data-action="finish-editing">${icon("check")}<span>Готово</span></button>
+      <button type="button" class="primary button-with-icon view-only" data-action="edit-entry">${icon("pen")}<span>Изменить</span></button>
     </div></div>
-    <div class="editor-tools" id="editor-tools" role="toolbar" aria-label="Форматирование текста">
+    <div class="editor-tools edit-only" id="editor-tools" role="toolbar" aria-label="Форматирование текста">
+      <div class="tool-group history-group" role="group" aria-label="История правок"><button type="button" class="tool-button" data-history="undo" aria-label="Отменить" title="Отменить${p.shortcuts?" (Ctrl+Z)":""}" disabled>${icon("undo")}</button><button type="button" class="tool-button" data-history="redo" aria-label="Повторить" title="Повторить${p.shortcuts?" (Ctrl+Shift+Z)":""}" disabled>${icon("undo","icon-flip")}</button></div>
       ${FORMAT_GROUPS.map(g=>`<div class="tool-group" role="group">${g.map(toolButton).join("")}</div>`).join("")}
-      <div class="tool-group only-desktop" role="group"><button type="button" class="tool-button" data-history="undo" aria-label="Отменить" title="Отменить${p.shortcuts?" (Ctrl+Z)":""}">${icon("undo")}</button><button type="button" class="tool-button" data-history="redo" aria-label="Повторить" title="Повторить${p.shortcuts?" (Ctrl+Shift+Z)":""}">${icon("undo","icon-flip")}</button></div>
       ${mediaTools()}
       <span class="tool-spacer"></span>
       <button type="button" class="secondary button-with-icon focus-toggle only-desktop" data-action="toggle-focus" aria-pressed="false">${icon("focus")}<span>Фокус</span></button>
@@ -62,14 +64,16 @@ function editorMarkup(entry){
     <div class="recorder-status" id="recorder-status" role="status" hidden><i class="rec-dot"></i><span>Идёт запись</span><time>0:00</time><button type="button" class="secondary" data-action="record-toggle">Остановить</button></div>
     <div class="editor-findbar" id="editor-findbar" role="search" hidden><input id="editor-find-input" type="search" autocomplete="off" spellcheck="false" aria-label="Найти в записи" placeholder="Найти в записи"><span class="find-count" id="editor-find-count" aria-live="polite"></span><button type="button" class="icon-button icon-button-quiet" data-action="find-prev" aria-label="Предыдущее совпадение">${icon("chevron-up")}</button><button type="button" class="icon-button icon-button-quiet" data-action="find-next" aria-label="Следующее совпадение">${icon("chevron-down")}</button><button type="button" class="icon-button icon-button-quiet" data-action="close-find" aria-label="Закрыть поиск">${icon("x")}</button></div>
     <div class="editor-surface" id="editor-surface"><div class="editor-canvas">
-      <textarea class="entry-title" id="entry-title" rows="1" maxlength="300" autocomplete="off" spellcheck="${p.spellcheck}" placeholder="Заголовок" aria-label="Заголовок записи">${escapeHtml(entry.title||"")}</textarea>
+      <textarea class="entry-title" id="entry-title" rows="1" maxlength="300" autocomplete="off" spellcheck="${p.spellcheck}" placeholder="Заголовок" aria-label="Заголовок записи"${mode==="view"?" readonly tabindex=\"-1\"":""}>${escapeHtml(entry.title||"")}</textarea>
+      <div class="view-meta view-only" id="view-meta">${mode==="view"?viewMetaMarkup(entry):""}</div>
       ${contextMarkup(entry)}
       <div class="body-wrap"><div class="body-mirror" id="body-mirror" aria-hidden="true"></div><textarea class="entry-body" id="entry-body" autocomplete="off" spellcheck="${p.spellcheck}" placeholder="Начните с любого места…" aria-label="Текст записи">${escapeHtml(entry.body||"")}</textarea><div class="slash-menu card" id="editor-slash-menu" role="listbox" aria-label="Команды форматирования" hidden></div></div>
       <div class="md-preview" id="entry-preview" hidden></div>
-      <div id="attach-strip">${featureOn("featMedia")?media.stripMarkup(entry.id):""}</div>
+      <div id="attach-strip" class="edit-only">${featureOn("featMedia")&&mode==="edit"?media.stripMarkup(entry.id):""}</div>
+      <div id="view-attach" class="view-only">${featureOn("featMedia")&&mode==="view"?media.galleryMarkup(entry.id,entry.body||""):""}</div>
       ${assistMarkup()}
     </div></div>
-    <div class="editor-bottom"><div id="editor-date">${escapeHtml(fmtLong(entry.happenedAt))}</div>${p.editorStats?`<div class="editor-stats" aria-label="Размер текста"><span id="word-count">${wc}</span><span id="char-count">${cc}</span></div>`:""}</div>`;
+    <div class="editor-bottom"><div id="editor-date">${escapeHtml(fmtLong(entry.happenedAt))}</div>${p.editorStats?`<div class="editor-stats" aria-label="Размер текста"><span id="word-count">${wc}</span><span id="char-count">${cc}</span></div>`:""}<span class="session-info edit-only" id="session-info" hidden></span></div>`;
 }
 export async function openEditor(id=null,opts={}){
   if(state.editing){
@@ -78,11 +82,17 @@ export async function openEditor(id=null,opts={}){
   }
   let entry=id?entryById(id):null;
   if(!entry)entry=newEntry(opts);
+  const existing=entry.revision>0;
+  /* a finished entry opens for reading; a new one or an unfinished draft opens for writing */
+  const mode=opts.mode||(existing&&entry.completedAt&&!opts.edit?"view":"edit");
   state.editing=structuredClone(entry);state.dirty=false;state.conflict=null;
   state.saveStatus=entry.revision?"Сохранено":"Новая запись";
   state.editorPreview=false;state.slash=null;state.find=null;
-  const box=ctx.overlay(editorMarkup(state.editing),"modal editor-modal","Редактор записи",{kind:"editor",focus:false});
-  bindEditor(box);
+  state.editorMode=mode;state.editorOrigin=mode==="view"?"view":"direct";
+  state.editorBaseline=existing?baselineOf(entry):null;
+  state.sessionStart=Date.now();state.sessionBaseWords=words(entry.body||"");
+  const box=ctx.overlay(editorMarkup(state.editing,mode),`modal editor-modal${mode==="view"?" is-viewing":""}`,mode==="view"?"Просмотр записи":"Редактор записи",{kind:"editor",focus:false});
+  bindEditor(box,mode);
   return box;
 }
 export function markEditorDirty(source="autosave"){
@@ -120,6 +130,13 @@ function scheduleFrameWork(hint,shrink=true){
     syncToolbar();
   });
 }
+/** «+124 слова · 6 мин»: what this sitting added. Neutral, no goals; hidden until something was actually written. */
+function updateSessionInfo(text){
+  const el=$("#session-info");if(!el)return;
+  const added=words(text)-(state.sessionBaseWords||0),mins=Math.floor((Date.now()-(state.sessionStart||Date.now()))/60000);
+  if(added<=0){el.hidden=true;return;}
+  el.hidden=false;el.textContent=`+${added} ${wordLabel(added)}${mins>=1?` · ${mins} мин`:""}`;
+}
 let pendingCaret=false;
 function scheduleIdleWork(){
   clearTimeout(idleJob);
@@ -127,6 +144,7 @@ function scheduleIdleWork(){
     const body=$("#entry-body");if(!body||!state.editing)return;
     const [w,c]=statsText(body.value),wn=$("#word-count"),cn=$("#char-count");
     if(wn)wn.textContent=w;if(cn)cn.textContent=c;
+    updateSessionInfo(body.value);
     refreshEditorMeta();
     if(state.find)findRun(true);
   },160);
@@ -176,6 +194,7 @@ function ensureCaretVisible(){
 /* formatting: every change goes through the browser's edit pipeline so Ctrl+Z keeps working */
 function setBodyValue(result){
   const body=$("#entry-body");if(!body)return;
+  hist?.seal();
   const d=diffRange(body.value,result.value);
   body.focus({preventScroll:true});
   if(d.from!==d.to||d.text){
@@ -188,7 +207,7 @@ function setBodyValue(result){
   syncToolbar();ensureCaretVisible();
 }
 export function insertAtCaret(text){
-  const body=$("#entry-body");if(!body)return;
+  const body=$("#entry-body");if(!body||state.editorMode==='view')return;
   if(state.editorPreview)setPreview(false);
   const v=body.value,s=body.selectionStart,e=body.selectionEnd,next=v.slice(0,s)+text+v.slice(e);
   setBodyValue({value:next,start:s+text.length,end:s+text.length});
@@ -200,6 +219,7 @@ function runFormat(format){
 }
 function syncToolbar(){
   const body=$("#entry-body"),tools=$("#editor-tools");if(!body||!tools)return;
+  syncHistoryButtons();
   const active=state.editorPreview?new Set():activeFormats(body.value,body.selectionStart,body.selectionEnd);
   $$("[data-format]",tools).forEach(b=>{const on=active.has(b.dataset.format);if(b.classList.contains("is-on")!==on){b.classList.toggle("is-on",on);b.setAttribute("aria-pressed",String(on));}});
 }
@@ -234,7 +254,7 @@ function applySlash(format){
   setBodyValue({value:body.value.slice(0,from)+body.value.slice(to),start:from,end:from});
   runFormat(chosen);
 }
-function setPreview(on){
+function setPreview(on,{focus=true}={}){
   const modal=$(".editor-modal"),body=$("#entry-body"),pv=$("#entry-preview");if(!modal||!pv)return;
   state.editorPreview=on;hideSlash();
   modal.classList.toggle("is-previewing",on);
@@ -244,7 +264,7 @@ function setPreview(on){
   $("#editor-tools")?.classList.toggle("is-disabled",on);
   const btn=$("#preview-toggle");
   if(btn){btn.setAttribute("aria-pressed",String(on));btn.setAttribute("aria-label",on?"Вернуться к редактированию":"Показать, как выглядит текст");btn.title=on?"Редактировать":"Просмотр";btn.innerHTML=icon(on?"pen":"eye");}
-  if(!on)requestAnimationFrame(()=>{body.focus({preventScroll:true});autosize(body);});
+  if(!on)requestAnimationFrame(()=>{if(focus)body.focus({preventScroll:true});autosize(body);});
   syncToolbar();
 }
 export function toggleFocusMode(){
@@ -311,7 +331,7 @@ function closeFind({focusBody=true}={}){
 /* ----- binding ----- */
 function refreshAttachments(){const n=$("#attach-strip");if(n&&state.editing){n.innerHTML=featureOn("featMedia")?media.stripMarkup(state.editing.id):"";media.hydrate(n);}}
 async function attachFiles(files){
-  const ed=state.editing;if(!ed)return;
+  const ed=state.editing;if(!ed||state.editorMode==='view')return; // attachments are added only while editing
   const added=await media.addFiles(ed.id,files);
   afterMediaAdded(added);
 }
@@ -326,13 +346,57 @@ export function removeMediaRefs(id){
   const body=$("#entry-body");if(!body||!state.editing)return;
   const re=new RegExp(`\\n*!\\[[^\\]\\n]*\\]\\(narra-media:${id}\\)\\n*`,"g");
   const next=body.value.replace(re,"\n\n").replace(/^\n+/,"").replace(/\n{3,}/g,"\n\n");
-  if(next!==body.value){body.value=next;state.editing.body=next;autosize(body);markEditorDirty("media");scheduleIdleWork();}
+  if(next!==body.value){hist?.seal();body.value=next;state.editing.body=next;hist?.record(next,[next.length,next.length]);syncHistoryButtons();autosize(body);markEditorDirty("media");scheduleIdleWork();}
 }
-function bindEditor(box){
+let hist=null,histApplying=false;
+function syncHistoryButtons(){
+  const u=$('[data-history="undo"]'),r=$('[data-history="redo"]');
+  if(u)u.disabled=!hist?.canUndo();if(r)r.disabled=!hist?.canRedo();
+}
+function stepHistory(dir){
+  const body=$("#entry-body");if(!body||!hist||state.editorMode==="view")return false;
+  if(state.editorPreview)setPreview(false);
+  const res=dir<0?hist.undo():hist.redo();
+  if(!res){syncHistoryButtons();return false;}
+  histApplying=true;
+  body.value=res.value;body.focus({preventScroll:true});body.setSelectionRange(res.sel[0],res.sel[1]);
+  body.dispatchEvent(new Event("input",{bubbles:true}));
+  histApplying=false;
+  ensureCaretVisible();syncHistoryButtons();
+  return true;
+}
+/* reading mode <-> writing mode of one open entry */
+function enterView(){
+  const modal=$(".editor-modal"),ed=state.editing;if(!modal||!ed)return;
+  try{media.stopRecordingIfAny?.();}catch{}
+  state.editorMode="view";modal.classList.add("is-viewing");
+  modal.setAttribute("aria-label","Просмотр записи");
+  const t=$("#entry-title");if(t){t.readOnly=true;t.tabIndex=-1;t.value=ed.title||"";}
+  const vm=$("#view-meta");if(vm)vm.innerHTML=viewMetaMarkup(ed);
+  const va=$("#view-attach");if(va){va.innerHTML=featureOn("featMedia")?media.galleryMarkup(ed.id,ed.body||""):"";media.hydrate(va);}
+  const sa=$("#attach-strip");if(sa)sa.innerHTML="";
+  hideSlash();closeFind({focusBody:false});
+  setPreview(true,{focus:false});
+  requestAnimationFrame(()=>{autosize(t);const s=$("#editor-surface");if(s)s.scrollTop=0;$('[data-action="edit-entry"]')?.focus({preventScroll:true});});
+}
+function enterEdit(){
+  const modal=$(".editor-modal"),ed=state.editing,body=$("#entry-body");if(!modal||!ed||!body)return;
+  state.editorMode="edit";modal.classList.remove("is-viewing");
+  modal.setAttribute("aria-label","Редактор записи");
+  const t=$("#entry-title");if(t){t.readOnly=false;t.tabIndex=0;}
+  const sa=$("#attach-strip");if(sa){sa.innerHTML=featureOn("featMedia")?media.stripMarkup(ed.id):"";media.hydrate(sa);}
+  const va=$("#view-attach");if(va)va.innerHTML="";
+  hist=new TextHistory(body.value);histApplying=false;syncHistoryButtons();
+  setPreview(false,{focus:false});
+  requestAnimationFrame(()=>{autosize(t);autosize(body);body.focus({preventScroll:true});body.setSelectionRange(body.value.length,body.value.length);ensureCaretVisible();syncToolbar();});
+}
+function bindEditor(box,mode="edit"){
   const title=$("#entry-title",box),body=$("#entry-body",box),surface=$("#editor-surface",box);
+  hist=new TextHistory(body.value);histApplying=false;
   const onInput=ev=>{
     const ed=state.editing;if(!ed)return;
     ed.title=title.value.replace(/\s*\n\s*/g," ");ed.body=body.value;
+    if(ev?.target===body&&!histApplying){hist.record(body.value,[body.selectionStart,body.selectionEnd]);syncHistoryButtons();}
     detectSlash();
     markEditorDirty();
     scheduleFrameWork(ev?.inputType==="insertLineBreak"||body.value.length-body.selectionEnd<400,!/^insert(Text|CompositionText)$/.test(ev?.inputType||""));
@@ -344,8 +408,13 @@ function bindEditor(box){
     if(e.key==="ArrowDown"&&title.selectionStart===title.value.length&&!e.shiftKey){e.preventDefault();body.focus();body.setSelectionRange(0,0);}
   });
   body.addEventListener("input",onInput);
-  body.addEventListener("keyup",e=>{if(["ArrowLeft","ArrowRight","Home","End","PageUp","PageDown"].includes(e.key)){detectSlash();syncToolbar();}});
-  body.addEventListener("click",()=>{detectSlash();syncToolbar();});
+  /* our own history replaces the browser's: same result on every device, and it survives scripted edits */
+  body.addEventListener("beforeinput",e=>{
+    if(e.inputType==="historyUndo"){e.preventDefault();stepHistory(-1);}
+    else if(e.inputType==="historyRedo"){e.preventDefault();stepHistory(1);}
+  });
+  body.addEventListener("keyup",e=>{if(["ArrowLeft","ArrowRight","Home","End","PageUp","PageDown"].includes(e.key)){hist.seal();detectSlash();syncToolbar();}});
+  body.addEventListener("click",()=>{hist.seal();detectSlash();syncToolbar();});
   body.addEventListener("focus",()=>syncToolbar());
   body.addEventListener("paste",e=>{
     const files=[...(e.clipboardData?.files||[])].filter(f=>f.type.startsWith("image/"));
@@ -368,6 +437,8 @@ function bindEditor(box){
       if(e.key==="Escape"){e.preventDefault();e.stopPropagation();hideSlash();return;}
     }
     if(mod&&!e.altKey){
+      if(e.code==="KeyZ"){e.preventDefault();stepHistory(e.shiftKey?1:-1);return;}
+      if(!e.shiftKey&&e.code==="KeyY"){e.preventDefault();stepHistory(1);return;}
       if(!e.shiftKey&&e.code==="KeyB"){e.preventDefault();runFormat("bold");return;}
       if(!e.shiftKey&&e.code==="KeyI"){e.preventDefault();runFormat("italic");return;}
       if(!e.shiftKey&&e.code==="KeyK"){e.preventDefault();runFormat("link");return;}
@@ -421,7 +492,7 @@ function bindEditor(box){
   tools.addEventListener("click",e=>{
     const f=e.target.closest("[data-format]");if(f){runFormat(f.dataset.format);return;}
     const h=e.target.closest("[data-history]");
-    if(h){body.focus({preventScroll:true});try{document.execCommand(h.dataset.history);}catch{}syncToolbar();}
+    if(h){stepHistory(h.dataset.history==="undo"?-1:1);}
   });
   slash.addEventListener("click",e=>{const b=e.target.closest("[data-slash]");if(b)applySlash(b.dataset.slash);});
   const fi=$("#editor-find-input",box);
@@ -432,6 +503,7 @@ function bindEditor(box){
   });
   document.addEventListener("selectionchange",onSelectionChange);
   media.hydrate(box);
+  if(mode==="view"){enterView();return;}
   requestAnimationFrame(()=>{
     autosize(title);autosize(body);
     if(state.editing.revision||state.editing.body){body.focus({preventScroll:true});body.setSelectionRange(body.value.length,body.value.length);ensureCaretVisible();}
@@ -471,9 +543,18 @@ function dismissSuggestion(el){
 const isPrefillOnly=e=>!e.revision&&e.prefill&&e.body.trim()===e.prefill.trim();
 const META_KEYS=["title","body","favorite","completedAt","deletedAt","happenedAt","kind","sensitive","location","people","themes","projects","dismissedSuggestions","happenedEnd","chapterId","links","decision"];
 const sameValue=(a,b)=>JSON.stringify(a??null)===JSON.stringify(b??null);
+const baselineOf=e=>{const o={};for(const k of META_KEYS)o[k]=structuredClone(e[k]??null);return o;};
+/* what counts as "you changed this entry" when leaving; favourites and dismissed hints are not worth a question */
+const GUARD_KEYS=["title","body","kind","happenedAt","happenedEnd","location","people","themes","projects","chapterId","decision","links","sensitive"];
+function changedSinceOpen(){
+  const ed=state.editing,b=state.editorBaseline;
+  if(!ed)return false;
+  if(!b)return Boolean(ed.body.trim())&&!isPrefillOnly(ed);
+  return GUARD_KEYS.some(k=>!sameValue(ed[k],b[k]));
+}
 async function persistEditingSnapshot(snapshot,source,epoch){
   const current=()=>state.editing?.id===snapshot.id&&state.saveEpoch===epoch;
-  if(state.conflict)return false;
+  if(state.conflict){if(!$('#dialog-root .conflict-body'))showConflictSheet();return false;}
   if(isPrefillOnly(snapshot)){if(current())setSaveStatus("Начните с ответа");return false;}
   if(!validateCanonicalEntry(snapshot).ok){if(current())setSaveStatus(snapshot.title.trim()?"Добавьте текст, чтобы сохранить":"Пока пусто",snapshot.title.trim()?"error":"");return false;}
   const prev=entryById(snapshot.id);
@@ -481,7 +562,8 @@ async function persistEditingSnapshot(snapshot,source,epoch){
   if(unchanged){if(current()){state.dirty=false;setSaveStatus("Сохранено");}return true;}
   try{
     const {prefill,...clean}=snapshot;
-    const expect=snapshot.revision||0;
+    // a snapshot cloned while an earlier save was still running carries an old revision; our own saves advance state.editing.revision
+    const expect=Math.max(snapshot.revision||0,state.editing?.id===snapshot.id?state.editing.revision||0:0);
     const next={...clean,updatedAt:nowIso(),revision:nextRevision(expect)};
     await store.commitEntrySnapshot(next,source,{expectRevision:prev||expect>0?expect:null});
     await store.trimVersions(next.id,100);
@@ -524,6 +606,11 @@ async function handleConflict(mine,rawTheirs){
   const theirs=await store.unpackEntry(rawTheirs);
   state.conflict={mine,theirs};
   setSaveStatus("Запись изменилась в другой вкладке","error");
+  showConflictSheet();
+}
+/** Also shown again when the person tries to save or close while the conflict is still open (the sheet can be dismissed by mistake). */
+function showConflictSheet(){
+  const {mine,theirs}=state.conflict||{};if(!mine||!theirs)return;
   const t=entryText(theirs);
   ctx.sheetDialog(`${modalHeader("Запись изменилась в другом окне","Ничего не потеряется: вторая версия сохранится в истории.","info","close-dialog")}<div class="modal-body conflict-body">
     <p>Пока вы писали здесь, эту запись изменили в другой вкладке Narra. Выберите, как поступить.</p>
@@ -554,15 +641,21 @@ async function resolveConflict(kind){
     state.conflict=null;state.dirty=false;
     await store.loadData();store.notifyChange("entry");
     ctx.closeDialog({restoreFocus:false});
-    const box=ctx.overlay(editorMarkup(state.editing),"modal editor-modal","Редактор записи",{kind:"editor",focus:false});
-    bindEditor(box);
+    state.editorMode="edit";state.editorBaseline=baselineOf(state.editing);
+    const box=ctx.overlay(editorMarkup(state.editing,"edit"),"modal editor-modal","Редактор записи",{kind:"editor",focus:false});
+    bindEditor(box,"edit");
     ctx.toast(kind==="both"?"Ваша версия сохранена отдельной записью.":kind==="mine"?"Оставлена ваша версия.":"Загружена версия из другого окна.");
   }catch(error){console.error(error);ctx.toast("Не удалось разрешить конфликт. Ничего не потеряно.");}
 }
-export async function closeEditor({finish=false}={}){
+export async function closeEditor({finish=false,force=false}={}){
   const ed=state.editing;
   if(!ed){ctx.closeOverlay();return true;}
   clearTimeout(state.editorTimer);
+  if(!finish&&!force&&state.editorMode==="edit"&&!state.conflict&&changedSinceOpen()&&ed.body.trim()&&!isPrefillOnly(ed)){
+    await saveEditing("close").catch(()=>false); // the sheet says the text is already on the device — make that true first
+    if(state.conflict)return false;
+    askBeforeLeaving();return false;
+  }
   const empty=!ed.body.trim()||isPrefillOnly(ed);
   const discard=async()=>{if(!ed.revision)await store.deleteAttachmentsFor(ed.id).catch(()=>{});await store.reloadAttachments().catch(()=>{});ctx.closeOverlay();ctx.render();};
   if(empty){
@@ -580,19 +673,59 @@ export async function closeEditor({finish=false}={}){
   if(finish)ctx.toast("Запись сохранена.");
   return true;
 }
+function askBeforeLeaving(){
+  const isNew=!state.editorBaseline;
+  const item=(iconName,title,sub,action,cls="")=>`<button type="button" class="more-menu-item${cls}" data-action="${action}">${icon(iconName)}<span><strong>${title}</strong><small>${sub}</small></span>${icon("chevron-right")}</button>`;
+  ctx.sheetDialog(`${modalHeader(isNew?"Закрыть запись?":"Закрыть без потери правок?",isNew?"Текст уже записан на этом устройстве как черновик.":"Правки уже записаны на этом устройстве.","pen","close-dialog")}<div class="modal-body more-menu">
+    ${item("check",isNew?"Сохранить и закрыть":"Сохранить правки","Запись останется в дневнике","guard-save")}
+    ${item("pen","Продолжить писать","Вернуться в редактор","close-dialog")}
+    <div class="more-menu-sep" role="separator"></div>
+    ${item("trash",isNew?"Не сохранять":"Отменить правки",isNew?"Черновик уйдёт в корзину — оттуда его можно вернуть":"Запись станет такой, какой была при открытии; правки сохранятся в истории версий","guard-discard"," is-danger")}
+  </div>`,"Закрыть запись");
+}
+async function discardSession(){
+  const ed=state.editing;if(!ed)return;
+  ctx.closeDialog({restoreFocus:false});
+  clearTimeout(state.editorTimer);
+  try{
+    await state.saveChain.catch(()=>false);
+    const b=state.editorBaseline,current=entryById(ed.id);
+    if(!b){
+      if(current&&!current.deletedAt){
+        const next={...current,deletedAt:nowIso(),updatedAt:nowIso(),revision:nextRevision(current.revision)};
+        await store.commitEntrySnapshot(next,"trash");await store.loadData();store.notifyChange("entry");
+      }
+      ctx.closeOverlay();ctx.render();
+      ctx.toast(current?"Черновик перемещён в корзину.":"Черновик закрыт без сохранения.",current?{label:"Вернуть",action:"undo-trash",id:ed.id}:null);
+    }else{
+      if(current){
+        const patch={};for(const k of META_KEYS)if(!["completedAt","deletedAt"].includes(k))patch[k]=b[k];
+        const next={...current,...patch,updatedAt:nowIso(),revision:nextRevision(current.revision)};
+        await store.commitEntrySnapshot(next,"revert");await store.trimVersions(next.id,100);await store.loadData();store.notifyChange("entry");
+      }
+      ctx.closeOverlay();ctx.render();ctx.toast("Правки отменены. Запись такая же, как была.");
+    }
+  }catch(error){console.error(error);ctx.toast("Не удалось отменить правки. Запись осталась как есть.");}
+}
 async function trashCurrentEntry(){
   const ed=state.editing;if(!ed)return;
   if(!ed.revision){
     if(ed.body.trim()&&!isPrefillOnly(ed)){
-      ctx.confirmDialog({title:"Отбросить черновик?",text:"Эта запись ещё не сохранена. Она будет удалена без возможности вернуть.",confirmLabel:"Отбросить",cancelLabel:"Отмена",danger:true,iconName:"trash"},async()=>{await store.deleteAttachmentsFor(ed.id).catch(()=>{});await store.reloadAttachments();ctx.closeOverlay();ctx.render();});
+      ctx.confirmDialog({title:"Отбросить черновик?",text:"Эта запись ещё не сохранена. Она будет удалена без возможности вернуть.",confirmLabel:"Отбросить",cancelLabel:"Отмена",danger:true,iconName:"trash"},async()=>{const id=ed.id;await store.deleteAttachmentsFor(id).catch(()=>{});await store.reloadAttachments().catch(()=>{});ctx.closeOverlay();ctx.render();ctx.toast("Черновик отброшен.");});
       return;
     }
     ctx.closeOverlay();ctx.render();return;
   }
-  ed.deletedAt=nowIso();state.saveEpoch++;state.dirty=true;
-  const id=ed.id,ok=await saveEditing("trash");
-  if(ok){ctx.closeOverlay();ctx.render();ctx.toast("Запись перемещена в корзину.",{label:"Вернуть",action:"undo-trash",id});}
-  else{ed.deletedAt=null;ctx.toast("Не удалось переместить запись в корзину.");}
+  const label=entryText(ed).title;
+  ctx.confirmDialog({title:"Переместить запись в корзину?",text:`«${label}» исчезнет из дневника, но останется в корзине.`,detail:"Оттуда её можно вернуть в любой момент — пока вы сами не удалите её навсегда.",confirmLabel:"В корзину",cancelLabel:"Оставить",danger:true,iconName:"trash"},async()=>{
+    const cur=state.editing;if(!cur||cur.id!==ed.id)return;
+    cur.deletedAt=nowIso();state.saveEpoch++;state.dirty=true;
+    const id=cur.id,ok=await saveEditing("trash");
+    if(ok){
+      ctx.closeOverlay();ctx.render();
+      ctx.resultDialog({title:"Запись в корзине",text:`«${label}» перемещена в корзину.`,hint:"Найти её можно в разделе «Дневник» → «Корзина». Там же её можно вернуть.",actions:[{label:"Вернуть запись",action:"undo-trash",id,toast:true},{label:"Открыть корзину",action:"open-trash"}],hidePref:"hideDeleteHint"});
+    }else{cur.deletedAt=null;ctx.toast("Не удалось переместить запись в корзину. Она осталась на месте.");}
+  });
 }
 export async function restoreTrashedEntry(id){
   const current=state.entries.find(e=>e.id===id&&e.deletedAt);if(!current){ctx.toast("Эта запись уже не в корзине.");return;}
@@ -629,15 +762,42 @@ async function restoreVersion(versionId){
     const meta=raw.metaEnc?await store.decryptJson(raw.metaEnc,{}):{};
     const restored={...current,...meta,title:await store.decryptText(raw.titleEnc),body:await store.decryptText(raw.bodyEnc),updatedAt:nowIso(),revision:nextRevision(current.revision)};
     await store.commitEntrySnapshot(restored,"restore");await store.trimVersions(restored.id,100);await store.loadData();store.notifyChange("entry");
-    state.editing=null;await openEditor(restored.id);ctx.toast("Версия восстановлена как новая.");
+    state.editing=null;await openEditor(restored.id,{mode:"view"});ctx.toast("Версия восстановлена как новая.");
   }catch(error){console.error("Ошибка восстановления версии",error);ctx.toast("Не удалось восстановить версию.");}
 }
 
 /* ----- more sheet on phones ----- */
 function showEditorMore(){
   const ed=state.editing;if(!ed)return;
-  const item=(iconName,title,run)=>`<button type="button" class="more-menu-item" data-action="editor-run" data-run="${run}">${icon(iconName)}<span><strong>${title}</strong></span>${icon("chevron-right")}</button>`;
-  ctx.sheetDialog(`${modalHeader("Запись","","pen","close-dialog")}<div class="modal-body more-menu">${item("search","Найти в записи","find")}${item("state","Отметить состояние","checkin")}${item("history","История версий","versions")}${item("star",ed.favorite?"Убрать из избранного":"Добавить в избранное","favorite")}${item("focus","Режим фокуса","focus")}${ed.revision?item("trash","Переместить в корзину","trash"):""}</div>`,"Действия с записью");
+  const view=state.editorMode==="view";
+  const item=(iconName,title,run,sub="")=>`<button type="button" class="more-menu-item" data-action="editor-run" data-run="${run}">${icon(iconName)}<span><strong>${title}</strong>${sub?`<small>${sub}</small>`:""}</span>${icon("chevron-right")}</button>`;
+  ctx.sheetDialog(`${modalHeader("Запись","","pen","close-dialog")}<div class="modal-body more-menu">
+    ${view?"":item("search","Найти в записи","find")}
+    ${item("state","Отметить состояние","checkin")}
+    ${item("history","История версий","versions")}
+    ${item("star",ed.favorite?"Убрать из избранного":"Добавить в избранное","favorite")}
+    ${item("copy","Скопировать текст","copy")}
+    ${item("download","Сохранить как файл Markdown","export-md")}
+    ${view?"":item("focus","Режим фокуса","focus")}
+    ${ed.revision?`<div class="more-menu-sep" role="separator"></div>${item("trash","Переместить в корзину","trash")}`:""}</div>`,"Действия с записью");
+}
+async function copyEntryText(){
+  const ed=state.editing;if(!ed)return;
+  const text=`${ed.title?ed.title+"\n\n":""}${ed.body}`;
+  try{await navigator.clipboard.writeText(text);ctx.toast("Текст скопирован.");}
+  catch{
+    const ta=document.createElement("textarea");ta.value=text;ta.setAttribute("readonly","");ta.className="sr-only";document.body.append(ta);ta.select();
+    let ok=false;try{ok=document.execCommand("copy");}catch{}ta.remove();ctx.toast(ok?"Текст скопирован.":"Не удалось скопировать. Выделите текст вручную.");
+  }
+}
+function exportEntryMarkdown(){
+  const ed=state.editing;if(!ed)return;
+  const front=`---\ndate: ${localDateInputValue(ed.happenedAt)}\nkind: ${ed.kind}\n${ed.themes?.length?`tags: [${ed.themes.join(", ")}]\n`:""}---\n\n`;
+  const md=`${front}${ed.title?`# ${ed.title}\n\n`:""}${ed.body}\n`;
+  const name=(ed.title||localDateInputValue(ed.happenedAt)).replace(/[\\/:*?"<>|\n]/g," ").trim().slice(0,60)||"запись";
+  const url=URL.createObjectURL(new Blob([md],{type:"text/markdown;charset=utf-8"}));
+  const a=document.createElement("a");a.href=url;a.download=`${name}.md`;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),4000);
+  ctx.toast("Файл сохранён.");
 }
 async function runEditorAction(run){
   ctx.closeDialog({restoreFocus:false});
@@ -647,6 +807,8 @@ async function runEditorAction(run){
   else if(run==="focus")toggleFocusMode();
   else if(run==="checkin")await ctx.ACTIONS["entry-checkin"]();
   else if(run==="trash")await trashCurrentEntry();
+  else if(run==="copy")await copyEntryText();
+  else if(run==="export-md")exportEntryMarkdown();
 }
 
 /* ----- link picker ----- */
@@ -668,14 +830,14 @@ export function onOverlayClosed(){
 export async function onEscape(){
   if(state.slash&&!$("#editor-slash-menu")?.hidden){hideSlash();return true;}
   if(closeFind())return true;
-  if(state.editorPreview){setPreview(false);return true;}
+  if(state.editorPreview&&state.editorMode!=="view"){setPreview(false);return true;}
   if($(".editor-modal.is-focus-mode")){toggleFocusMode();return true;}
   return false;
 }
 export async function onKey(e,mod){
   if(mod&&e.shiftKey&&e.code==="KeyF"){e.preventDefault();toggleFocusMode();return;}
   if(mod&&!e.shiftKey&&e.code==="KeyF"){e.preventDefault();showEditorFind();return;}
-  if(mod&&e.key==="Enter"){e.preventDefault();await closeEditor({finish:true});return;}
+  if(mod&&e.key==="Enter"){e.preventDefault();if(state.editorMode==="view")return;await ctx.ACTIONS["finish-editing"]();return;}
   if(mod&&e.code==="KeyS"){e.preventDefault();const ok=await saveEditing("manual");if(ok)ctx.toast("Сохранено.");return;}
   if(e.key==="F3"||(mod&&e.code==="KeyG")){e.preventDefault();if(!$("#editor-findbar")||$("#editor-findbar").hidden)showEditorFind();else findJump(e.shiftKey?-1:1);}
 }
@@ -692,7 +854,19 @@ export const actions={
   "open-linked":async el=>{await openEditor(el.dataset.id);},
   "focus-new":async()=>{await openEditor();toggleFocusMode();},
   "close-editor":()=>closeEditor(),
-  "finish-editing":()=>closeEditor({finish:true}),
+  "finish-editing":async()=>{
+    if(state.editorOrigin==="view"&&state.editing?.revision>0&&state.editing.body.trim()){
+      const ed=state.editing;if(!ed.completedAt){ed.completedAt=nowIso();state.saveEpoch++;state.dirty=true;}
+      const ok=await saveEditing("complete");
+      if(ok){state.editorBaseline=baselineOf(state.editing);enterView();ctx.toast("Сохранено.");}
+      else ctx.toast("Не удалось сохранить запись. Она осталась в редакторе.");
+      return;
+    }
+    await closeEditor({finish:true});
+  },
+  "edit-entry":()=>enterEdit(),
+  "guard-save":async()=>{ctx.closeDialog({restoreFocus:false});await closeEditor({finish:true});},
+  "guard-discard":()=>discardSession(),
   "editor-find":()=>showEditorFind(),
   "close-find":()=>closeFind(),
   "find-next":()=>findJump(1),
@@ -702,7 +876,7 @@ export const actions={
   "favorite":el=>toggleFavorite(el),
   "trash-entry":()=>trashCurrentEntry(),
   "versions":()=>showVersions(),
-  "close-versions":async()=>{const id=state.editing?.id;if(id&&entryById(id)){state.editing=null;await openEditor(id);}else ctx.closeOverlay();},
+  "close-versions":async()=>{const id=state.editing?.id,mode=state.editorMode;if(id&&entryById(id)){state.editing=null;await openEditor(id,{mode});}else ctx.closeOverlay();},
   "restore-version":el=>restoreVersion(el.dataset.id),
   "accept-suggestion":el=>acceptSuggestion(el),
   "dismiss-suggestion":el=>dismissSuggestion(el),

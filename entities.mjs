@@ -1,9 +1,9 @@
 /* Narra entities: people, places, themes, projects and life chapters, derived from what the user typed.
    Nothing here is scraped or guessed: an entity exists only because the user wrote its name on an entry.
    Pure and dependency-free. */
-import {foldRu} from "./domain.mjs?v=4.2.0";
-import {dayStates,associate,dayKey,addDays,median,MIN_N} from "./stats.mjs?v=4.2.0";
-import {contextItems} from "./checkin.mjs?v=4.2.0";
+import {foldRu} from "./domain.mjs?v=4.3.0";
+import {dayStates,associate,dayKey,addDays,median,MIN_N} from "./stats.mjs?v=4.3.0";
+import {contextItems} from "./checkin.mjs?v=4.3.0";
 
 export const ENTITY_TYPES=[
   {type:"person",plural:"Люди",singular:"Человек",field:"people"},
@@ -148,11 +148,28 @@ export function renameInEntries(entries,type,from,to){
 }
 
 /** Chapters: which entries belong to which life period. Explicit chapterId wins; otherwise a date range may claim the entry. */
+export const NO_CHAPTER="-"; // an entry the person explicitly kept out of every chapter, even where dates would claim it
 export function chapterOf(entry,chapters){
+  if(entry.chapterId===NO_CHAPTER) return null;
   if(entry.chapterId&&chapters.some(c=>c.id===entry.chapterId)) return chapters.find(c=>c.id===entry.chapterId);
   const day=dayKey(entry.happenedAt);
   const hit=chapters.filter(c=>c.start&&day>=c.start&&(!c.end||day<=c.end));
   return hit.length===1?hit[0]:null; // an entry inside two overlapping ranges is not silently assigned
+}
+/** How an entry relates to one chapter: "manual" (chosen), "dates" (claimed by the date range only), "excluded", or "" (not in it). */
+export function chapterMembership(entry,chapter,chapters){
+  if(entry.chapterId===chapter.id) return "manual";
+  if(entry.chapterId===NO_CHAPTER) return "";
+  return chapterOf(entry,chapters)?.id===chapter.id?"dates":"";
+}
+/** The change that puts an entry in / takes it out of a chapter while keeping every other rule intact. */
+export function chapterPatch(entry,chapter,chapters,want){
+  const now=chapterMembership(entry,chapter,chapters)!=="";
+  if(want===now) return null;
+  if(want) return {chapterId:chapter.id};
+  // leaving: a plain manual choice just clears; a date-claimed entry needs an explicit "no chapter" so dates stop claiming it
+  const cleared={...entry,chapterId:null};
+  return chapterOf(cleared,chapters)?.id===chapter.id?{chapterId:NO_CHAPTER}:{chapterId:null};
 }
 export function chapterEntries(chapter,entries,chapters){
   return entries.filter(e=>!e.deletedAt&&chapterOf(e,chapters)?.id===chapter.id).sort((a,b)=>new Date(a.happenedAt)-new Date(b.happenedAt));

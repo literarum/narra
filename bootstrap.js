@@ -1,8 +1,8 @@
 (() => {
-  const BUILD = "4.2.0";
+  const BUILD = "4.3.0";
   const allowed = location.protocol === "http:" || location.protocol === "https:";
 
-  function showStartup(message, details = "") {
+  function showStartup(message, details = "", steps = true) {
     const render = () => {
       document.body.classList.add("startup-error");
       const view = document.querySelector("#view");
@@ -12,7 +12,7 @@
           <p class="eyebrow">Безопасный запуск</p>
           <h1>${message}</h1>
           ${details ? `<p class="subtle">${details}</p>` : ""}
-          <div class="startup-steps">
+          ${steps ? `<div class="startup-steps">
             <strong>Windows</strong>
             <ol>
               <li>Закройте эту вкладку.</li>
@@ -21,7 +21,7 @@
               <li>Оставьте окно локального сервера открытым, пока работаете с дневником.</li>
             </ol>
           </div>
-          <p class="text-small subtle">Используйте один адрес: <code>http://127.0.0.1:8765/</code>. Данные браузера привязаны к origin.</p>
+          <p class="text-small subtle">Используйте один адрес: <code>http://127.0.0.1:8765/</code>. Данные браузера привязаны к origin.</p>` : ""}
           <button id="startup-retry" class="primary">Повторить загрузку</button>
         </section>`;
       document.querySelector("#startup-retry")?.addEventListener("click",()=>location.reload());
@@ -32,6 +32,17 @@
 
   if (!allowed) {
     showStartup("Откройте Narra через локальный сервер, а не как файл.", "Режим file:// не даёт приложению стабильный origin для ES-модулей, PWA и локального хранилища.");
+    return;
+  }
+
+  // Narra uses regular-expression lookbehind, :has() and color-mix(): Safari/iOS 16.4+, Chrome/Edge 111+, Firefox 121+.
+  let modern = true;
+  try {
+    new RegExp("(?<!a)b");
+    modern = typeof window === "undefined" || !(window.CSS && CSS.supports) || Boolean(CSS.supports("selector(:has(a))") && CSS.supports("color", "color-mix(in srgb, red, blue)"));
+  } catch { modern = false; }
+  if (!modern) {
+    showStartup("Этому браузеру нужно обновление.", "Narra работает в Safari и на iPhone начиная с iOS 16.4, в Chrome и Edge 111+, в Firefox 121+. Обновите систему или браузер — записи в этом браузере не затронуты.", false);
     return;
   }
 

@@ -1,16 +1,16 @@
 /* Settings: interface, feature switches, editor, check-in fields, privacy (lock and assistant), data, and an honest «about».
    Everything optional can be turned off here and its screens disappear; nothing that was written is deleted by a switch. */
-import {state,ctx,$,$$,escapeHtml,icon,FEATURES,APP_VERSION,featureOn,entryLabel,plural,kindLabels} from "./core.js?v=4.2.0";
-import {pageHeader,tabs,settingsGroup,switchRow,segmentedRow,selectHtml} from "./kit.js?v=4.2.0";
-import {CORE_DIMENSIONS,DEEP_DIMENSIONS,activeDimensions,cleanConfig,DEFAULT_CONFIG} from "./checkin.mjs?v=4.2.0";
-import {AI_FEATURES,NullProvider,runFeature,cleanAiState,REASON_TEXT} from "./ai.mjs?v=4.2.0";
-import {INACTIVITY_OPTIONS} from "./lock.mjs?v=4.2.0";
-import {SCHEMA,capitalizeRu} from "./domain.mjs?v=4.2.0";
-import {MIN_N,METHOD_VERSION} from "./stats.mjs?v=4.2.0";
-import {METHOD_ID} from "./insights-model.mjs?v=4.2.0";
-import {entryText} from "./text.mjs?v=4.2.0";
-import {entityMap} from "./derived.js?v=4.2.0";
-import * as store from "./store.js?v=4.2.0";
+import {state,ctx,$,$$,escapeHtml,icon,FEATURES,APP_VERSION,featureOn,entryLabel,plural,kindLabels} from "./core.js?v=4.3.0";
+import {pageHeader,tabs,settingsGroup,switchRow,segmentedRow,selectHtml} from "./kit.js?v=4.3.0";
+import {CORE_DIMENSIONS,DEEP_DIMENSIONS,activeDimensions,cleanConfig,DEFAULT_CONFIG} from "./checkin.mjs?v=4.3.0";
+import {AI_FEATURES,NullProvider,runFeature,cleanAiState,REASON_TEXT} from "./ai.mjs?v=4.3.0";
+import {INACTIVITY_OPTIONS} from "./lock.mjs?v=4.3.0";
+import {SCHEMA,capitalizeRu} from "./domain.mjs?v=4.3.0";
+import {MIN_N,METHOD_VERSION} from "./stats.mjs?v=4.3.0";
+import {METHOD_ID} from "./insights-model.mjs?v=4.3.0";
+import {entryText} from "./text.mjs?v=4.3.0";
+import {entityMap} from "./derived.js?v=4.3.0";
+import * as store from "./store.js?v=4.3.0";
 
 const TABS=[["basic","Основные"],["features","Функции"],["editor","Редактор"],["checkin","Отметки"],["privacy","Приватность"],["data","Данные"],["about","О Narra"]];
 const sw=(attrs,title,desc,checked,extra="")=>`<div class="setting-row"><div class="setting-row-text"><strong>${title}</strong>${desc?`<span>${desc}</span>`:""}</div><div class="setting-row-control"><label class="switch"><input type="checkbox" role="switch" ${attrs} ${checked?"checked":""} ${extra} aria-label="${escapeHtml(title.replace(/<[^>]+>/g,""))}"><span class="switch-track"></span></label></div></div>`;
@@ -103,8 +103,9 @@ function aiBlock(){
 function privacyTab(){
   const lock=state.lock,min=state.prefs.lockMinutes;
   return `${settingsGroup("lock","Блокировка экрана",
-    row(lock?"Пароль установлен":"Пароль не установлен",lock?"Дневник скрывается по вашей команде или после бездействия. Пароль нельзя восстановить.":"Установите пароль, чтобы скрывать дневник от посторонних глаз на этом устройстве.",lock?`<button class="secondary" data-action="lock-now">${icon("lock")}<span>Заблокировать сейчас</span></button>`:btn("lock-setup","Установить пароль",{cls:"primary"}),{stacked:false})
+    row(lock?"Пароль установлен":"Пароль не установлен",lock?"Дневник скрывается по вашей команде или после бездействия. Забыли пароль — поможет подсказка или код восстановления.":"Установите пароль, чтобы скрывать дневник от посторонних глаз на этом устройстве.",lock?`<button class="secondary" data-action="lock-now">${icon("lock")}<span>Заблокировать сейчас</span></button>`:btn("lock-setup","Установить пароль",{cls:"primary"}),{stacked:false})
     +(lock?row("Автоблокировка","Через сколько бездействия закрывать дневник.",prefSelect("lockMinutes",INACTIVITY_OPTIONS.map(([v,l])=>[String(v),l]),"Автоблокировка"))
+      +row("Если забудете пароль",lock.recovery?"Есть код восстановления. "+(lock.hint?"Подсказка задана.":"Подсказки нет."):"Кода восстановления нет — выпустите его, пока пароль под рукой.",`${btn("lock-hint",lock.hint?"Изменить подсказку":"Добавить подсказку")}${btn("lock-recovery-new",lock.recovery?"Новый код":"Создать код")}`)
       +row("Управление паролем","",`${btn("lock-change","Сменить пароль")}${btn("lock-remove","Убрать пароль",{cls:"secondary danger"})}`):""),
     "Это экранная блокировка, а не шифрование пароля. Данные на диске шифруются ключом, который хранится в браузере: это защищает от случайного просмотра, но не от человека с полным доступом к вашему профилю браузера. Для настоящей защиты включите шифрование диска в системе.")}
     ${aiBlock()}
@@ -129,7 +130,7 @@ function dataTab(){
       +(state.diagnostics?`<p class="setting-note">Последняя проверка: ${new Intl.DateTimeFormat("ru-RU",{dateStyle:"short",timeStyle:"short"}).format(new Date(state.diagnostics.at))} — ${state.diagnostics.ok?"без замечаний":"есть замечания"}.</p>`:""))}
     ${settingsGroup("memories","Скрытое из воспоминаний",
       (muted.length||mutedTopics.length)?[...muted.map(e=>row(escapeHtml(entryText(e,80).title),"Запись не показывается в воспоминаниях.",`<button class="secondary" data-action="unmute-memory" data-id="${escapeHtml(e.id)}">Вернуть</button>`)),...mutedTopics.map(t=>row(escapeHtml(t.name),"Тема, человек или место скрыты из воспоминаний.",`<button class="secondary" data-action="unmute-topic" data-key="${escapeHtml(t.key)}">Вернуть</button>`))].join(""):row("Ничего не скрыто","Скрыть можно любую запись, тему, человека или место прямо из карточки воспоминания.",""))}
-    ${settingsGroup("journal","Корзина",row(trashed?`Записей в корзине: ${trashed}`:"Корзина пуста","Удалённые записи не попадают в поиск, обзоры и воспоминания.",btn("open-trash","Открыть корзину")))}
+    ${settingsGroup("journal","Корзина",row(trashed?`Записей в корзине: ${trashed}`:"Корзина пуста","Удалённые записи не попадают в поиск, обзоры и воспоминания.",btn("open-trash","Открыть корзину"))+sw('data-pref="hideDeleteHint"',"Короткое сообщение вместо окна","После удаления записи показывать быстрое уведомление с кнопкой «Вернуть», а не окно с подсказкой. Подтверждение перед удалением остаётся.",Boolean(state.prefs.hideDeleteHint)))}
     ${settingsGroup("info","Демонстрация",state.mode==="demo"?row("Сейчас открыта демонстрация","Вымышленные данные в отдельном хранилище.",`${btn("reset-demo","Сбросить")}${btn("exit-demo","Выйти",{cls:"primary"})}`):row("Посмотреть Narra на примере","Откроется вымышленный дневник за полгода. Ваши записи не затрагиваются.",btn("enter-demo","Открыть демонстрацию")))}
     ${settingsGroup("trash","Удаление",row("Удалить всё с этого устройства","Записи, история, отметки, вложения, пароль и настройки. Восстановить можно только из копии.",btn("erase-all","Удалить всё",{cls:"secondary danger"})))}`;
 }

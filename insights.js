@@ -1,14 +1,14 @@
 /* Insights («Наблюдения»): what the check-ins and entries say, described — never diagnosed.
    Every number comes with how many observations it rests on and which period; every chart has a table with the same data;
    an association is only shown when at least 10 days stand on each side, and it is worded as a coincidence, not a cause. */
-import {state,ctx,$,escapeHtml,icon,todayKey,checkinLabel,dayLabel,entryLabel,activeEntries,fmtDate,featureOn} from "./core.js?v=4.2.0";
-import {pageHeader,emptyState,tabs,chip} from "./kit.js?v=4.2.0";
-import {stateCards,contextAssociations,curateAssociations,describeAssociation,emotionStats,entityStats,rhythm,writingEffect,medianLabel,checkinWord} from "./insights-model.mjs?v=4.2.0";
-import {lineChart,barChart,monthStrip,dataTable} from "./charts.mjs?v=4.2.0";
-import {MIN_N,addDays,dayKey} from "./stats.mjs?v=4.2.0";
-import {activeDimensions,EMOTION_GROUP_OF,EMOTION_GROUPS,dimLabel} from "./checkin.mjs?v=4.2.0";
-import {ENTITY_TYPES} from "./entities.mjs?v=4.2.0";
-import {pluralRu} from "./domain.mjs?v=4.2.0";
+import {state,ctx,$,escapeHtml,icon,todayKey,checkinLabel,dayLabel,entryLabel,activeEntries,fmtDate,featureOn} from "./core.js?v=4.3.0";
+import {pageHeader,emptyState,tabs,chip} from "./kit.js?v=4.3.0";
+import {stateCards,contextAssociations,curateAssociations,describeAssociation,emotionStats,entityStats,rhythm,statePartOfDay,writingEffect,medianLabel,checkinWord} from "./insights-model.mjs?v=4.3.0";
+import {lineChart,barChart,monthStrip,dataTable} from "./charts.mjs?v=4.3.0";
+import {MIN_N,addDays,dayKey} from "./stats.mjs?v=4.3.0";
+import {activeDimensions,EMOTION_GROUP_OF,EMOTION_GROUPS,dimLabel} from "./checkin.mjs?v=4.3.0";
+import {ENTITY_TYPES} from "./entities.mjs?v=4.3.0";
+import {pluralRu} from "./domain.mjs?v=4.3.0";
 
 const TABS=[["overview","Обзор"],["states","Состояния"],["contexts","Что с чем совпадает"],["emotions","Эмоции"],["themes","Темы и люди"],["rhythm","Ритм письма"],["writing","Письмо"]];
 const PERIODS=[[30,"30 дней"],[90,"90 дней"],[365,"Год"],[0,"Всё время"]];
@@ -80,7 +80,14 @@ function statesTab(sc){
       <figure class="chart-figure"><figcaption>По дням. Тонкая линия — медиана за неделю; пропуски остаются пропусками.</figcaption>${line}</figure>
       <figure class="chart-figure"><figcaption>Как часто встречалось каждое значение</figcaption>${bars}</figure>
       ${baselineText(c)}${table(t1+t2)}</article>`;
-  }).join("")}</div>`;
+  }).join("")}${partOfDayBlock()}</div>`;
+}
+function partOfDayBlock(){
+  const rows=statePartOfDay(state.checkins,state.config,{periodDays:period||null});
+  if(!rows.length)return "";
+  const t=r=>dataTable({caption:`${r.dim.name} по времени суток`,headers:["Время суток","Отметок","Медиана"],rows:r.buckets.map(b=>[b.label,String(b.n),b.enough?medianLabel(r.dim,b.median):"мало данных"])});
+  return `<article class="card insight-block"><header class="insight-head"><div><h2 class="h3">В какое время суток</h2><p class="subtle text-small">Показаны только те части дня, где не меньше ${MIN_N} отметок.</p></div></header>
+    <ul class="insight-notes">${rows.map(r=>`<li>${escapeHtml(r.sentence)}</li>`).join("")}</ul>${table(rows.map(t).join(""))}</article>`;
 }
 
 /* ---------- contexts ---------- */

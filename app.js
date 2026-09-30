@@ -1,19 +1,19 @@
-/* Narra 4.2 — application shell: routing, overlays, dialogs, command palette, global listeners, start-up.
+/* Narra 4.3 — application shell: routing, overlays, dialogs, command palette, global listeners, start-up.
    Everything a section does lives in its own module (today, journal, editor, insights, …); this file wires them together. */
-import {fuzzyScore,searchEntries,pluralRu,warmSearchIndex} from "./domain.mjs?v=4.2.0";
-import {enhance,closePopovers,popoverOpen,setDateOptions} from "./ui.mjs?v=4.2.0";
-import {entryText} from "./text.mjs?v=4.2.0";
-import {state,ctx,$,$$,escapeHtml,icon,relDay,kindLabels,activeEntries,isTyping,safeStorageGet,safeStorageSet,PREF_KEY,PREF_DEFAULTS,VALID_ROUTES,ROUTE_TITLES,ROUTE_FEATURE,SECONDARY_ROUTES,routeAllowed,featureOn,APP_VERSION,nowIso} from "./core.js?v=4.2.0";
-import {modalHeader,pageHeader,emptyState} from "./kit.js?v=4.2.0";
-import * as store from "./store.js?v=4.2.0";
-import * as today from "./today.js?v=4.2.0";
-import * as journal from "./journal.js?v=4.2.0";
-import * as search from "./search.js?v=4.2.0";
-import * as memories from "./memories.js?v=4.2.0";
-import * as editor from "./editor.js?v=4.2.0";
-import * as privacy from "./privacy.js?v=4.2.0";
-import * as media from "./media.js?v=4.2.0";
-import * as checkinUi from "./checkin-ui.js?v=4.2.0";
+import {fuzzyScore,searchEntries,pluralRu,warmSearchIndex} from "./domain.mjs?v=4.3.0";
+import {enhance,closePopovers,popoverOpen,setDateOptions} from "./ui.mjs?v=4.3.0";
+import {entryText} from "./text.mjs?v=4.3.0";
+import {state,ctx,$,$$,escapeHtml,icon,relDay,kindLabels,activeEntries,isTyping,safeStorageGet,safeStorageSet,PREF_KEY,PREF_DEFAULTS,VALID_ROUTES,ROUTE_TITLES,ROUTE_FEATURE,SECONDARY_ROUTES,routeAllowed,featureOn,APP_VERSION,nowIso} from "./core.js?v=4.3.0";
+import {modalHeader,pageHeader,emptyState} from "./kit.js?v=4.3.0";
+import * as store from "./store.js?v=4.3.0";
+import * as today from "./today.js?v=4.3.0";
+import * as journal from "./journal.js?v=4.3.0";
+import * as search from "./search.js?v=4.3.0";
+import * as memories from "./memories.js?v=4.3.0";
+import * as editor from "./editor.js?v=4.3.0";
+import * as privacy from "./privacy.js?v=4.3.0";
+import * as media from "./media.js?v=4.3.0";
+import * as checkinUi from "./checkin-ui.js?v=4.3.0";
 
 const MODULES=[today,journal,search,memories,editor,privacy,media,checkinUi];
 const VIEWS={},ACTIONS={};
@@ -213,11 +213,11 @@ function closeOverlay({restoreFocus=true}={}){
   const prev=state.previousFocus;state.previousFocus=null;
   if(restoreFocus&&prev?.isConnected&&prev!==document.body)prev.focus({preventScroll:true});
 }
-function confirmDialog({title,text,confirmLabel="Подтвердить",cancelLabel="Отмена",danger=false,iconName="info",requireText=""},onConfirm){
+function confirmDialog({title,text,detail="",ack="",confirmLabel="Подтвердить",cancelLabel="Отмена",danger=false,iconName="info",requireText=""},onConfirm){
   const root=$("#dialog-root");
   state.dialogPrev=document.activeElement;state.confirmCb=onConfirm;
   const gate=requireText?`<label class="field"><span class="label">Чтобы продолжить, введите «${escapeHtml(requireText)}»</span><input class="input" id="confirm-gate" autocomplete="off" autocapitalize="off" spellcheck="false" data-gate="${escapeHtml(requireText)}"></label>`:"";
-  root.innerHTML=`<div class="overlay" data-action="close-dialog-backdrop"><div class="modal confirm" role="alertdialog" aria-modal="true" aria-label="${escapeHtml(title)}" tabindex="-1">${modalHeader(title,"",iconName,"close-dialog")}<div class="modal-body"><p>${escapeHtml(text)}</p>${gate}</div><footer class="modal-footer"><button class="secondary" data-action="close-dialog">${escapeHtml(cancelLabel)}</button><button class="primary${danger?" danger":""}" data-action="confirm-dialog" ${requireText?"disabled":""}>${escapeHtml(confirmLabel)}</button></footer></div></div>`;
+  root.innerHTML=`<div class="overlay" data-action="close-dialog-backdrop"><div class="modal confirm" role="alertdialog" aria-modal="true" aria-label="${escapeHtml(title)}" tabindex="-1">${modalHeader(title,"",iconName,"close-dialog")}<div class="modal-body"><p>${escapeHtml(text)}</p>${detail?`<p class="confirm-detail">${escapeHtml(detail)}</p>`:""}${ack?`<label class="check confirm-ack"><input type="checkbox" data-ack><span class="check-box"></span><span>${escapeHtml(ack)}</span></label>`:""}${gate}</div><footer class="modal-footer"><button class="secondary" data-action="close-dialog">${escapeHtml(cancelLabel)}</button><button class="primary${danger?" danger":""}" data-action="confirm-dialog" ${requireText||ack?"disabled":""}>${escapeHtml(confirmLabel)}</button></footer></div></div>`;
   if(requireText)requestAnimationFrame(()=>$("#confirm-gate")?.focus({preventScroll:true}));
   else requestAnimationFrame(()=>$('#dialog-root [data-action="close-dialog"].secondary')?.focus({preventScroll:true}));
 }
@@ -243,6 +243,14 @@ function closeDialog({restoreFocus=true}={}){
   $("#dialog-root").innerHTML="";state.confirmCb=null;
   const prev=state.dialogPrev;state.dialogPrev=null;
   if(restoreFocus&&prev?.isConnected)prev.focus({preventScroll:true});
+}
+/** A calm "it worked" window after something was removed: what happened, where it went, how to get it back. */
+function resultDialog({title,text,hint="",actions=[],iconName="check",hidePref=""}){
+  if(hidePref&&state.prefs[hidePref]){toast(text,actions.find(a=>a.toast)?{label:actions.find(a=>a.toast).label,action:actions.find(a=>a.toast).action,id:actions.find(a=>a.toast).id}:null);return;}
+  state.dialogPrev=document.activeElement;
+  const btns=actions.map(a=>`<button class="${a.primary?"primary":"secondary"}" data-action="${a.action}"${a.id?` data-id="${escapeHtml(a.id)}"`:""}${a.to?` data-to="${escapeHtml(a.to)}"`:""}>${escapeHtml(a.label)}</button>`).join("");
+  $("#dialog-root").innerHTML=`<div class="overlay" data-action="close-dialog-backdrop"><div class="modal confirm result-dialog" role="alertdialog" aria-modal="true" aria-label="${escapeHtml(title)}" tabindex="-1">${modalHeader(title,"",iconName,"close-dialog")}<div class="modal-body"><p>${escapeHtml(text)}</p>${hint?`<p class="result-hint">${icon("info")}<span>${escapeHtml(hint)}</span></p>`:""}${hidePref?`<label class="check confirm-ack"><input type="checkbox" data-hide-pref="${hidePref}"><span class="check-box"></span><span>Больше не показывать это окно</span></label>`:""}</div><footer class="modal-footer">${btns}<button class="${actions.some(a=>a.primary)?"ghost":"primary"}" data-action="close-dialog">Понятно</button></footer></div></div>`;
+  requestAnimationFrame(()=>$('#dialog-root .modal-footer button:last-child')?.focus({preventScroll:true}));
 }
 /** Bottom sheet rendered in #dialog-root. */
 function sheetDialog(content,label){
@@ -364,8 +372,8 @@ const CORE_ACTIONS={
   "close-overlay":()=>closeOverlay(),
   "close-overlay-backdrop":async(el,event)=>{
     if(event&&el===event.target&&state.pointerTarget===el){
-      if(state.editing)await editor.closeEditor();
-      else if(state.overlayKind==="versions")await ACTIONS["close-versions"]?.(el,event);
+      if(state.overlayKind==="versions")await ACTIONS["close-versions"]?.(el,event);
+      else if(state.editing)await editor.closeEditor();
       else closeOverlay();
     }
   },
@@ -377,6 +385,8 @@ const CORE_ACTIONS={
 Object.assign(ACTIONS,CORE_ACTIONS);
 
 async function handleAction(action,el,event){
+  // a button inside the "done" window (undo, open the trash) closes that window before it acts
+  if(el?.closest?.("#dialog-root .result-dialog")&&action!=="close-dialog")closeDialog({restoreFocus:false});
   const fromPalette=el?.closest?.(".command");
   if(fromPalette){
     if(el.dataset.commandKey)noteRecentCommand(el.dataset.commandKey);
@@ -410,6 +420,8 @@ document.addEventListener("click",async event=>{
 });
 document.addEventListener("change",e=>{
   const t=e.target;
+  if(t?.dataset?.hidePref){setPref(t.dataset.hidePref,t.checked);return;}
+  if(t?.dataset?.ack!==undefined){const b=$("#dialog-root [data-action=confirm-dialog]");if(b)b.disabled=!t.checked;return;}
   if(t?.dataset?.pref){
     const key=t.dataset.pref;
     if(key==="motion_on")setPref("motion",t.checked?"on":"off");
@@ -454,7 +466,7 @@ document.addEventListener("keydown",async e=>{
   }
   if(e.key==="Escape"){
     if(popoverOpen()){e.preventDefault();closePopovers();return;}
-    if(dialogOpen()){e.preventDefault();closeDialog();return;}
+    if(dialogOpen()){e.preventDefault();if(!$("#dialog-root .recovery-dialog"))closeDialog();return;}
     if(overlayOpen()){
       e.preventDefault();
       if(state.overlayKind==="editor"){if(await editor.onEscape())return;await editor.closeEditor();}
@@ -499,13 +511,14 @@ window.addEventListener("resize",()=>{editor.onResize?.();});
 function syncViewportHeight(){
   const vv=window.visualViewport;
   document.documentElement.style.setProperty("--vvh",`${Math.round(vv?vv.height:window.innerHeight)}px`);
+  document.documentElement.style.setProperty("--vvt",`${Math.max(0,Math.round(vv?vv.offsetTop:0))}px`);
   editor.onViewport?.();
 }
-if(window.visualViewport){window.visualViewport.addEventListener("resize",syncViewportHeight);window.visualViewport.addEventListener("scroll",()=>{if(state.editing)window.scrollTo(0,0);});}
+if(window.visualViewport){window.visualViewport.addEventListener("resize",syncViewportHeight);window.visualViewport.addEventListener("scroll",()=>{syncViewportHeight();if(state.editing||overlayOpen())window.scrollTo(0,0);});}
 syncViewportHeight();
 
 /* ---------- expose to modules ---------- */
-Object.assign(ctx,{render,routeTo,goTo,toast,overlay,closeOverlay,confirmDialog,formDialog,closeDialog,sheetDialog,animateIn,reducedMotion,collapseAndRemove,setPref,applyPrefs,applyTheme,commandPalette,reloadData,showFatal,overlayOpen,dialogOpen,checkStoragePersistence,requestStoragePersistence,handleAction,ACTIONS,VIEWS,setSegmentedActive,shiftMonth});
+Object.assign(ctx,{render,routeTo,goTo,toast,overlay,closeOverlay,confirmDialog,resultDialog,formDialog,closeDialog,sheetDialog,animateIn,reducedMotion,collapseAndRemove,setPref,applyPrefs,applyTheme,commandPalette,reloadData,showFatal,overlayOpen,dialogOpen,checkStoragePersistence,requestStoragePersistence,handleAction,ACTIONS,VIEWS,setSegmentedActive,shiftMonth});
 for(const m of MODULES)m.init?.(ctx);
 
 /* ---------- start ---------- */

@@ -1,8 +1,8 @@
 /* Check-in: three quick signals by default; emotions, context, a note and deeper dimensions are opt-in and live in settings.
    Values are stored exactly as chosen. A skipped dimension stays empty — nothing is filled in or averaged. */
-import {state,ctx,$,$$,escapeHtml,icon,uid,nowIso,fmtTime,sameDay,checkinLabel,safeStorageGet,safeStorageSet} from "./core.js?v=4.2.0";
-import {activeDimensions,emotionGroups,contextGroups,MODE_OPTIONS,WEATHER_OPTIONS,checkinSummary,cleanCheckin,dimLabel,DEFAULT_CONFIG,cleanConfig,CORE_DIMENSIONS} from "./checkin.mjs?v=4.2.0";
-import * as store from "./store.js?v=4.2.0";
+import {state,ctx,$,$$,escapeHtml,icon,uid,nowIso,fmtTime,sameDay,checkinLabel,safeStorageGet,safeStorageSet} from "./core.js?v=4.3.0";
+import {activeDimensions,emotionGroups,contextGroups,MODE_OPTIONS,WEATHER_OPTIONS,checkinSummary,cleanCheckin,dimLabel,DEFAULT_CONFIG,cleanConfig,CORE_DIMENSIONS} from "./checkin.mjs?v=4.3.0";
+import * as store from "./store.js?v=4.3.0";
 
 const emptyDraft=()=>({values:{},emotions:[],context:{needs:[],triggers:[],activities:[],social:[],weather:"",mode:""},note:""});
 state.checkinDraft=emptyDraft();
@@ -90,13 +90,20 @@ export async function saveCheckin({auto=false,entryId=null,phase="standalone",dr
   const clean=cleanCheckin(record);
   if(!clean){ctx.toast("Выберите хотя бы один сигнал.");return false;}
   clearTimeout(state.checkinTimer);state.checkinSaving=true;
+  // Optimistic: the card switches to "done" at once; the database write follows and is rolled back visibly if it fails.
+  const before=state.checkins,prevDraft=state.checkinDraft,prevExpanded=state.checkinExpanded,prevAgain=state.checkinAgain;
+  state.checkins=[clean,...before].sort((a,b)=>new Date(b.observedAt)-new Date(a.observedAt));
+  if(!draft){state.checkinDraft=emptyDraft();state.checkinAgain=false;state.checkinExpanded=false;}
+  ctx.render();
   try{
     await store.saveCheckinRecord(clean);
-    if(!draft){state.checkinDraft=emptyDraft();state.checkinAgain=false;state.checkinExpanded=false;}
-    await store.loadData();ctx.render();
     ctx.toast(entryId?"Отметка привязана к записи.":"Отметка сохранена.");
     return true;
-  }catch(error){console.error("Ошибка сохранения отметки",error);ctx.toast("Отметка не сохранена. Ваш выбор остаётся на экране.");return false;}
+  }catch(error){
+    console.error("Ошибка сохранения отметки",error);
+    state.checkins=before;if(!draft){state.checkinDraft=prevDraft;state.checkinExpanded=prevExpanded;state.checkinAgain=prevAgain;}
+    ctx.render();ctx.toast("Отметка не сохранена. Ваш выбор остаётся на экране.");return false;
+  }
   finally{state.checkinSaving=false;}
 }
 

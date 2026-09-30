@@ -1,10 +1,10 @@
 /* Narra insights model: everything the Insights screen shows, computed as plain data. Pure and testable.
    Rules: at least 10 observations on each side, days as the unit, medians and ranks (the scales are ordinal), missing data stays missing,
    several comparisons are corrected (Benjamini–Hochberg), and the wording that goes with a result is associative — never causal. */
-import {activeDimensions,dimLabel,dimValue,knownDimensions,EMOTION_GROUP_OF} from "./checkin.mjs?v=4.2.0";
-import {dayKey,addDays,median,spread,distribution,dailySeries,rollingMedian,baselineCompare,pairedChange,dayStates,associate,cooccurrence,timeOfDay,weeklyCounts,MIN_N,STRONG_N,METHOD_VERSION,benjaminiHochberg,daysBetween,quantile} from "./stats.mjs?v=4.2.0";
-import {collectEntities,contextDayMap,labelFor,buildAliasMap,monthDistribution,listByType} from "./entities.mjs?v=4.2.0";
-import {wordCount,pluralRu} from "./domain.mjs?v=4.2.0";
+import {activeDimensions,dimLabel,dimValue,knownDimensions,EMOTION_GROUP_OF} from "./checkin.mjs?v=4.3.0";
+import {dayKey,addDays,median,spread,distribution,dailySeries,rollingMedian,baselineCompare,pairedChange,dayStates,associate,cooccurrence,timeOfDay,TIME_BUCKETS,weeklyCounts,MIN_N,STRONG_N,METHOD_VERSION,benjaminiHochberg,daysBetween,quantile} from "./stats.mjs?v=4.3.0";
+import {collectEntities,contextDayMap,labelFor,buildAliasMap,monthDistribution,listByType} from "./entities.mjs?v=4.3.0";
+import {wordCount,pluralRu} from "./domain.mjs?v=4.3.0";
 
 export const METHOD_ID="day-state-v1";
 const plural={n:(n,a,b,c)=>pluralRu(n,a,b,c)};
@@ -117,3 +117,24 @@ export function writingEffect(checkins,config){
   })};
 }
 export {MIN_N,quantile};
+
+/** How each state signal looks at different times of day. A part of the day is reported only with at least MIN_N check-ins;
+    a comparison sentence appears only when two parts of the day both qualify and their medians differ. Description, never a cause. */
+export function statePartOfDay(checkins,config,{periodDays=null,today=dayKey(new Date().toISOString())}={}){
+  const standalone=checkins.filter(c=>c.phase==="standalone"||!c.phase);
+  const pool=periodDays?standalone.filter(c=>dayKey(c.observedAt)>=addDays(today,-(periodDays-1))):standalone;
+  const out=[];
+  for(const d of activeDimensions(config)){
+    const buckets=TIME_BUCKETS.map(([label,a,b])=>{
+      const vals=observations(pool,d).filter(o=>{const h=new Date(o.c.observedAt).getHours();return h>=a&&h<=b;}).map(o=>o.v);
+      return {label,n:vals.length,enough:vals.length>=MIN_N,median:vals.length?median(vals):null};
+    });
+    const ok=buckets.filter(b=>b.enough);
+    if(ok.length<2)continue;
+    const hi=ok.reduce((x,y)=>y.median>x.median?y:x),lo=ok.reduce((x,y)=>y.median<x.median?y:x);
+    if(hi.median===lo.median){out.push({dim:d,buckets,sentence:`«${d.name}»: в разное время суток заметной разницы нет.`});continue;}
+    out.push({dim:d,buckets,high:hi.label,low:lo.label,
+      sentence:`«${d.name}»: медиана выше ${hi.label} («${medianLabel(d,hi.median)}»), чем ${lo.label} («${medianLabel(d,lo.median)}»). Это описание ваших отметок, а не объяснение причин.`});
+  }
+  return out;
+}

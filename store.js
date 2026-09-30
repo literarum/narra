@@ -2,10 +2,10 @@
    Diary text, titles, tags, check-in details, chapters, review notes and media are encrypted with a non-extractable key
    kept next to the data (protects against casual reading of the database, not against someone who has the whole browser profile —
    the interface says so). Dates and ids stay readable so the database can be indexed. */
-import {state,uid,nowIso,DB_NAME_MAIN,DB_NAME_DEMO} from "./core.js?v=4.2.0";
-import {pickEntryMeta,cleanMeta,cleanChapter,cleanReview,cleanEntityNote,ENTRY_META_DEFAULTS} from "./domain.mjs?v=4.2.0";
-import {cleanConfig,DEFAULT_CONFIG} from "./checkin.mjs?v=4.2.0";
-import {cleanAiState} from "./ai.mjs?v=4.2.0";
+import {state,uid,nowIso,DB_NAME_MAIN,DB_NAME_DEMO} from "./core.js?v=4.3.0";
+import {pickEntryMeta,cleanMeta,cleanChapter,cleanReview,cleanEntityNote,ENTRY_META_DEFAULTS} from "./domain.mjs?v=4.3.0";
+import {cleanConfig,DEFAULT_CONFIG} from "./checkin.mjs?v=4.3.0";
+import {cleanAiState} from "./ai.mjs?v=4.3.0";
 
 export const DB_VERSION=2;
 export const STORES={entries:"entries",versions:"versions",checkins:"checkins",meta:"meta",attachments:"attachments",blobs:"blobs",reviews:"reviews",chapters:"chapters",entities:"entities"};
@@ -134,7 +134,12 @@ export async function purgeEntries(ids){
   notifyChange("purge");
 }
 export async function trimVersions(entryId,limit){
-  const versions=(await all(STORES.versions)).filter(v=>v.entryId===entryId).sort((a,b)=>new Date(b.createdAt)-new Date(a.createdAt)),stale=versions.slice(limit);
+  // read only this entry's history through the index, and only when it has actually outgrown the limit
+  const rtx=openTx(STORES.versions,"readonly","relaxed"),idx=rtx.objectStore(STORES.versions).index("entryId");
+  const count=await reqP(idx.count(entryId));
+  if(count<=limit)return;
+  const rows=await reqP(idx.getAll(entryId));
+  const stale=rows.sort((a,b)=>new Date(b.createdAt)-new Date(a.createdAt)).slice(limit);
   if(!stale.length)return;
   const tx=openTx(STORES.versions,"readwrite","relaxed"),done=txDone(tx),store=tx.objectStore(STORES.versions);stale.forEach(v=>store.delete(v.id));await done;
 }
@@ -155,7 +160,7 @@ export async function metaGetSecure(key,fallback){const r=await getRecord(STORES
 export async function metaSetSecure(key,value){return put(STORES.meta,{key,payloadEnc:await encryptJson(value)});}
 export const saveConfig=async cfg=>{state.config=cleanConfig(cfg);await metaSetSecure("checkin-config",state.config);};
 export const saveAiState=async s=>{state.ai=cleanAiState(s);await metaSet("ai-state",state.ai);};
-export const saveLock=async lock=>{state.lock=lock||null;if(lock)await metaSet("lock",lock);else await del(STORES.meta,"lock");};
+export const saveLock=async lock=>{if(lock)await metaSet("lock",lock);else await del(STORES.meta,"lock");state.lock=lock||null;}; // memory follows the disk, never the other way round
 export const saveMutedTopics=async list=>{state.mutedTopics=[...new Set(list)];await metaSet("muted-topics",state.mutedTopics);};
 
 export async function loadData(){

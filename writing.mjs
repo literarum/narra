@@ -1,7 +1,7 @@
 /* Narra writing assists. Everything here is deterministic, local and explicit: it runs only when the user asks,
    never inserts text on its own, and never rewrites anything. Pure and dependency-free. */
-import {wordCount} from "./domain.mjs?v=4.2.0";
-import {mdToPlain} from "./text.mjs?v=4.2.0";
+import {wordCount} from "./domain.mjs?v=4.3.0";
+import {mdToPlain} from "./text.mjs?v=4.3.0";
 
 export const STRUCTURE_TEMPLATE="**Что произошло?**\n\n\n**Что было важным?**\n\n\n**Что изменилось?**\n\n";
 

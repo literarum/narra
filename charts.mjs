@@ -41,9 +41,9 @@ export function barChart({items,summary="",width=520,height=150}){
 /** Small month-by-month strip: a square per month, opacity by count. */
 export function monthStrip({months,summary=""}){
   if(!months.length)return "";
-  const max=Math.max(...months.map(m=>m.count),1),size=16,gap=4,width=months.length*(size+gap);
-  const cells=months.map((m,i)=>{const level=m.count?Math.max(1,Math.ceil((m.count/max)*4)):0;return `<rect class="strip-cell level-${level}" x="${i*(size+gap)}" y="0" width="${size}" height="${size}" rx="4"><title>${esc(m.month)}: ${m.count}</title></rect>`;}).join("");
-  return `<svg class="chart chart-strip" width="${Math.round(width*1.35)}" height="${Math.round(size*1.35)}" viewBox="0 0 ${width} ${size}" role="img" aria-label="${esc(summary)}" preserveAspectRatio="xMinYMid meet">${cells}</svg>`;
+  const max=Math.max(...months.map(m=>m.count),1);
+  const cells=months.map(m=>{const level=m.count?Math.max(1,Math.ceil((m.count/max)*4)):0;return `<span class="strip-cell level-${level}" title="${esc(m.month)}: ${m.count}"></span>`;}).join("");
+  return `<div class="chart-strip" role="img" aria-label="${esc(summary)}">${cells}</div>`;
 }
 /** Every chart has a table with the same numbers. */
 export function dataTable({headers,rows,caption=""}){

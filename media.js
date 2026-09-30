@@ -1,7 +1,7 @@
 /* Photos and voice notes. Photos are re-drawn on a canvas, which drops all embedded metadata (location, camera, time),
    scaled down and stored encrypted with a thumbnail. Audio is stored as recorded. Nothing is uploaded anywhere. */
-import {state,ctx,$,$$,escapeHtml,icon,featureOn,mediaOf} from "./core.js?v=4.2.0";
-import * as store from "./store.js?v=4.2.0";
+import {state,ctx,$,$$,escapeHtml,icon,featureOn,mediaOf} from "./core.js?v=4.3.0";
+import * as store from "./store.js?v=4.3.0";
 
 export const LIMITS={imageIn:30*1024*1024,audioIn:30*1024*1024,perEntry:40,maxSide:2000,thumbSide:360,recordSeconds:600};
 const fmtSize=n=>n>=1048576?`${(n/1048576).toFixed(1).replace(".",",")} МБ`:`${Math.max(1,Math.round(n/1024))} КБ`;
@@ -88,6 +88,24 @@ export function stripMarkup(entryId){
 }
 export const refMarkdown=a=>`![${(a.caption||a.name||"").replace(/[\]\n]/g," ").slice(0,80)}](narra-media:${a.id})`;
 
+
+/* ---------- reading mode: attachments that are not already shown inside the text, read-only ---------- */
+export function galleryMarkup(entryId,body=""){
+  const list=mediaOf(entryId).filter(a=>!body.includes(`narra-media:${a.id}`));
+  if(!list.length)return "";
+  const images=list.filter(a=>a.kind==="image"),audios=list.filter(a=>a.kind!=="image");
+  return `<section class="view-gallery" aria-label="Вложения">
+    ${images.length?`<ul class="gallery-grid">${images.map(a=>`<li><button type="button" class="gallery-item" data-action="media-open" data-id="${escapeHtml(a.id)}" aria-label="${escapeHtml(a.caption?`Открыть фото: ${a.caption}`:"Открыть фото")}"><img data-media-thumb="${escapeHtml(a.id)}" alt="${escapeHtml(a.caption||"")}" width="240" height="240" loading="lazy"></button>${a.caption?`<small>${escapeHtml(a.caption)}</small>`:""}</li>`).join("")}</ul>`:""}
+    ${audios.map(a=>`<div class="md-media gallery-audio" data-media-id="${escapeHtml(a.id)}" data-alt="${escapeHtml(a.caption||a.name||"Голосовая заметка")}">${icon("mic")}<span>${escapeHtml(a.caption||a.name||"Голосовая заметка")}</span></div>`).join("")}
+  </section>`;
+}
+async function openLightbox(id){
+  const a=state.attachments.find(x=>x.id===id);if(!a)return;
+  const url=await store.mediaUrl(id).catch(()=>null);
+  if(!url){ctx.toast("Не удалось открыть фото.");return;}
+  ctx.sheetDialog(`<header class="modal-header"><div class="modal-heading"><div><h2>${escapeHtml(a.caption||a.name||"Фото")}</h2></div></div><button class="icon-button icon-button-quiet" data-action="close-dialog" aria-label="Закрыть">${icon("x")}</button></header><div class="lightbox"><img src="${url}" alt="${escapeHtml(a.caption||"")}"></div>`,"Фото");
+}
+
 /* ---------- voice recording ---------- */
 export const canRecord=()=>Boolean(navigator.mediaDevices?.getUserMedia)&&typeof MediaRecorder!=="undefined";
 async function startRecording(){
@@ -102,7 +120,7 @@ async function startRecording(){
     clearInterval(state.recorder?.timer);stream.getTracks().forEach(t=>t.stop());
     const seconds=(Date.now()-startedAt)/1000,mime=rec.mimeType||"audio/webm";
     state.recorder=null;paintRecorder();
-    if(!chunks.length||!state.editing)return;
+    if(!chunks.length||!state.editing||state.editorMode==='view')return;
     const ext=mime.includes("mp4")?"m4a":mime.includes("ogg")?"ogg":"webm";
     const file=new File(chunks,`голос-${new Date().toISOString().slice(0,16).replace(/[:T]/g,"-")}.${ext}`,{type:mime});
     const added=await addFiles(state.editing.id,[file]);
@@ -127,6 +145,7 @@ function paintRecorder(){
 export function stopRecordingIfAny(){if(state.recorder){try{state.recorder.rec.onstop=()=>{state.recorder?.stream.getTracks().forEach(t=>t.stop());state.recorder=null;};state.recorder.rec.stop();}catch{}}}
 
 export const actions={
+  "media-open":el=>openLightbox(el.dataset.id),
   "attach-photo":()=>{$("#attach-file-photo")?.click();},
   "attach-audio":()=>{$("#attach-file-audio")?.click();},
   "record-toggle":async()=>{if(state.recorder)state.recorder.rec.stop();else await startRecording();},

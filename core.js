@@ -1,9 +1,9 @@
 /* Narra core: shared state, preferences, formatting helpers and the `ctx` object that feature modules use.
    No storage, no rendering. Modules import from here; app.js fills `ctx` with the functions it owns. */
-import {pluralRu,capitalizeRu,wordCount} from "./domain.mjs?v=4.2.0";
-import {plural,strip} from "./text.mjs?v=4.2.0";
+import {pluralRu,capitalizeRu,wordCount} from "./domain.mjs?v=4.3.0";
+import {plural,strip} from "./text.mjs?v=4.3.0";
 
-export const APP_VERSION="4.2.0";
+export const APP_VERSION="4.3.0";
 export const DB_NAME_MAIN="narra-prototype-v1",DB_NAME_DEMO="narra-demo-v1";
 export const ROUTES=["today","journal","insights","lifemap","search","memories","reviews","settings"];
 export const VALID_ROUTES=new Set(ROUTES);
@@ -25,7 +25,7 @@ export const PREF_DEFAULTS={
   /* feature switches: everything optional can be turned off, and its sections disappear */
   featInsights:true,featLifemap:true,featMemories:true,featReviews:true,featChapters:true,featDecisions:true,featMedia:true,
   featWritingAssist:true,featEntitySuggest:true,featSemantic:false,featEmotionsInJournal:true,
-  onboarded:false,quickKey:"n",reminderOn:false,reminderTime:"21:00",lockMinutes:0,journalPage:40
+  onboarded:false,quickKey:"n",reminderOn:false,reminderTime:"21:00",lockMinutes:0,journalPage:40,hideDeleteHint:false
 };
 export const FEATURES=[
   {key:"featInsights",name:"Наблюдения",desc:"Сводки по отметкам и записям: состояния, контексты, эмоции, темы, ритм.",group:"Разделы"},

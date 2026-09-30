@@ -1,13 +1,14 @@
 /* Editor side panels: entry details, links, decision journal, suggestions and writing help. Markup only; editor.js binds them. */
-import {state,ctx,escapeHtml,icon,localDateInputValue,fmtDate,fmtLong,kindOptions,kindLabels,capitalizeRu,featureOn,activeEntries,entryById} from "./core.js?v=4.2.0";
-import {parseRussianDateHint,extractHashtags,suggestEntryKindRu} from "./domain.mjs?v=4.2.0";
-import {entryText} from "./text.mjs?v=4.2.0";
-import {suggestKnownEntities,chapterOf,sortChapters} from "./entities.mjs?v=4.2.0";
-import {detailQuestions,reflectiveQuestions,clarityFindings} from "./writing.mjs?v=4.2.0";
-import {relatedEntriesFor} from "./memories.js?v=4.2.0";
-import {entityMap} from "./derived.js?v=4.2.0";
-import {selectHtml} from "./kit.js?v=4.2.0";
-import {LINK_TYPES} from "./domain.mjs?v=4.2.0";
+import {state,ctx,escapeHtml,icon,localDateInputValue,fmtDate,fmtLong,kindOptions,kindLabels,capitalizeRu,featureOn,activeEntries,entryById} from "./core.js?v=4.3.0";
+import {parseRussianDateHint,extractHashtags,suggestEntryKindRu} from "./domain.mjs?v=4.3.0";
+import {entryText} from "./text.mjs?v=4.3.0";
+import {suggestKnownEntities,chapterOf,sortChapters,NO_CHAPTER} from "./entities.mjs?v=4.3.0";
+import {detailQuestions,reflectiveQuestions,clarityFindings} from "./writing.mjs?v=4.3.0";
+import {relatedEntriesFor} from "./memories.js?v=4.3.0";
+import {entityMap} from "./derived.js?v=4.3.0";
+import {selectHtml} from "./kit.js?v=4.3.0";
+import {checkinSummary} from "./checkin.mjs?v=4.3.0";
+import {LINK_TYPES} from "./domain.mjs?v=4.3.0";
 
 export const LINK_LABELS={related:"Связана",continuation:"Продолжение",decision_followup:"Итог решения",custom:"Другое"};
 const CONFIDENCE=[[0,"Не указано"],[1,"Совсем не уверен"],[2,"Скорее не уверен"],[3,"Сомневаюсь"],[4,"Скорее уверен"],[5,"Уверен"]];
@@ -76,8 +77,8 @@ export function decisionMarkup(entry){
 /** The context panel that sits under the title. */
 export function contextMarkup(entry){
   const chapters=sortChapters(state.chapters),auto=chapterOf({...entry,chapterId:null},state.chapters);
-  const chapterOpts=[["",auto?`Автоматически: «${auto.name}»`:"Без главы"],...chapters.map(c=>[c.id,c.name])];
-  return `<details class="entry-context" id="entry-context"><summary>${icon("layout")}<span>Детали записи</span><span class="context-summary" id="context-summary">${escapeHtml(contextSummaryText(entry))}</span></summary><div class="context-grid">
+  const chapterOpts=[["",auto?`По датам: «${auto.name}»`:"Без главы"],...(auto?[[NO_CHAPTER,"Не добавлять ни в одну главу"]]:[]),...chapters.map(c=>[c.id,c.name])];
+  return `<details class="entry-context edit-only" id="entry-context"><summary>${icon("layout")}<span>Детали записи</span><span class="context-summary" id="context-summary">${escapeHtml(contextSummaryText(entry))}</span></summary><div class="context-grid">
       <label class="field"><span class="label">Дата</span><input id="entry-date" type="date" data-datepicker value="${localDateInputValue(entry.happenedAt)}"></label>
       <label class="field"><span class="label">Конец периода</span><input id="entry-end" type="date" data-datepicker data-clearable data-placeholder="Один день" value="${entry.happenedEnd?localDateInputValue(entry.happenedEnd):""}"></label>
       <label class="field"><span class="label">Тип записи</span><select id="entry-kind" data-select aria-label="Тип записи">${kindOptions.map(([k,v])=>`<option value="${k}" ${entry.kind===k?"selected":""}>${capitalizeRu(v)}</option>`).join("")}</select></label>
@@ -93,7 +94,7 @@ export function contextMarkup(entry){
 /* ---------- writing help: every item is a button the user presses; nothing runs on its own ---------- */
 export function assistMarkup(){
   if(!featureOn("featWritingAssist"))return "";
-  return `<details class="assist-panel" id="assist-panel"><summary>${icon("sparkle")}<span>Помощь при письме</span><span class="context-summary">по вашей просьбе</span></summary><div class="assist-body">
+  return `<details class="assist-panel edit-only" id="assist-panel"><summary>${icon("sparkle")}<span>Помощь при письме</span><span class="context-summary">по вашей просьбе</span></summary><div class="assist-body">
     <p class="subtle text-small">Ничего не вставляется и не меняется само. Вопросы и подсказки строятся по тексту прямо на вашем устройстве.</p>
     <div class="assist-actions">
       <button type="button" class="secondary" data-action="assist" data-kind="structure">Шаблон структуры</button>
@@ -116,4 +117,32 @@ export function assistResult(kind,entry){
     return rel.length?`<h4>Похоже по темам и словам</h4><ul class="assist-list">${rel.map(x=>`<li><span>${escapeHtml(entryText(x.entry).title)} <small>· ${escapeHtml(fmtDate(x.entry.happenedAt,{year:"numeric"}))} · общее: ${escapeHtml(x.sharedTerms.join(", "))}</small></span><button type="button" class="link-button" data-action="open-linked" data-id="${escapeHtml(x.entry.id)}">Открыть</button></li>`).join("")}</ul>`:`<p class="subtle">Похожих записей пока нет — нужны общие темы или слова.</p>`;
   }
   return "";
+}
+
+
+/* ---------- reading mode: the same facts as the details panel, as plain text and chips ---------- */
+export function viewMetaMarkup(entry){
+  const chip=(label,cls="")=>`<span class="view-chip ${cls}">${escapeHtml(label)}</span>`;
+  const when=[fmtLong(entry.happenedAt)];
+  if(entry.happenedEnd)when[0]+=` — ${fmtLong(entry.happenedEnd)}`;
+  const line=[capitalizeRu(kindLabels[entry.kind]||"мысль"),...when,entry.location?`${entry.location}`:""].filter(Boolean);
+  const chap=featureOn("featChapters")?chapterOf(entry,state.chapters):null;
+  const chips=[
+    ...(entry.people||[]).map(x=>chip(x,"is-person")),
+    ...(entry.themes||[]).map(x=>chip(`#${x}`,"is-theme")),
+    ...(entry.projects||[]).map(x=>chip(x,"is-project")),
+    ...(chap?[chip(`Глава: ${chap.name}`,"is-chapter")]:[]),
+    ...(entry.sensitive?[chip("Личная запись","is-private")]:[]),
+  ];
+  const marks=(state.checkins||[]).filter(c=>c.entryId===entry.id).sort((a,b)=>String(a.observedAt).localeCompare(String(b.observedAt)));
+  const phase={standalone:"Отметка",before_writing:"До письма",after_writing:"После письма"};
+  const summary=c=>checkinSummary(c,state.config,{max:3});
+  const d=entry.decision;
+  const dRows=d&&entry.kind==="decision"?[["Что решаете",d.decision],["Контекст",d.context],["Варианты",d.options],["Чего ждёте",d.expected],["Уверенность",d.confidence?`${d.confidence} из 5`:""],["Вернуться к решению",d.revisitOn],["Что получилось",d.outcome]].filter(r=>r[1]):[];
+  const links=(entry.links||[]).filter(l=>entryById(l.to)&&!entryById(l.to).deletedAt);
+  return `<p class="view-line">${line.map(x=>`<span>${escapeHtml(x)}</span>`).join("")}</p>
+    ${chips.length?`<div class="view-chips">${chips.join("")}</div>`:""}
+    ${marks.length?`<ul class="view-marks">${marks.filter(summary).map(c=>`<li><strong>${phase[c.phase]||"Отметка"}</strong><span>${escapeHtml(summary(c))}</span></li>`).join("")}</ul>`:""}
+    ${dRows.length?`<dl class="view-decision">${dRows.map(([k,v])=>`<dt>${escapeHtml(k)}</dt><dd>${escapeHtml(v)}</dd>`).join("")}</dl>`:""}
+    ${links.length?`<p class="view-links"><span>Связано:</span> ${links.map(l=>`<button type="button" class="link-button" data-action="open-linked" data-id="${escapeHtml(l.to)}">${escapeHtml(entryText(entryById(l.to)).title)}</button>`).join(" ")}</p>`:""}`;
 }
