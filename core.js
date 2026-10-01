@@ -1,16 +1,18 @@
 /* Narra core: shared state, preferences, formatting helpers and the `ctx` object that feature modules use.
    No storage, no rendering. Modules import from here; app.js fills `ctx` with the functions it owns. */
-import {pluralRu,capitalizeRu,wordCount} from "./domain.mjs?v=4.5.0";
-import {plural,strip} from "./text.mjs?v=4.5.0";
+import {cleanCustomTools} from "./tools.mjs?v=4.6.0";
+import {pluralRu,capitalizeRu,wordCount} from "./domain.mjs?v=4.6.0";
+import {plural,strip} from "./text.mjs?v=4.6.0";
+import {providerById} from "./ai-state.mjs?v=4.6.0";
 
-export const APP_VERSION="4.5.0";
+export const APP_VERSION="4.6.0";
 export const DB_NAME_MAIN="narra-prototype-v1",DB_NAME_DEMO="narra-demo-v1";
-export const ROUTES=["today","journal","insights","lifemap","search","memories","reviews","settings"];
+export const ROUTES=["today","journal","insights","lifemap","search","memories","reviews","talk","settings"];
 export const VALID_ROUTES=new Set(ROUTES);
-export const ROUTE_TITLES={today:"Сегодня",journal:"Дневник",insights:"Наблюдения",lifemap:"Карта жизни",search:"Поиск",memories:"Воспоминания",reviews:"Обзоры",settings:"Настройки"};
+export const ROUTE_TITLES={today:"Сегодня",journal:"Дневник",insights:"Наблюдения",lifemap:"Карта жизни",search:"Поиск",memories:"Воспоминания",reviews:"Обзоры",talk:"Собеседник",settings:"Настройки"};
 /** Which feature switch controls a route. Sections without a switch are always available. */
 export const ROUTE_FEATURE={insights:"featInsights",lifemap:"featLifemap",memories:"featMemories",reviews:"featReviews"};
-export const SECONDARY_ROUTES=new Set(["insights","lifemap","memories","reviews","settings"]);
+export const SECONDARY_ROUTES=new Set(["insights","lifemap","memories","reviews","talk","settings"]);
 
 export function safeStorageGet(key){try{return localStorage.getItem(key);}catch{return null;}}
 export function safeStorageSet(key,value){try{localStorage.setItem(key,value);return true;}catch{return false;}}
@@ -25,7 +27,7 @@ export const PREF_DEFAULTS={
   /* feature switches: everything optional can be turned off, and its sections disappear */
   featInsights:true,featLifemap:true,featMemories:true,featReviews:true,featChapters:true,featDecisions:true,featMedia:true,
   featWritingAssist:true,featEntitySuggest:true,featSemantic:true,featEmotionsInJournal:true,
-  onboarded:false,quickKey:"n",reminderOn:false,reminderTime:"21:00",notifyDaily:false,notifyWeekly:false,notifyWeeklyDay:0,notifyDecisions:false,notifyMemory:false,autoBackup:false,keepAwake:true,haptics:true,badge:true,lockMinutes:0,journalPage:40,hideDeleteHint:false
+  onboarded:false,quickKey:"n",reminderOn:false,reminderTime:"21:00",notifyDaily:false,notifyWeekly:false,notifyWeeklyDay:0,notifyDecisions:false,notifyMemory:false,toolbar:[],customTools:[],autoBackup:false,keepAwake:true,secretInput:"compat",haptics:true,badge:true,lockMinutes:0,journalPage:40,hideDeleteHint:false
 };
 export const FEATURES=[
   {key:"featInsights",name:"Наблюдения",desc:"Сводки по отметкам и записям: состояния, контексты, эмоции, темы, ритм.",group:"Разделы"},
@@ -55,13 +57,23 @@ export function loadPrefs(){
   if(!VALID_ROUTES.has(prefs.startRoute))prefs.startRoute="today";
   if(!["n","c","off"].includes(prefs.quickKey))prefs.quickKey="n";
   if(!/^([01]\d|2[0-3]):[0-5]\d$/.test(prefs.reminderTime))prefs.reminderTime="21:00";
+  prefs.customTools=cleanCustomTools(prefs.customTools);
+  prefs.toolbar=Array.isArray(prefs.toolbar)?prefs.toolbar.filter(k=>typeof k==="string").slice(0,120):[];
   if(![0,1,2,3,4,5,6].includes(prefs.notifyWeeklyDay))prefs.notifyWeeklyDay=0;
   if(![0,1,5,15,60].includes(prefs.lockMinutes))prefs.lockMinutes=0;
   if(![20,40,80].includes(prefs.journalPage))prefs.journalPage=40;
   return prefs;
 }
+/* Password-type fields make iOS show only its own keyboard. A text field whose characters are drawn as dots lets any installed keyboard work.
+   Where the browser cannot draw dots (or the person chose «system»), the ordinary password field is used. */
+export const secretCompat=()=>state.prefs.secretInput!=="system"&&typeof CSS!=="undefined"&&!!CSS.supports&&CSS.supports("-webkit-text-security","disc");
+export const secretAttrs=(autocomplete="off")=>secretCompat()?'type="text" data-secret="1" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="go"':`type="password" autocomplete="${autocomplete}" autocapitalize="off" spellcheck="false"`;
+export const secretShown=input=>input.dataset.secret==="1"?input.classList.contains("is-revealed"):input.type==="text";
+export function secretShow(input,show){if(input.dataset.secret==="1")input.classList.toggle("is-revealed",show);else input.type=show?"text":"password";}
 export const featureOn=(key,prefs)=>(prefs||state.prefs)[key]!==false;
-export const routeAllowed=(route,prefs)=>{const f=ROUTE_FEATURE[route];return !f||featureOn(f,prefs);};
+/** «Собеседник» exists only while the assistant is connected and the person allowed this function. */
+export const talkAvailable=()=>{const a=state.ai;if(!a?.enabled||!a.features?.talk||!a.provider)return false;const p=providerById(a.provider);return Boolean(p&&(state.aiKey||p.needsKey===false));};
+export const routeAllowed=(route,prefs)=>{if(route==="talk")return talkAvailable();const f=ROUTE_FEATURE[route];return !f||featureOn(f,prefs);};
 
 const now=new Date();
 export const state={

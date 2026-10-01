@@ -1,25 +1,19 @@
 /* Editor: a full-screen writing surface with Markdown tools, find, slash menu, focus mode, media, details, decisions,
    writing help and safe saving. Saving is atomic, versioned, and refuses to overwrite an entry edited elsewhere. */
-import {validateCanonicalEntry,nextRevision,searchEntries,parseRussianDateHint} from "./domain.mjs?v=4.5.0";
-import {applyFormat,activeFormats,continueList,shiftIndent,diffRange,renderMarkdown} from "./md.mjs?v=4.5.0";
-import {state,ctx,$,$$,escapeHtml,icon,uid,nowIso,fmtLong,fmtTime,fmtDate,localDateInputValue,dateInputToIso,splitCsv,words,chars,wordLabel,pluralRu,featureOn,activeEntries,entryById,mediaOf,kindLabels,capitalizeRu} from "./core.js?v=4.5.0";
-import {entryText,excerpt} from "./text.mjs?v=4.5.0";
-import {cleanDecision,cleanLinks} from "./domain.mjs?v=4.5.0";
-import {modalHeader,statusPill} from "./kit.js?v=4.5.0";
-import {enhance} from "./ui.mjs?v=4.5.0";
-import {STRUCTURE_TEMPLATE} from "./writing.mjs?v=4.5.0";
-import {contextMarkup,assistMarkup,assistResult,suggestionsMarkup,contextSummaryText,decisionMarkup,linksMarkup,smartSuggestions,viewMetaMarkup} from "./editor-panels.js?v=4.5.0";
-import {TextHistory} from "./history.mjs?v=4.5.0";
-import * as media from "./media.js?v=4.5.0";
-import * as store from "./store.js?v=4.5.0";
+import {validateCanonicalEntry,nextRevision,searchEntries,parseRussianDateHint} from "./domain.mjs?v=4.6.0";
+import {applyFormat,activeFormats,continueList,shiftIndent,diffRange,renderMarkdown} from "./md.mjs?v=4.6.0";
+import {state,ctx,$,$$,escapeHtml,icon,uid,nowIso,fmtLong,fmtTime,fmtDate,localDateInputValue,dateInputToIso,splitCsv,words,chars,wordLabel,pluralRu,featureOn,activeEntries,entryById,mediaOf,kindLabels,capitalizeRu} from "./core.js?v=4.6.0";
+import {entryText,excerpt} from "./text.mjs?v=4.6.0";
+import {cleanDecision,cleanLinks} from "./domain.mjs?v=4.6.0";
+import {modalHeader,statusPill} from "./kit.js?v=4.6.0";
+import {enhance} from "./ui.mjs?v=4.6.0";
+import {STRUCTURE_TEMPLATE} from "./writing.mjs?v=4.6.0";
+import {contextMarkup,assistMarkup,assistResult,suggestionsMarkup,contextSummaryText,decisionMarkup,linksMarkup,smartSuggestions,viewMetaMarkup} from "./editor-panels.js?v=4.6.0";
+import {TextHistory} from "./history.mjs?v=4.6.0";
+import * as media from "./media.js?v=4.6.0";
+import * as store from "./store.js?v=4.6.0";
+import {TOOLS,SEP,normalizeLayout,toolInfo,applyCustomTool} from "./tools.mjs?v=4.6.0";
 
-const FORMAT_GROUPS=[
-  [["bold","bold","Полужирный","Ctrl+B"],["italic","italic","Курсив","Ctrl+I"],["strike","strike","Зачёркнутый","Ctrl+Shift+X"],["mark","highlight","Выделение маркером","Ctrl+Shift+H"],["code","code","Код в строке","Ctrl+E"]],
-  [["h1","heading","Заголовок 1","Ctrl+Alt+1"],["h2","heading2","Заголовок 2","Ctrl+Alt+2"],["h3","heading3","Заголовок 3","Ctrl+Alt+3"],["quote","quote","Цитата","Ctrl+Shift+."]],
-  [["bullet","list","Маркированный список","Ctrl+Shift+8"],["numbered","list-ordered","Нумерованный список","Ctrl+Shift+7"],["checklist","checklist","Чек-лист","Ctrl+Shift+9"],["outdent","outdent","Уменьшить отступ","Shift+Tab"],["indent","indent","Увеличить отступ","Tab"]],
-  [["link","link","Ссылка","Ctrl+K"],["divider","divider","Разделитель",""],["table","table","Таблица",""],["codeblock","codeblock","Блок кода",""],["date","calendar","Вставить дату и время","Ctrl+;"]],
-  [["case","case","Регистр: ЗАГЛАВНЫЕ → строчные → как в предложении","Ctrl+Shift+U"],["clear","eraser","Убрать форматирование","Ctrl+\\"],["moveup","move-up","Строку выше","Alt+↑"],["movedown","move-down","Строку ниже","Alt+↓"],["dup","duplicate","Дублировать строку","Ctrl+Shift+D"]],
-];
 const SLASH_ITEMS=[
   {format:"h1",icon:"heading",label:"Заголовок 1",kw:"заголовок h1 title"},{format:"h2",icon:"heading2",label:"Заголовок 2",kw:"подзаголовок h2"},{format:"h3",icon:"heading3",label:"Заголовок 3",kw:"h3 мелкий"},
   {format:"quote",icon:"quote",label:"Цитата",kw:"quote"},{format:"bullet",icon:"list",label:"Список",kw:"маркированный пункты"},
@@ -33,23 +27,36 @@ export function newEntry({body="",date=null,prefill=""}={}){
   return {id:uid(),title:"",body,prefill,kind:"thought",happenedAt:at,createdAt:nowIso(),updatedAt:nowIso(),revision:0,favorite:false,sensitive:false,completedAt:null,deletedAt:null,people:[],themes:[],projects:[],location:"",dismissedSuggestions:[],happenedEnd:null,chapterId:null,links:[],decision:null};
 }
 const statsText=body=>{const wc=words(body),cc=chars(body);return [`${wc} ${wordLabel(wc)}`,`${cc} ${pluralRu(cc,"символ","символа","символов")}`];};
-const toolButton=([format,iconName,label,shortcut])=>{
-  const tip=shortcut&&state.prefs.shortcuts?`${label} (${shortcut})`:label;
-  return `<button type="button" class="tool-button" data-format="${format}" aria-label="${label}" aria-pressed="false" title="${tip}">${icon(iconName)}</button>`;
-};
 const canDictate=()=>!!(globalThis.SpeechRecognition||globalThis.webkitSpeechRecognition);
-function dictationButton(){
-  if(!canDictate())return "";
-  return `<div class="tool-group" role="group" aria-label="Диктовка"><button type="button" class="tool-button" data-action="dictate" aria-pressed="false" aria-label="Диктовать текст" title="Диктовать текст">${icon("mic")}</button></div>`;
+function toolAvailable(info){
+  if(info.needs==="media")return featureOn("featMedia");
+  if(info.needs==="voice")return canDictate()||(featureOn("featMedia")&&media.canRecord());
+  if(info.needs==="ai")return !!state.ai?.enabled;
+  return true;
 }
-function aiToolButton(){
-  const a=state.ai;if(!a?.enabled)return "";
-  return `<div class="tool-group" role="group" aria-label="Помощник"><button type="button" class="tool-button" data-action="ai-open" aria-label="Помощник" title="Помощник на основе ИИ">${icon("sparkle")}</button></div>`;
+function toolButton(info){
+  const tip=info.shortcut&&state.prefs.shortcuts?`${info.label} (${info.shortcut})`:info.label;
+  const hook=info.format?`data-format="${info.format}"`:info.custom?`data-custom="${escapeHtml(info.key.slice(2))}"`:`data-action="${info.action}"`;
+  const pressed=info.pressed||info.format||info.custom?` aria-pressed="false"`:"";
+  return `<button type="button" class="tool-button${info.custom?" is-custom":""}" data-tool="${escapeHtml(info.key)}" ${hook}${pressed} aria-label="${escapeHtml(info.label)}" title="${escapeHtml(tip)}">${icon(info.icon)}</button>`;
 }
-function mediaTools(){
-  if(!featureOn("featMedia"))return "";
-  return `<div class="tool-group" role="group" aria-label="Вложения"><button type="button" class="tool-button" data-action="attach-photo" aria-label="Добавить фото" title="Добавить фото">${icon("image")}</button><button type="button" class="tool-button" data-action="attach-audio" aria-label="Добавить аудио" title="Добавить аудиофайл">${icon("paperclip")}</button>${media.canRecord()?`<button type="button" class="tool-button" data-action="record-toggle" aria-pressed="false" aria-label="Записать голос" title="Записать голос">${icon("mic")}</button>`:""}</div>
-    <input type="file" id="attach-file-photo" accept="image/*" multiple hidden><input type="file" id="attach-file-audio" accept="audio/*" hidden>`;
+/** The arrangement the person chose (or the default), as buttons. Tools this browser/setting cannot offer are simply not drawn. */
+export function toolbarFlowMarkup(){
+  const layout=normalizeLayout(state.prefs.toolbar,state.prefs.customTools),parts=[];let sep=-1;
+  layout.forEach((key,i)=>{
+    if(key===SEP){sep=i;return;}
+    const info=toolInfo(key,state.prefs.customTools);if(!info||!toolAvailable(info))return;
+    if(sep>=0&&parts.length)parts.push(`<i class="tool-sep" aria-hidden="true" data-sep="${sep}"></i>`);sep=-1;
+    parts.push(toolButton(info));
+  });
+  return parts.join("");
+}
+export function refreshToolbar(){
+  const flow=$("#tool-flow");if(!flow)return;
+  flow.innerHTML=toolbarFlowMarkup();syncToolbar();
+}
+function mediaInputs(){
+  return featureOn("featMedia")?`<input type="file" id="attach-file-photo" accept="image/*" multiple hidden><input type="file" id="attach-file-audio" accept="audio/*" hidden>`:"";
 }
 function editorMarkup(entry,mode="edit"){
   const [wc,cc]=statsText(entry.body),p=state.prefs;
@@ -69,10 +76,8 @@ function editorMarkup(entry,mode="edit"){
     </div></div>
     <div class="editor-tools edit-only" id="editor-tools" role="toolbar" aria-label="Форматирование текста">
       <div class="tool-group history-group" role="group" aria-label="История правок"><button type="button" class="tool-button" data-history="undo" aria-label="Отменить" title="Отменить${p.shortcuts?" (Ctrl+Z)":""}" disabled>${icon("undo")}</button><button type="button" class="tool-button" data-history="redo" aria-label="Повторить" title="Повторить${p.shortcuts?" (Ctrl+Shift+Z)":""}" disabled>${icon("undo","icon-flip")}</button></div>
-      ${FORMAT_GROUPS.map(g=>`<div class="tool-group" role="group">${g.map(toolButton).join("")}</div>`).join("")}
-      ${mediaTools()}
-      ${dictationButton()}
-      ${aiToolButton()}
+      <div class="tool-group tool-flow" id="tool-flow" role="group" aria-label="Форматирование">${toolbarFlowMarkup()}</div>
+      ${mediaInputs()}
       <span class="tool-spacer"></span>
       <button type="button" class="secondary button-with-icon focus-toggle only-desktop" data-action="toggle-focus" aria-pressed="false">${icon("focus")}<span>Фокус</span></button>
     </div>
@@ -91,6 +96,7 @@ function editorMarkup(entry,mode="edit"){
     <div class="editor-bottom"><div id="editor-date">${escapeHtml(fmtLong(entry.happenedAt))}</div>${p.editorStats?`<div class="editor-stats" aria-label="Размер текста"><span id="word-count">${wc}</span><span id="char-count">${cc}</span></div>`:""}<span class="session-info edit-only" id="session-info" hidden></span></div>`;
 }
 export async function openEditor(id=null,opts={}){
+  ctx.loadLazy?.("toolbar")?.catch?.(()=>{});
   if(state.editing){
     const ok=await saveEditing("switch");
     if(!ok&&state.dirty&&state.editing.body.trim()){ctx.toast("Сначала нужно сохранить текущие изменения.");return null;}
@@ -230,6 +236,11 @@ export function insertAtCaret(text){
 function stamp(){
   const d=new Date();
   return new Intl.DateTimeFormat("ru-RU",{day:"numeric",month:"long",year:"numeric",hour:"2-digit",minute:"2-digit"}).format(d).replace(" г.,",",");
+}
+function runCustom(id){
+  const body=$("#entry-body");if(!body||state.editorPreview)return;
+  const t=state.prefs.customTools.find(c=>c.id===id);if(!t)return;
+  hideSlash();setBodyValue(applyCustomTool(body.value,body.selectionStart,body.selectionEnd,t));
 }
 function runFormat(format){
   const body=$("#entry-body");if(!body||state.editorPreview)return;
@@ -523,6 +534,7 @@ function bindEditor(box,mode="edit"){
   slash.addEventListener("mousedown",e=>{if(e.target.closest("button"))e.preventDefault();});
   tools.addEventListener("click",e=>{
     const f=e.target.closest("[data-format]");if(f){runFormat(f.dataset.format);return;}
+    const cu=e.target.closest("[data-custom]");if(cu){runCustom(cu.dataset.custom);return;}
     const h=e.target.closest("[data-history]");
     if(h){stepHistory(h.dataset.history==="undo"?-1:1);}
   });
@@ -878,8 +890,10 @@ export async function onKey(e,mod){
 export const onResize=()=>{if(state.editing){autosize($("#entry-title"));autosize($("#entry-body"));}};
 let caretTimer=0;
 export const onViewport=()=>{if(state.editing&&document.activeElement===$("#entry-body")){clearTimeout(caretTimer);caretTimer=setTimeout(ensureCaretVisible,90);}};
+/* opening the writing helper brings it into view, above the bottom bar */
+document.addEventListener("toggle",ev=>{const t=ev.target;if(t?.id==="assist-panel"&&t.open)requestAnimationFrame(()=>t.scrollIntoView({block:"nearest",behavior:"auto"}));},true);
 export function init(c){
-  Object.assign(c,{openEditor,markEditorDirty,insertAtCaret,removeMediaRefs,refreshAttachments,attachFiles,afterMediaAdded,editorSave:saveEditing});
+  Object.assign(c,{refreshToolbar,openEditor,markEditorDirty,insertAtCaret,removeMediaRefs,refreshAttachments,attachFiles,afterMediaAdded,editorSave:saveEditing});
 }
 export const views={};
 export const actions={

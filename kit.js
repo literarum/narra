@@ -1,5 +1,5 @@
 /* Narra UI kit: small markup builders shared by every view. Strings in, strings out; no state changes. */
-import {state,escapeHtml,icon,capitalizeRu} from "./core.js?v=4.5.0";
+import {state,escapeHtml,icon,capitalizeRu} from "./core.js?v=4.6.0";
 
 export function modalHeader(title,subtitle="",iconName="info",closeAction="close-overlay"){
   return `<header class="modal-header"><div class="modal-heading">${icon(iconName,"modal-heading-icon")}<div><h2>${escapeHtml(title)}</h2>${subtitle?`<p>${escapeHtml(subtitle)}</p>`:""}</div></div><button type="button" class="icon-button icon-button-quiet" data-action="${closeAction}" aria-label="Закрыть">${icon("x")}</button></header>`;

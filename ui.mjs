@@ -2,7 +2,7 @@
    follows one design language. Progressive enhancement: the native <select>/<input type=date> stay in the DOM
    (visually hidden) as the single source of truth, so existing form code and change events keep working. */
 
-import { capitalizeRu } from "./domain.mjs?v=4.5.0";
+import { capitalizeRu } from "./domain.mjs?v=4.6.0";
 
 const icon=(name,cls="")=>`<svg class="icon ${cls}" aria-hidden="true" focusable="false"><use href="#icon-${name}"></use></svg>`;
 const MONTHS=["Январь","Февраль","Март","Апрель","Май","Июнь","Июль","Август","Сентябрь","Октябрь","Ноябрь","Декабрь"];

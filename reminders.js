@@ -1,8 +1,8 @@
 /* Reminders and app shortcuts. No server: the schedule lives in this browser, the page checks it while it is open,
    and the service worker checks it when the system wakes it (periodic sync, notification events).
    Notification text never contains diary text. */
-import {state,routeAllowed} from "./core.js?v=4.5.0";
-import "./notify-rules.js?v=4.5.0";
+import {state,routeAllowed} from "./core.js?v=4.6.0";
+import "./notify-rules.js?v=4.6.0";
 const N=()=>globalThis.NarraNotify;
 const DB_NAME="narra-notify",STORE="kv";
 let ctx=null,timer=0,lastCfg="";

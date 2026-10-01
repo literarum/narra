@@ -1,17 +1,17 @@
 /* Life map («Карта жизни»): people, places, themes, projects and life chapters — only what the user wrote on their entries.
    Each page shows the entries, the months they cluster in (empty months stay visible), neighbours, and state associations
    with the days behind them. Names can be renamed, merged and annotated without touching the entries themselves. */
-import {state,ctx,$,escapeHtml,icon,fmtDate,relDay,activeEntries,entryLabel,dayLabel,featureOn} from "./core.js?v=4.5.0";
-import {pageHeader,emptyState,tabs,chip,modalHeader} from "./kit.js?v=4.5.0";
-import {ENTITY_TYPES,collectEntities,listByType,entityPage,norm,entityKey,sortChapters,chapterEntries,chapterOf} from "./entities.mjs?v=4.5.0";
-import {entityMap} from "./derived.js?v=4.5.0";
-import {describeAssociation} from "./insights-model.mjs?v=4.5.0";
-import {monthStrip} from "./charts.mjs?v=4.5.0";
-import {activeDimensions,dimLabel} from "./checkin.mjs?v=4.5.0";
-import {benjaminiHochberg,dayKey,MIN_N} from "./stats.mjs?v=4.5.0";
-import {cleanEntityNote} from "./domain.mjs?v=4.5.0";
-import {entryRows} from "./entries-ui.js?v=4.5.0";
-import * as store from "./store.js?v=4.5.0";
+import {talkAvailable,state,ctx,$,escapeHtml,icon,fmtDate,relDay,activeEntries,entryLabel,dayLabel,featureOn} from "./core.js?v=4.6.0";
+import {pageHeader,emptyState,tabs,chip,modalHeader} from "./kit.js?v=4.6.0";
+import {ENTITY_TYPES,collectEntities,listByType,entityPage,norm,entityKey,sortChapters,chapterEntries,chapterOf} from "./entities.mjs?v=4.6.0";
+import {entityMap} from "./derived.js?v=4.6.0";
+import {describeAssociation} from "./insights-model.mjs?v=4.6.0";
+import {monthStrip} from "./charts.mjs?v=4.6.0";
+import {activeDimensions,dimLabel} from "./checkin.mjs?v=4.6.0";
+import {benjaminiHochberg,dayKey,MIN_N} from "./stats.mjs?v=4.6.0";
+import {cleanEntityNote} from "./domain.mjs?v=4.6.0";
+import {entryRows} from "./entries-ui.js?v=4.6.0";
+import * as store from "./store.js?v=4.6.0";
 
 const TYPE_ICON={person:"users",place:"map",theme:"tag",project:"layout"};
 let sort="count",filterText="";
@@ -79,7 +79,7 @@ function entityView(key){
   return `<div class="entity-page">
     <button class="link-button back-link" data-action="lifemap-back">${icon("chevron-left")}<span>${escapeHtml(t.plural)}</span></button>
     <header class="entity-head"><div><p class="eyebrow">${escapeHtml(t.singular)}</p><h1>${escapeHtml(e.name)}</h1><p class="subtle">${e.count} ${entryLabel(e.count)} · с ${escapeHtml(dayText(e.first))} по ${escapeHtml(dayText(e.last))}</p>${aliases.length?`<p class="subtle text-small">Тоже встречается как: ${aliases.map(escapeHtml).join(", ")}</p>`:""}</div>
-      <div class="page-actions"><button class="secondary" data-action="lifemap-show-entries" data-key="${escapeHtml(key)}">${icon("journal")}<span>Все записи</span></button><button class="secondary" data-action="lifemap-menu" data-key="${escapeHtml(key)}" aria-haspopup="dialog">${icon("more")}<span>Ещё</span></button></div></header>
+      <div class="page-actions">${talkAvailable()?`<button class="secondary" data-action="talk-ask" data-q="${encodeURIComponent(`Что в моих записях о «${e.name}»? Как это менялось со временем?`)}">${icon("chat")}<span>Спросить дневник</span></button>`:""}<button class="secondary" data-action="lifemap-show-entries" data-key="${escapeHtml(key)}">${icon("journal")}<span>Все записи</span></button><button class="secondary" data-action="lifemap-menu" data-key="${escapeHtml(key)}" aria-haspopup="dialog">${icon("more")}<span>Ещё</span></button></div></header>
     ${page.note?.note?`<section class="card entity-note"><h2>Ваша заметка</h2><p>${escapeHtml(page.note.note).replace(/\n/g,"<br>")}</p></section>`:""}
     <section class="section"><h2>Когда упоминалось</h2><div class="card">${monthStrip({months:page.distribution,summary:`${e.name}: записи по месяцам`})}<p class="subtle text-small">Каждый квадрат — месяц; чем темнее, тем больше записей. Пустые месяцы видны.</p></div></section>
     ${neigh.length?`<section class="section"><h2>Что рядом</h2><div class="card">${neighbourMap(e.name,neigh)}<div class="neighbour-groups">${neigh.map(g=>`<div><h3>${escapeHtml(ENTITY_TYPES.find(x=>x.type===g.type).plural)}</h3><div class="chips">${g.items.map(i=>chip(`${escapeHtml(i.name)} <small>${i.count}</small>`,`data-action="lifemap-open" data-key="${escapeHtml(i.key)}"`)).join("")}</div></div>`).join("")}</div></div></section>`:""}

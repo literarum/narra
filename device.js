@@ -1,9 +1,10 @@
 /* Working with the device the app runs on: install, keep the screen awake while writing, haptics, share sheet,
    dictation, automatic copies into a folder, opening backup files from the file manager.
    Every feature checks that the browser has it and quietly does nothing otherwise. */
-import {state,$,escapeHtml,icon,nowIso,isoStamp,safeStorageGet,safeStorageSet} from "./core.js?v=4.5.0";
-import {kvGet,kvSet} from "./reminders.js?v=4.5.0";
-import * as privacy from "./privacy.js?v=4.5.0";
+import {state,$,escapeHtml,icon,nowIso,isoStamp,safeStorageGet,safeStorageSet,featureOn} from "./core.js?v=4.6.0";
+import {modalHeader} from "./kit.js?v=4.6.0";
+import {kvGet,kvSet} from "./reminders.js?v=4.6.0";
+import * as privacy from "./privacy.js?v=4.6.0";
 let ctx=null,wake=null,rec=null,recWanted=false;
 
 /* ---------- install ---------- */
@@ -28,7 +29,7 @@ const vibe=ms=>{if(state.prefs.haptics&&navigator.vibrate&&!matchMedia("(prefers
 /* ---------- dictation ---------- */
 const Recognition=()=>globalThis.SpeechRecognition||globalThis.webkitSpeechRecognition;
 function setDictationUi(on){$$dict().forEach(b=>{b.classList.toggle("is-on",on);b.setAttribute("aria-pressed",String(on));});}
-const $$dict=()=>[...document.querySelectorAll('[data-action="dictate"]')];
+const $$dict=()=>[...document.querySelectorAll('[data-action="voice-menu"]')];
 function stopDictation(){recWanted=false;try{rec?.stop();}catch{}rec=null;setDictationUi(false);}
 function startDictation(){
   const R=Recognition();if(!R)return ctx.toast("Этот браузер не умеет распознавать речь.");
@@ -44,6 +45,16 @@ function startDictation(){
   r.onend=()=>{if(r!==rec)return;if(recWanted&&state.editing){try{r.start();}catch{stopDictation();}}else stopDictation();};
   rec=r;recWanted=true;
   try{r.start();setDictationUi(true);vibe(12);}catch{stopDictation();}
+}
+/** One microphone button: tap to choose dictation (text) or a voice note (audio); while either runs, tap stops it. */
+function voiceMenu(){
+  if(recWanted){stopDictation();return;}
+  if(state.recorder){ctx.ACTIONS["record-toggle"]?.();return;}
+  const canRec=featureOn("featMedia")&&!!(navigator.mediaDevices?.getUserMedia&&globalThis.MediaRecorder),canDic=!!Recognition();
+  if(canDic&&!canRec)return toggleDictation();
+  if(canRec&&!canDic)return ctx.ACTIONS["record-toggle"]?.();
+  if(!canRec&&!canDic)return ctx.toast("В этом браузере нет ни диктовки, ни записи звука.");
+  ctx.sheetDialog(`${modalHeader("Голос","Что сделать с микрофоном?","mic","close-dialog")}<div class="modal-body voice-choice"><button type="button" class="voice-option" data-action="voice-dictate"><strong>Продиктовать текст</strong><span>Слова сразу появятся в записи.</span></button><button type="button" class="voice-option" data-action="voice-record"><strong>Записать голосовую заметку</strong><span>Звук сохранится вложением на этом устройстве.</span></button></div>`,"Голос");
 }
 function toggleDictation(){
   if(recWanted){stopDictation();return;}
@@ -70,7 +81,7 @@ export async function folderStatus(){
   return {state:perm==="granted"?"ready":"needs-permission",name:h.name,last};
 }
 async function writeBackup(h){
-  const {buildFullZip}=await import("./backup.js?v=4.5.0");
+  const {buildFullZip}=await import("./backup.js?v=4.6.0");
   const {zip,manifest}=await buildFullZip();
   const name=`narra-auto-${isoStamp()}.zip`;
   const f=await h.getFileHandle(name,{create:true}),w=await f.createWritable();
@@ -117,7 +128,7 @@ function watchLaunch(){
     try{
       const files=await Promise.all(params.files.map(h=>h.getFile()));
       if(state.locked){ctx.toast("Сначала откройте дневник, затем откройте файл ещё раз.");return;}
-      (await import("./backup.js?v=4.5.0")).beginImport(files);
+      (await import("./backup.js?v=4.6.0")).beginImport(files);
     }catch(e){console.error(e);}
   });
 }
@@ -131,6 +142,9 @@ export const actions={
   },
   "share-entry":()=>shareEntry(),
   "dictate":()=>toggleDictation(),
+  "voice-menu":()=>voiceMenu(),
+  "voice-dictate":()=>{ctx.closeDialog();toggleDictation();},
+  "voice-record":()=>{ctx.closeDialog();ctx.ACTIONS["record-toggle"]?.();},
   "autobackup-choose":()=>chooseFolder(),
   "autobackup-now":()=>backupNow(),
   "autobackup-off":async()=>{await kvSet("backupDir",null).catch(()=>{});ctx.setPref("autoBackup",false);ctx.toast("Копии в папку отключены. Уже сохранённые файлы остались на месте.");ctx.render();}

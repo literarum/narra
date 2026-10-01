@@ -2,10 +2,10 @@
    Diary text, titles, tags, check-in details, chapters, review notes and media are encrypted with a non-extractable key
    kept next to the data (protects against casual reading of the database, not against someone who has the whole browser profile —
    the interface says so). Dates and ids stay readable so the database can be indexed. */
-import {state,uid,nowIso,DB_NAME_MAIN,DB_NAME_DEMO} from "./core.js?v=4.5.0";
-import {pickEntryMeta,cleanMeta,cleanChapter,cleanReview,cleanEntityNote,ENTRY_META_DEFAULTS} from "./domain.mjs?v=4.5.0";
-import {cleanConfig,DEFAULT_CONFIG} from "./checkin.mjs?v=4.5.0";
-import {cleanAiState} from "./ai.mjs?v=4.5.0";
+import {state,uid,nowIso,DB_NAME_MAIN,DB_NAME_DEMO} from "./core.js?v=4.6.0";
+import {pickEntryMeta,cleanMeta,cleanChapter,cleanReview,cleanEntityNote,ENTRY_META_DEFAULTS} from "./domain.mjs?v=4.6.0";
+import {cleanConfig,DEFAULT_CONFIG} from "./checkin.mjs?v=4.6.0";
+import {cleanAiState} from "./ai-state.mjs?v=4.6.0";
 
 export const DB_VERSION=2;
 export const STORES={entries:"entries",versions:"versions",checkins:"checkins",meta:"meta",attachments:"attachments",blobs:"blobs",reviews:"reviews",chapters:"chapters",entities:"entities"};

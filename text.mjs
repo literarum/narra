@@ -1,5 +1,5 @@
 /* Narra text helpers shared by the interface and by pure modules (reviews, export). No DOM. */
-import {capitalizeRu,pluralRu} from "./domain.mjs?v=4.5.0";
+import {capitalizeRu,pluralRu} from "./domain.mjs?v=4.6.0";
 
 export const strip=(s="")=>String(s).replace(/\s+/g," ").trim();
 /** Markdown → plain text for excerpts and search-like views. */

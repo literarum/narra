@@ -1,11 +1,11 @@
 /* Today: quick capture, a short check-in, one memory, one question, recent entries, first-run welcome. */
-import {state,ctx,$,$$,escapeHtml,icon,uid,nowIso,fmtLong,fmtTime,relDay,activeEntries,sameDay,todayKey,safeStorageGet,safeStorageSet,featureOn,PREF_KEY} from "./core.js?v=4.5.0";
-import {entryText} from "./text.mjs?v=4.5.0";
-import {pageHeader,modalHeader} from "./kit.js?v=4.5.0";
-import {entryRows} from "./entries-ui.js?v=4.5.0";
-import {checkinCard} from "./checkin-ui.js?v=4.5.0";
-import {memoryCard} from "./memories.js?v=4.5.0";
-import * as store from "./store.js?v=4.5.0";
+import {talkAvailable,state,ctx,$,$$,escapeHtml,icon,uid,nowIso,fmtLong,fmtTime,relDay,activeEntries,sameDay,todayKey,safeStorageGet,safeStorageSet,featureOn,PREF_KEY} from "./core.js?v=4.6.0";
+import {entryText} from "./text.mjs?v=4.6.0";
+import {pageHeader,modalHeader} from "./kit.js?v=4.6.0";
+import {entryRows} from "./entries-ui.js?v=4.6.0";
+import {checkinCard} from "./checkin-ui.js?v=4.6.0";
+import {memoryCard} from "./memories.js?v=4.6.0";
+import * as store from "./store.js?v=4.6.0";
 
 const PROMPTS=[
   "Что сегодня оказалось важнее, чем выглядело сначала?","Какой момент этого дня хочется запомнить?","О чём вы сегодня думали чаще всего?",
@@ -43,7 +43,7 @@ export function pauseNote(entries,now=new Date()){
   const n=days>=60?"больше двух месяцев":days>=30?"больше месяца":`${days} ${days%10===1&&days%100!==11?"день":days%10>=2&&days%10<=4&&(days%100<12||days%100>14)?"дня":"дней"}`;
   return `<p class="pause-note">${icon("moon")}<span>С последней записи прошло ${n}. Ничего страшного — можно начать с одной фразы.</span></p>`;
 }
-const promptMarkup=()=>`<section class="section" id="prompt-section"><div class="section-heading"><h2>Вопрос для размышления</h2></div><article class="card prompt-card"><p>${escapeHtml(dailyPrompt())}</p><div class="prompt-actions"><button class="ghost button-with-icon" data-action="next-prompt" aria-label="Другой вопрос">${icon("refresh")}<span>Другой</span></button><button class="secondary" data-action="use-prompt">Ответить</button></div></article></section>`;
+const promptMarkup=()=>`<section class="section" id="prompt-section"><div class="section-heading"><h2>Вопрос для размышления</h2></div><article class="card prompt-card"><p>${escapeHtml(dailyPrompt())}</p><div class="prompt-actions"><button class="ghost button-with-icon" data-action="next-prompt" aria-label="Другой вопрос">${icon("refresh")}<span>Другой</span></button>${state.ai?.enabled?`<button class="ghost button-with-icon" data-action="prompt-ai" aria-label="Вопрос по моим записям">${icon("sparkle")}<span>По моим записям</span></button>`:""}<button class="secondary" data-action="use-prompt">Ответить</button></div></article></section>`;
 export const greetingText=(now=new Date())=>{const h=now.getHours();return h<5?"Доброй ночи":h<12?"Доброе утро":h<18?"Добрый день":"Добрый вечер";};
 
 function storageNoticeMarkup(){
@@ -78,6 +78,7 @@ export function todayView(){
       ${p.showCheckin?checkinCard():""}
     </div>
     ${memory}
+    <div data-talk-slot hidden></div>
     ${p.showPrompt?promptMarkup():""}
     ${p.showRecent?`<section class="section"><div class="section-heading"><h2>Недавние записи</h2><button class="link-button" data-route="journal">Открыть дневник</button></div>${entryRows(recent)}</section>`:""}`;
 }
@@ -120,6 +121,7 @@ async function quickToEntry(expand=false){
 export function beforeRender(){const q=$("#quick-capture");if(q)state.quickDraft=q.value;}
 export function afterRender(route){
   if(route!=="today")return;
+  if(talkAvailable())ctx.loadLazy?.("talk")?.then(m=>m.paintToday?.()).catch(()=>{});
   const quick=$("#quick-capture");
   if(quick){
     if(state.quickDraft){quick.value=state.quickDraft;updateQuickState();}
@@ -146,8 +148,9 @@ export const actions={
   "save-quick":()=>quickToEntry(false),
   "expand-quick":()=>quickToEntry(true),
   "quick-focus":()=>{ctx.goTo("today");setTimeout(()=>$("#quick-capture")?.focus(),80);},
-  "use-prompt":()=>{const i=promptIndex(),text=`${PROMPTS[i]}\n\n`;markPromptUsed(i);state.promptShift++;ctx.openEditor(null,{body:text,prefill:text});},
-  "next-prompt":()=>{markPromptUsed(promptIndex());state.promptShift++;const p=$("#prompt-section .prompt-card p");if(p){p.textContent=dailyPrompt();ctx.animateIn(p);}},
+  "prompt-ai":async()=>{const m=await ctx.loadLazy("assistant");m.dailyQuestionFlow();},
+  "use-prompt":()=>{const i=promptIndex(),text=`${state.aiPrompt||PROMPTS[i]}\n\n`;markPromptUsed(i);state.aiPrompt=null;state.promptShift++;ctx.openEditor(null,{body:text,prefill:text});},
+  "next-prompt":()=>{if(state.aiPrompt)state.aiPrompt=null;else{markPromptUsed(promptIndex());state.promptShift++;}const p=$("#prompt-section .prompt-card p");if(p){p.textContent=dailyPrompt();ctx.animateIn(p);}},
   "dismiss-reminder":el=>{safeStorageSet("narra-reminder-dismissed",todayKey());const n=el.closest(".reminder-card");if(n)ctx.collapseAndRemove(n);},
   "onboard-open":()=>ctx.sheetDialog(tourSheet(0),"Коротко о главном"),
   "onboard-step":el=>{const s=Number(el.dataset.step);const box=$("#dialog-root .sheet");if(box)box.innerHTML=tourSheet(Math.max(0,Math.min(TOUR.length-1,s)));},

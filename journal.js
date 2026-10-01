@@ -1,15 +1,15 @@
 /* Journal: timeline with day headers, calendar, life chapters, trash; filters, bulk actions and paging. */
-import {state,ctx,$,$$,escapeHtml,icon,fmtLong,fmtMonthYear,fmtDate,relDay,fmtTime,localDateKey,entryLabel,activeEntries,trashedEntries,kindOptions,kindLabels,capitalizeRu,featureOn,uid,nowIso,downloadBlob,isoStamp,mediaOf,checkinLabel,plural} from "./core.js?v=4.5.0";
-import {entryText} from "./text.mjs?v=4.5.0";
-import {nextRevision} from "./domain.mjs?v=4.5.0";
-import {checkinSummary} from "./checkin.mjs?v=4.5.0";
-import {chapterOf,chapterEntries,sortChapters,chapterMembership,chapterPatch,NO_CHAPTER} from "./entities.mjs?v=4.5.0";
-import {entryToMarkdown} from "./importers.mjs?v=4.5.0";
-import {dayKey} from "./stats.mjs?v=4.5.0";
-import {pageHeader,emptyState,tabs,selectHtml,field,checkRow,modalHeader} from "./kit.js?v=4.5.0";
-import {entryRows,entryRow} from "./entries-ui.js?v=4.5.0";
-import {EMOTION_GROUPS} from "./checkin.mjs?v=4.5.0";
-import * as store from "./store.js?v=4.5.0";
+import {state,ctx,$,$$,escapeHtml,icon,fmtLong,fmtMonthYear,fmtDate,relDay,fmtTime,localDateKey,entryLabel,activeEntries,trashedEntries,kindOptions,kindLabels,capitalizeRu,featureOn,uid,nowIso,downloadBlob,isoStamp,mediaOf,checkinLabel,plural} from "./core.js?v=4.6.0";
+import {entryText} from "./text.mjs?v=4.6.0";
+import {nextRevision} from "./domain.mjs?v=4.6.0";
+import {checkinSummary} from "./checkin.mjs?v=4.6.0";
+import {chapterOf,chapterEntries,sortChapters,chapterMembership,chapterPatch,NO_CHAPTER} from "./entities.mjs?v=4.6.0";
+import {entryToMarkdown} from "./importers.mjs?v=4.6.0";
+import {dayKey} from "./stats.mjs?v=4.6.0";
+import {pageHeader,emptyState,tabs,selectHtml,field,checkRow,modalHeader} from "./kit.js?v=4.6.0";
+import {entryRows,entryRow} from "./entries-ui.js?v=4.6.0";
+import {EMOTION_GROUPS} from "./checkin.mjs?v=4.6.0";
+import * as store from "./store.js?v=4.6.0";
 
 const F=()=>state.journalFilters;
 const norm=s=>String(s||"").toLocaleLowerCase("ru-RU");

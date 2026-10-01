@@ -1,11 +1,11 @@
 /* Privacy: screen lock, inactivity timer and password re-entry before dangerous actions.
    The lock hides the diary and drops what was decrypted for display (text in memory, media links); it is a screen lock,
    not encryption of the data at rest — the settings screen says so in plain words. */
-import {state,ctx,$,$$,escapeHtml,icon,safeStorageGet,safeStorageSet,safeStorageRemove} from "./core.js?v=4.5.0";
-import {makeLock,verifyPasscode,retryDelayMs,passcodeProblem,INACTIVITY_OPTIONS,makeRecoveryCode,makeRecovery,verifyRecovery,hintProblem,HINT_MAX} from "./lock.mjs?v=4.5.0";
-import {modalHeader} from "./kit.js?v=4.5.0";
-import * as store from "./store.js?v=4.5.0";
-import * as media from "./media.js?v=4.5.0";
+import {state,ctx,$,$$,escapeHtml,icon,safeStorageGet,safeStorageSet,safeStorageRemove,secretAttrs,secretShown,secretShow} from "./core.js?v=4.6.0";
+import {makeLock,verifyPasscode,retryDelayMs,passcodeProblem,INACTIVITY_OPTIONS,makeRecoveryCode,makeRecovery,verifyRecovery,hintProblem,HINT_MAX} from "./lock.mjs?v=4.6.0";
+import {modalHeader} from "./kit.js?v=4.6.0";
+import * as store from "./store.js?v=4.6.0";
+import * as media from "./media.js?v=4.6.0";
 
 const FAIL_KEY="narra-lock-fails";
 const readFails=()=>{try{const v=JSON.parse(safeStorageGet(FAIL_KEY)||"{}");return {n:Number(v.n)||0,at:Number(v.at)||0};}catch{return {n:0,at:0};}};
@@ -34,7 +34,7 @@ function lockMarkup(){
     <h1 id="lock-title">Дневник закрыт</h1>
     <p class="subtle">Введите пароль, чтобы продолжить.</p>
     <form class="lock-form" novalidate>
-      <label class="field"><span class="label">Пароль</span><span class="password-wrap"><input class="input" id="lock-input" type="password" autocomplete="current-password" autocapitalize="off" spellcheck="false" aria-describedby="lock-error"><button type="button" class="icon-button icon-button-quiet" data-lock-peek aria-label="Показать пароль" aria-pressed="false">${icon("eye")}</button></span></label>
+      <label class="field"><span class="label">Пароль</span><span class="password-wrap"><input class="input" id="lock-input" ${secretAttrs("current-password")} aria-describedby="lock-error"><button type="button" class="icon-button icon-button-quiet" data-lock-peek aria-label="Показать пароль" aria-pressed="false">${icon("eye")}</button></span></label>
       <p class="form-error" id="lock-error" role="alert" hidden></p>
       <button class="primary" type="submit" id="lock-submit">Открыть</button>
     </form><p class="lock-hint" id="lock-hint" hidden></p>${forgotMarkup()}
@@ -80,7 +80,7 @@ function mountLock(){
   });
   root.addEventListener("click",e=>{
     const peek=e.target.closest("[data-lock-peek]");
-    if(peek){const show=input.type==="password";input.type=show?"text":"password";peek.setAttribute("aria-pressed",String(show));peek.setAttribute("aria-label",show?"Скрыть пароль":"Показать пароль");input.focus();return;}
+    if(peek){const show=!secretShown(input);secretShow(input,show);peek.setAttribute("aria-pressed",String(show));peek.setAttribute("aria-label",show?"Скрыть пароль":"Показать пароль");input.focus();return;}
     if(e.target.closest("[data-lock-wipe]"))wipeFromLockScreen(root);
     if(e.target.closest("[data-lock-recover]"))recoverFromLockScreen(root);
   });
@@ -92,8 +92,8 @@ function recoverFromLockScreen(root){
   const box=$(".lock-forgot",root);
   box.innerHTML=`<form class="lock-form lock-recover" novalidate><p><strong>Восстановление по коду</strong></p>
     <label class="field"><span class="label">Код восстановления</span><input class="input mono" id="rc-code" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="XXXX-XXXX-XXXX-XXXX-XXXX"></label>
-    <label class="field"><span class="label">Новый пароль</span><input class="input" id="rc-p1" type="password" autocomplete="new-password"></label>
-    <label class="field"><span class="label">Повторите пароль</span><input class="input" id="rc-p2" type="password" autocomplete="new-password"></label>
+    <label class="field"><span class="label">Новый пароль</span><input class="input" id="rc-p1" ${secretAttrs("new-password")}></label>
+    <label class="field"><span class="label">Повторите пароль</span><input class="input" id="rc-p2" ${secretAttrs("new-password")}></label>
     <p class="form-error" id="rc-error" role="alert" hidden></p>
     <button class="primary" type="submit">Сменить пароль и открыть</button><button class="ghost" type="button" data-lock-recover-cancel>Назад</button></form>`;
   const err=t=>{const e=$("#rc-error",box);e.textContent=t||"";e.hidden=!t;};

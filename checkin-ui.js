@@ -1,8 +1,8 @@
 /* Check-in: three quick signals by default; emotions, context, a note and deeper dimensions are opt-in and live in settings.
    Values are stored exactly as chosen. A skipped dimension stays empty — nothing is filled in or averaged. */
-import {state,ctx,$,$$,escapeHtml,icon,uid,nowIso,fmtTime,sameDay,checkinLabel,safeStorageGet,safeStorageSet} from "./core.js?v=4.5.0";
-import {activeDimensions,emotionGroups,contextGroups,MODE_OPTIONS,WEATHER_OPTIONS,checkinSummary,cleanCheckin,dimLabel,DEFAULT_CONFIG,cleanConfig,CORE_DIMENSIONS} from "./checkin.mjs?v=4.5.0";
-import * as store from "./store.js?v=4.5.0";
+import {state,ctx,$,$$,escapeHtml,icon,uid,nowIso,fmtTime,sameDay,checkinLabel,safeStorageGet,safeStorageSet} from "./core.js?v=4.6.0";
+import {activeDimensions,emotionGroups,contextGroups,MODE_OPTIONS,WEATHER_OPTIONS,checkinSummary,cleanCheckin,dimLabel,DEFAULT_CONFIG,cleanConfig,CORE_DIMENSIONS} from "./checkin.mjs?v=4.6.0";
+import * as store from "./store.js?v=4.6.0";
 
 const emptyDraft=()=>({values:{},emotions:[],context:{needs:[],triggers:[],activities:[],social:[],weather:"",mode:""},note:""});
 state.checkinDraft=emptyDraft();

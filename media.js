@@ -1,7 +1,7 @@
 /* Photos and voice notes. Photos are re-drawn on a canvas, which drops all embedded metadata (location, camera, time),
    scaled down and stored encrypted with a thumbnail. Audio is stored as recorded. Nothing is uploaded anywhere. */
-import {state,ctx,$,$$,escapeHtml,icon,featureOn,mediaOf} from "./core.js?v=4.5.0";
-import * as store from "./store.js?v=4.5.0";
+import {state,ctx,$,$$,escapeHtml,icon,featureOn,mediaOf} from "./core.js?v=4.6.0";
+import * as store from "./store.js?v=4.6.0";
 
 export const LIMITS={imageIn:30*1024*1024,audioIn:30*1024*1024,perEntry:40,maxSide:2000,thumbSide:360,recordSeconds:600};
 const fmtSize=n=>n>=1048576?`${(n/1048576).toFixed(1).replace(".",",")} МБ`:`${Math.max(1,Math.round(n/1024))} КБ`;
@@ -139,7 +139,7 @@ function paintRecorder(){
   const r=state.recorder;
   box.hidden=!r;
   if(r)box.querySelector("time").textContent=fmtDur((Date.now()-r.startedAt)/1000);
-  const btn=$('[data-action="record-toggle"]');
+  const btn=$('#tool-flow [data-action="voice-menu"]');
   if(btn){btn.setAttribute("aria-pressed",String(Boolean(r)));btn.classList.toggle("is-recording",Boolean(r));}
 }
 export function stopRecordingIfAny(){if(state.recorder){try{state.recorder.rec.onstop=()=>{state.recorder?.stream.getTracks().forEach(t=>t.stop());state.recorder=null;};state.recorder.rec.stop();}catch{}}}

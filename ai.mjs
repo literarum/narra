@@ -1,57 +1,5 @@
-/* Narra assistant gateway: provider-agnostic. One key is enough — the service is recognised from it.
-   Policy: OFF until the user opts in; every feature needs its own consent; the user sees exactly what would be sent
-   and confirms it; the result is a derived artifact that changes nothing until the user accepts it; logs hold metadata only.
-   Requests go straight from the browser to the chosen service (no Narra server exists). Pure and dependency-free; fetch is injected. */
-
-export const AI_FEATURES=[
-  {id:"rewrite",name:"Переписать выделенный фрагмент",sends:"только выделенный текст (или вся запись, если ничего не выделено)",kind:"selection"},
-  {id:"questions",name:"Вопросы для размышления",sends:"текст текущей записи",kind:"entry"},
-  {id:"suggest",name:"Предложения тем, людей и мест",sends:"текст текущей записи",kind:"entry"},
-  {id:"summarize",name:"Краткий пересказ записи",sends:"текст текущей записи",kind:"entry"},
-  {id:"transcribe",name:"Расшифровка голосовых записей",sends:"звук выбранной записи (по одной, после подтверждения)",kind:"audio"},
-];
-/** Services the gateway speaks to. `format` decides the wire protocol; almost everything is OpenAI-compatible. */
-export const PROVIDERS=[
-  {id:"openai",name:"OpenAI",format:"openai",baseUrl:"https://api.openai.com/v1",model:"gpt-4o-mini",keyRe:/^sk-(?!ant-|or-)/,keyHelp:"platform.openai.com → API keys"},
-  {id:"anthropic",name:"Anthropic Claude",format:"anthropic",baseUrl:"https://api.anthropic.com/v1",model:"claude-haiku-4-5",keyRe:/^sk-ant-/,keyHelp:"console.anthropic.com → API keys"},
-  {id:"gemini",name:"Google Gemini",format:"gemini",baseUrl:"https://generativelanguage.googleapis.com/v1beta",model:"gemini-2.0-flash",keyRe:/^AIza/,keyHelp:"aistudio.google.com → Get API key"},
-  {id:"openrouter",name:"OpenRouter (сотни моделей)",format:"openai",baseUrl:"https://openrouter.ai/api/v1",model:"openai/gpt-4o-mini",keyRe:/^sk-or-/,keyHelp:"openrouter.ai → Keys"},
-  {id:"groq",name:"Groq",format:"openai",baseUrl:"https://api.groq.com/openai/v1",model:"llama-3.3-70b-versatile",keyRe:/^gsk_/,keyHelp:"console.groq.com → API Keys"},
-  {id:"xai",name:"xAI Grok",format:"openai",baseUrl:"https://api.x.ai/v1",model:"grok-2-latest",keyRe:/^xai-/,keyHelp:"console.x.ai"},
-  {id:"mistral",name:"Mistral",format:"openai",baseUrl:"https://api.mistral.ai/v1",model:"mistral-small-latest",keyRe:null,keyHelp:"console.mistral.ai"},
-  {id:"deepseek",name:"DeepSeek",format:"openai",baseUrl:"https://api.deepseek.com/v1",model:"deepseek-chat",keyRe:null,keyHelp:"platform.deepseek.com"},
-  {id:"ollama",name:"Ollama (на вашем компьютере)",format:"openai",baseUrl:"http://localhost:11434/v1",model:"llama3.2",keyRe:null,needsKey:false,local:true,keyHelp:"ключ не нужен"},
-  {id:"lmstudio",name:"LM Studio (на вашем компьютере)",format:"openai",baseUrl:"http://localhost:1234/v1",model:"local-model",keyRe:null,needsKey:false,local:true,keyHelp:"ключ не нужен"},
-  {id:"custom",name:"Другой сервис (совместимый с OpenAI)",format:"openai",baseUrl:"",model:"",keyRe:null,custom:true,keyHelp:"адрес и ключ из личного кабинета"},
-];
-export const providerById=id=>PROVIDERS.find(p=>p.id===id)||null;
-/** Recognises the service from the key's shape; null when the key says nothing (Mistral, DeepSeek…). */
-export function detectProvider(key=""){
-  const k=String(key).trim();
-  for(const p of PROVIDERS)if(p.keyRe&&p.keyRe.test(k))return p.id;
-  return null;
-}
-export const DEFAULT_AI_STATE=Object.freeze({enabled:false,provider:null,model:"",baseUrl:"",features:{},consentVersion:1,log:[]});
-export class AiUnavailable extends Error{constructor(message="Помощник недоступен."){super(message);this.name="AiUnavailable";}}
-/** The only provider in this build. It exists so the rest of the code has a single, testable seam. */
-export const NullProvider={id:"none",name:"Не подключён",available:false,async run(){throw new AiUnavailable("Внешний помощник не подключён: эта версия работает только на вашем устройстве.");}};
-
-export function cleanAiState(raw){
-  const r=raw&&typeof raw==="object"?raw:{};
-  const features={};for(const f of AI_FEATURES)features[f.id]=r.features?.[f.id]===true;
-  return {enabled:r.enabled===true,provider:typeof r.provider==="string"&&providerById(r.provider)?r.provider:null,model:typeof r.model==="string"?r.model.trim().slice(0,120):"",baseUrl:typeof r.baseUrl==="string"?r.baseUrl.trim().slice(0,300):"",features,consentVersion:1,
-    log:(Array.isArray(r.log)?r.log:[]).slice(-50).map(l=>({feature:String(l.feature||"").slice(0,24),status:String(l.status||"").slice(0,16),at:String(l.at||"").slice(0,30),chars:Number.isFinite(l.chars)?l.chars:0,refs:Array.isArray(l.refs)?l.refs.slice(0,50).map(String):[]}))};
-}
-/** May this feature run right now? Returns the first reason it may not. */
-export function canRun(state,featureId,provider=NullProvider){
-  const s=cleanAiState(state),f=AI_FEATURES.find(x=>x.id===featureId);
-  if(!f) return {ok:false,reason:"unknown-feature"};
-  if(!s.enabled) return {ok:false,reason:"disabled"};
-  if(!s.features[featureId]) return {ok:false,reason:"no-consent"};
-  if(!provider||provider.available===false) return {ok:false,reason:"no-provider"};
-  return {ok:true};
-}
-export const REASON_TEXT={disabled:"Помощник выключен. Включить его можно в настройках.","no-consent":"Для этой функции нет вашего согласия.","no-provider":"Помощник не подключён: добавьте ключ в настройках.","unknown-feature":"Такой функции нет."};
+import {AI_FEATURES,featureById,providerById,AiUnavailable,NullProvider,canRun,REASON_TEXT} from "./ai-state.mjs?v=4.6.0";
+export * from "./ai-state.mjs?v=4.6.0";
 /** Exactly what would leave the device — shown before anything is sent. */
 export function payloadPreview(featureId,items){
   const f=AI_FEATURES.find(x=>x.id===featureId);
@@ -59,14 +7,14 @@ export function payloadPreview(featureId,items){
   return {feature:f?.name||featureId,sends:f?.sends||"",rows,totalChars:rows.reduce((s,r)=>s+r.chars,0),text:(items||[]).map(i=>String(i.text||"")).join("\n\n---\n\n")};
 }
 /** Runs a feature through the gate. Never touches entries; on any failure the caller's text stays exactly as it was. */
-export async function runFeature({state,provider=NullProvider,featureId,items,confirmed=false,now=()=>new Date().toISOString()}){
+export async function runFeature({state,provider=NullProvider,featureId,items,confirmed=false,options={},now=()=>new Date().toISOString()}){
   const gate=canRun(state,featureId,provider);
   const preview=payloadPreview(featureId,items);
   const record=status=>({feature:featureId,status,at:now(),chars:preview.totalChars,refs:(items||[]).map(i=>String(i.id||"")).filter(Boolean)}); // metadata only, never text
   if(!gate.ok) return {ok:false,reason:gate.reason,message:REASON_TEXT[gate.reason],log:record("blocked"),preview};
   if(!confirmed) return {ok:false,reason:"not-confirmed",message:"Подтвердите, что именно будет отправлено.",log:null,preview};
   try{
-    const output=await provider.run(featureId,preview.text);
+    const output=await provider.run(featureId,preview.text,options);
     return {ok:true,output:{derived:true,text:String(output||"")},log:record("ok"),preview};
   }catch(error){
     return {ok:false,reason:"failed",message:error?.friendly?`${error.message} Запись не изменена.`:"Запись не изменена. Попробуйте помощника позже.",log:record("failed"),preview};
@@ -75,36 +23,75 @@ export async function runFeature({state,provider=NullProvider,featureId,items,co
 
 
 /* ---------- wire protocols ---------- */
-const SYSTEM="Ты — бережный, тактичный помощник для личного дневника. Пиши по-русски, просто и тепло, без оценок и диагнозов. Никогда не выдумывай факты о жизни автора: опирайся только на присланный текст. Не давай медицинских, юридических и финансовых советов.";
+const SYSTEM="Ты — бережный, тактичный помощник для личного дневника. Пиши по-русски, просто и тепло, без оценок и диагнозов. Никогда не выдумывай факты о жизни автора: опирайся только на присланный текст. Не давай медицинских, юридических и финансовых советов. Отвечай сразу по делу, без вступлений и без пересказа задания.";
+export const REWRITE_STYLES=[
+  ["smooth","Глаже и яснее","Перепиши фрагмент яснее и глаже, сохранив смысл, факты и голос автора (от первого лица). Ничего не добавляй от себя."],
+  ["short","Короче","Сократи фрагмент примерно вдвое, сохранив главное, факты и голос автора. Ничего не добавляй."],
+  ["warm","Теплее","Перепиши фрагмент мягче и теплее по тону, сохранив смысл и факты. Не добавляй новых событий и оценок."],
+  ["formal","Деловым тоном","Перепиши фрагмент в ровном деловом тоне: без эмоциональных оборотов и сленга, смысл и факты сохрани."],
+  ["fix","Только ошибки","Исправь только орфографию, пунктуацию и явные опечатки. Слова, порядок и стиль не меняй."],
+  ["expand","Развернуть в текст","Разверни черновые пометки и обрывки в связный текст от первого лица, ничего не выдумывая сверх сказанного."],
+  ["bullets","Свести в пункты","Сократи фрагмент до списка коротких пунктов Markdown («- …»), сохранив факты и порядок."],
+];
+const ANALYZE_SHAPE='{"summary":"1–2 предложения","themes":["до 4, по 1–2 слова"],"people":["только упомянутые имена"],"places":["только упомянутые"],"mood":{"valence":-2..2,"energy":1..5,"tension":1..5},"tasks":["намерения, которые можно сделать"],"questions":["до 3 коротких вопросов автору"]}';
+/** One prompt per feature: (text, options) → the user message. Outputs are kept terse on purpose — every answer token costs money. */
 export const FEATURE_PROMPTS={
-  rewrite:t=>`Перепиши фрагмент яснее и глаже, сохранив смысл, факты и голос автора (от первого лица). Ничего не добавляй от себя. Верни только переписанный текст без пояснений.\n\nФрагмент:\n${t}`,
-  questions:t=>`Прочитай запись и задай 3–5 коротких наводящих вопросов, которые помогут автору глубже понять свои чувства и события. Только вопросы, списком, без комментариев.\n\nЗапись:\n${t}`,
+  rewrite:(t,o={})=>{const st=REWRITE_STYLES.find(x=>x[0]===o.style)||REWRITE_STYLES[0];return `${st[2]} Верни только результат, без пояснений.\n\nФрагмент:\n${t}`;},
+  continue:(t,o={})=>`Продолжи запись в том же голосе и времени (от первого лица), 2–4 предложения. Не подводи итогов, не давай советов, не выдумывай событий — лишь естественно продолжи мысль автора.${o.voice?`\n\nПримеры голоса автора из его прошлых записей (не пересказывай их):\n${o.voice}`:""}\n\nЗапись:\n${t}`,
+  questions:t=>`Прочитай запись и задай 3–5 коротких наводящих вопросов, которые помогут автору глубже понять свои чувства и события. Только вопросы, списком, без вступления и без оценок.\n\nЗапись:\n${t}`,
+  title:t=>`Придумай три коротких заголовка (2–6 слов) для записи. По одному в строке, без нумерации и кавычек. Заголовок — это суть, а не оценка.\n\nЗапись:\n${t}`,
+  analyze:t=>`Разбери запись. Верни ТОЛЬКО JSON такой формы (пустые поля — пустые списки/строки; ничего не выдумывай, оценка настроения — только если оно видно из текста, иначе null): ${ANALYZE_SHAPE}\n\nЗапись:\n${t}`,
+  tasks:t=>`Выпиши из записи намерения и дела, которые автор хочет или должен сделать. Список Markdown вида «- [ ] дело», по делу, без выдуманных пунктов. Если дел нет — одна строка: «Задач в записи нет.»\n\nЗапись:\n${t}`,
+  reframe:t=>`Автор описывает ситуацию. Предложи 2–3 бережных альтернативных взгляда на неё (как это могли бы увидеть другой человек, время, более добрая версия себя). Не обесценивай чувства, не давай директив и не ставь диагнозов. Каждый взгляд — 1–2 предложения, по строке «— …».\n\nЗапись:\n${t}`,
+  echoes:(t,o={})=>`Ниже — текущая запись и выдержки из прошлых записей того же автора. Скажи в 3–5 предложениях, что в текущей записи повторяет прошлое (темы, чувства, схемы) и что изменилось. Ссылайся на даты выдержек. Если связи слабые — так и скажи. Ничего не выдумывай, вывод формулируй осторожно («похоже», «возможно»).\n\n# Текущая запись\n${t}\n\n# Прошлые записи\n${o.context||"(нет)"}`,
   suggest:t=>`Из записи выпиши: «Темы:» (до 5, по одному-два слова), «Люди:» (только упомянутые имена), «Места:» (только упомянутые). Ничего не выдумывай. Формат — три строки.\n\nЗапись:\n${t}`,
   summarize:t=>`Кратко перескажи запись в 2–4 предложениях от третьего лица, нейтрально, без оценок.\n\nЗапись:\n${t}`,
+  period:t=>`Ниже — сводка дневника автора за период (заголовки записей, темы, люди, состояния). Напиши от второго лица («вы») связный тёплый рассказ на 120–220 слов: что было главным, какие темы повторялись, как менялось состояние (если есть данные), что хочется забрать с собой. Опирайся только на сводку; если данных мало — скажи честно и коротко. Без списков и оценок.\n\n${t}`,
+  daily:t=>`По портрету дневника предложи ОДИН личный вопрос для сегодняшней записи (до 18 слов): мягкий, конкретный, связанный с тем, что занимает автора. Без вступлений, только вопрос.\n\n${t}`,
+  decision:t=>`Ниже — журнал решения автора и, возможно, похожие прошлые решения. Помоги сверить ожидания с итогом и извлечь урок: что сбылось, что нет, что это говорит о способе принимать решения. 4–6 предложений, по-доброму, без оценок «правильно/неправильно». Если итога ещё нет — предложи 2 вопроса, которые помогут проверить решение позже.\n\n${t}`,
 };
 const trimSlash=u=>String(u||"").replace(/\/+$/,"");
 export function resolveConfig(cfg){
   const p=providerById(cfg?.provider);
   if(!p)return null;
-  return {provider:p,format:p.format,baseUrl:trimSlash(cfg.baseUrl||p.baseUrl),model:(cfg.model||p.model||"").trim()};
+  return {provider:p,format:p.format,baseUrl:trimSlash((p.custom||p.local)&&cfg.baseUrl?cfg.baseUrl:p.baseUrl),model:(cfg.model||p.model||"").trim()};
 }
-/** Builds a fetch() request for one prompt. Pure: nothing is sent here. */
-export function buildRequest(cfg,key,{system=SYSTEM,prompt,maxTokens=900}){
+const sysText=system=>Array.isArray(system)?system.map(b=>b.text).join("\n\n"):String(system||"");
+/** Builds a fetch() request. `system` is a string or blocks [{text,cache}] (cache → the provider may reuse that prefix: Anthropic explicit breakpoints,
+    OpenAI and Gemini cache stable prefixes by themselves). `messages` = [{role:"user"|"assistant",content}] or a single `prompt`. Pure: nothing is sent here. */
+export function buildRequest(cfg,key,{system=SYSTEM,prompt,messages=null,maxTokens=900}){
   const c=resolveConfig(cfg);if(!c)throw new AiUnavailable("Сервис не выбран.");
   if(!c.baseUrl)throw new AiUnavailable("Не указан адрес сервиса.");
   if(!c.model)throw new AiUnavailable("Не указана модель.");
+  const msgs=(messages&&messages.length?messages:[{role:"user",content:prompt}]).map(m=>({role:m.role==="assistant"?"assistant":"user",content:String(m.content||"")}));
   const json={"content-type":"application/json"};
-  if(c.format==="anthropic")return {url:`${c.baseUrl}/messages`,init:{method:"POST",headers:{...json,"x-api-key":key,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},body:JSON.stringify({model:c.model,max_tokens:maxTokens,system,messages:[{role:"user",content:prompt}]})}};
-  if(c.format==="gemini")return {url:`${c.baseUrl}/models/${encodeURIComponent(c.model)}:generateContent`,init:{method:"POST",headers:{...json,"x-goog-api-key":key},body:JSON.stringify({systemInstruction:{parts:[{text:system}]},contents:[{role:"user",parts:[{text:prompt}]}],generationConfig:{maxOutputTokens:maxTokens}})}};
+  if(c.format==="anthropic"){
+    const sys=Array.isArray(system)?system.map(b=>({type:"text",text:b.text,...(b.cache?{cache_control:{type:"ephemeral"}}:{})})):system;
+    return {url:`${c.baseUrl}/messages`,init:{method:"POST",headers:{...json,"x-api-key":key,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},body:JSON.stringify({model:c.model,max_tokens:maxTokens,system:sys,messages:msgs})}};
+  }
+  if(c.format==="gemini")return {url:`${c.baseUrl}/models/${encodeURIComponent(c.model)}:generateContent`,init:{method:"POST",headers:{...json,"x-goog-api-key":key},body:JSON.stringify({systemInstruction:{parts:[{text:sysText(system)}]},contents:msgs.map(m=>({role:m.role==="assistant"?"model":"user",parts:[{text:m.content}]})),generationConfig:{maxOutputTokens:maxTokens}})}};
   const limit=c.provider.id==="openai"?{max_completion_tokens:maxTokens}:{max_tokens:maxTokens};
   const headers={...json};if(key)headers.authorization=`Bearer ${key}`;
-  return {url:`${c.baseUrl}/chat/completions`,init:{method:"POST",headers,body:JSON.stringify({model:c.model,messages:[{role:"system",content:system},{role:"user",content:prompt}],...limit})}};
+  return {url:`${c.baseUrl}/chat/completions`,init:{method:"POST",headers,body:JSON.stringify({model:c.model,messages:[{role:"system",content:sysText(system)},...msgs],...limit})}};
+}
+/** Tokens the service says it counted: the meter's ground truth (falls back to estimates when a service does not report). */
+export function parseUsage(format,data){
+  const n=v=>Number.isFinite(v)&&v>=0?Math.round(v):0;
+  if(format==="anthropic"){const u=data?.usage||{};return {inTok:n(u.input_tokens)+n(u.cache_read_input_tokens)+n(u.cache_creation_input_tokens),outTok:n(u.output_tokens),cachedIn:n(u.cache_read_input_tokens)};}
+  if(format==="gemini"){const u=data?.usageMetadata||{};return {inTok:n(u.promptTokenCount),outTok:n(u.candidatesTokenCount)+n(u.thoughtsTokenCount),cachedIn:n(u.cachedContentTokenCount)};}
+  const u=data?.usage||{};return {inTok:n(u.prompt_tokens),outTok:n(u.completion_tokens),cachedIn:n(u.prompt_tokens_details?.cached_tokens)};
 }
 export function parseResponse(format,data){
   if(format==="anthropic")return (data?.content||[]).filter(b=>b?.type==="text").map(b=>b.text).join("").trim();
   if(format==="gemini")return (data?.candidates?.[0]?.content?.parts||[]).map(p=>p?.text||"").join("").trim();
   const m=data?.choices?.[0]?.message?.content;
   return (typeof m==="string"?m:Array.isArray(m)?m.map(x=>x?.text||"").join(""):"").trim();
+}
+/** True when the service says the answer was cut off by the output limit. */
+export function parseTruncated(format,data){
+  if(format==="anthropic")return data?.stop_reason==="max_tokens";
+  if(format==="gemini")return data?.candidates?.[0]?.finishReason==="MAX_TOKENS";
+  return data?.choices?.[0]?.finish_reason==="length";
 }
 export function buildModelsRequest(cfg,key){
   const c=resolveConfig(cfg);if(!c)throw new AiUnavailable("Сервис не выбран.");
@@ -189,13 +176,21 @@ export function parseTranscript(kind,data){return kind==="gemini"?parseResponse(
 /** The provider object the gateway runs features through. */
 export function createProvider(cfg,key,fetchImpl=globalThis.fetch){
   const c=resolveConfig(cfg);
+  const withModel=role=>role==="fast"&&cfg?.modelFast?{...cfg,model:cfg.modelFast}:cfg;
   return {id:c?.provider.id||"none",name:c?`${c.provider.name} · ${c.model}`:"Не подключён",available:Boolean(c&&(key||c.provider.needsKey===false)),
-    async run(featureId,text,opts){
-      const make=FEATURE_PROMPTS[featureId];if(!make)throw new AiUnavailable("Неизвестная функция.");
-      const data=await call(fetchImpl,buildRequest(cfg,key,{prompt:make(String(text||"").slice(0,24000))}),opts);
-      const out=parseResponse(c.format,data);
-      if(!out)throw Object.assign(new Error("Сервис вернул пустой ответ."),{friendly:true});
-      return out;
+    /** The general entry: a conversation or a single prompt → {text,usage,model}. Nothing is stored here. */
+    async chat({system,messages,prompt,maxTokens=900,role="main",signal,timeoutMs=90000}){
+      const use=withModel(role),rc=resolveConfig(use);
+      const data=await call(fetchImpl,buildRequest(use,key,{system,messages,prompt,maxTokens}),{timeoutMs,signal});
+      const text=parseResponse(rc.format,data);
+      if(!text)throw Object.assign(new Error("Сервис вернул пустой ответ."),{friendly:true});
+      return {text,usage:parseUsage(rc.format,data),model:rc.model,truncated:parseTruncated(rc.format,data)};
+    },
+    async run(featureId,text,opts={}){
+      const make=FEATURE_PROMPTS[featureId],f=featureById(featureId);if(!make)throw new AiUnavailable("Неизвестная функция.");
+      const r=await this.chat({prompt:make(String(text||"").slice(0,24000),opts),maxTokens:opts.maxTokens||f?.out||900,role:opts.role||f?.role||"main",signal:opts.signal});
+      opts.onUsage?.(r.usage,r.model);
+      return r.text;
     },
     async transcribe(audio,opts){
       const sup=transcribeSupport(cfg);
@@ -204,4 +199,27 @@ export function createProvider(cfg,key,fetchImpl=globalThis.fetch){
       if(!out)throw Object.assign(new Error("В записи не удалось разобрать речь."),{friendly:true});
       return out;
     }};
+}
+
+/* ---------- reading what the model returned (defensive: models wrap JSON in prose or fences) ---------- */
+const cleanList=(v,n,len)=>(Array.isArray(v)?v:[]).map(x=>typeof x==="string"?x.replace(/\s+/g," ").trim():"").filter(Boolean).map(x=>x.slice(0,len)).filter((x,i,a)=>a.indexOf(x)===i).slice(0,n);
+/** JSON from «Разбор записи» → a safe structure; null when nothing usable came back. */
+export function parseAnalysis(raw=""){
+  const m=String(raw).match(/\{[\s\S]*\}/);if(!m)return null;
+  let o;try{o=JSON.parse(m[0]);}catch{return null;}
+  if(!o||typeof o!=="object")return null;
+  const num=(v,lo,hi)=>{const n=Number(v);return Number.isFinite(n)&&Number.isInteger(n)&&n>=lo&&n<=hi?n:null;};
+  const mood=o.mood&&typeof o.mood==="object"?{valence:num(o.mood.valence,-2,2),energy:num(o.mood.energy,1,5),tension:num(o.mood.tension,1,5)}:null;
+  const out={summary:typeof o.summary==="string"?o.summary.replace(/\s+/g," ").trim().slice(0,400):"",themes:[...new Set(cleanList(o.themes,8,40).map(t=>t.replace(/^#/,"")))].slice(0,5),people:cleanList(o.people,6,60),places:cleanList(o.places,4,80),
+    mood:mood&&(mood.valence!=null||mood.energy!=null||mood.tension!=null)?mood:null,tasks:cleanList(o.tasks,8,200),questions:cleanList(o.questions,3,200)};
+  return out.summary||out.themes.length||out.people.length||out.places.length||out.tasks.length||out.questions.length||out.mood?out:null;
+}
+/** Up to three headline options, one per line, without numbering or quotes. */
+export function parseTitles(raw=""){
+  return [...new Set(String(raw).split(/\n+/).map(l=>l.replace(/^\s*(?:[-–—*•]|\d+[.)])\s*/,"").replace(/^[«"“„']+|[»"”“'.]+$/g,"").trim()).filter(l=>l&&l.length<=90))].slice(0,3);
+}
+/** A markdown checklist out of the model's task list (accepts «- [ ] …», «- …», «1. …»). */
+export function parseTasks(raw=""){
+  const items=String(raw).split(/\n+/).map(l=>l.replace(/^\s*(?:[-*•]\s*(?:\[[ xX]?\]\s*)?|\d+[.)]\s*)/,"").trim()).filter(Boolean).filter(l=>!/^задач\s+в\s+записи\s+нет/i.test(l));
+  return items.slice(0,12);
 }

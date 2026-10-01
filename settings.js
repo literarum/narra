@@ -1,18 +1,20 @@
 /* Settings: interface, feature switches, editor, check-in fields, privacy (lock and assistant), data, and an honest «about».
    Everything optional can be turned off here and its screens disappear; nothing that was written is deleted by a switch. */
-import {state,ctx,$,$$,escapeHtml,icon,FEATURES,APP_VERSION,featureOn,entryLabel,plural,kindLabels} from "./core.js?v=4.5.0";
-import {pageHeader,tabs,settingsGroup,switchRow,segmentedRow,selectHtml} from "./kit.js?v=4.5.0";
-import {CORE_DIMENSIONS,DEEP_DIMENSIONS,activeDimensions,cleanConfig,DEFAULT_CONFIG} from "./checkin.mjs?v=4.5.0";
-import {AI_FEATURES,PROVIDERS,providerById,detectProvider,listModels,pickModel,createProvider,runFeature,cleanAiState,REASON_TEXT} from "./ai.mjs?v=4.5.0";
-import {INACTIVITY_OPTIONS} from "./lock.mjs?v=4.5.0";
-import {capitalizeRu} from "./domain.mjs?v=4.5.0";
-import {MIN_N,METHOD_VERSION} from "./stats.mjs?v=4.5.0";
-import {METHOD_ID} from "./insights-model.mjs?v=4.5.0";
-import {entryText} from "./text.mjs?v=4.5.0";
-import {entityMap} from "./derived.js?v=4.5.0";
-import * as store from "./store.js?v=4.5.0";
+import {state,ctx,$,$$,escapeHtml,icon,FEATURES,APP_VERSION,featureOn,entryLabel,plural,kindLabels} from "./core.js?v=4.6.0";
+import {pageHeader,tabs,settingsGroup,switchRow,segmentedRow,selectHtml} from "./kit.js?v=4.6.0";
+import {CORE_DIMENSIONS,DEEP_DIMENSIONS,activeDimensions,cleanConfig,DEFAULT_CONFIG} from "./checkin.mjs?v=4.6.0";
+import {AI_FEATURES,FEATURE_GROUPS,PROVIDERS,providerById,detectProvider,listModels,pickModel,createProvider,runFeature,cleanAiState,REASON_TEXT} from "./ai.mjs?v=4.6.0";
+import {TIERS,fmtTok} from "./brain.mjs?v=4.6.0";
+import {ADDRESS,STYLES,LENGTHS} from "./therapy.mjs?v=4.6.0";
+import {INACTIVITY_OPTIONS} from "./lock.mjs?v=4.6.0";
+import {capitalizeRu} from "./domain.mjs?v=4.6.0";
+import {MIN_N,METHOD_VERSION} from "./stats.mjs?v=4.6.0";
+import {METHOD_ID} from "./insights-model.mjs?v=4.6.0";
+import {entryText} from "./text.mjs?v=4.6.0";
+import {entityMap} from "./derived.js?v=4.6.0";
+import * as store from "./store.js?v=4.6.0";
 
-const TABS=[["basic","Основные"],["features","Функции"],["editor","Редактор"],["checkin","Отметки"],["privacy","Приватность"],["data","Данные"],["about","О Narra"]];
+const TABS=[["basic","Основные"],["features","Функции"],["editor","Редактор"],["checkin","Отметки"],["privacy","Приватность"],["ai","Помощник"],["data","Данные"],["about","О Narra"]];
 const sw=(attrs,title,desc,checked,extra="")=>`<div class="setting-row"><div class="setting-row-text"><strong>${title}</strong>${desc?`<span>${desc}</span>`:""}</div><div class="setting-row-control"><label class="switch"><input type="checkbox" role="switch" ${attrs} ${checked?"checked":""} ${extra} aria-label="${escapeHtml(title.replace(/<[^>]+>/g,""))}"><span class="switch-track"></span></label></div></div>`;
 const row=(title,desc,control,{stacked=false}={})=>`<div class="setting-row${stacked?" is-stacked":""}"><div class="setting-row-text"><strong>${title}</strong>${desc?`<span>${desc}</span>`:""}</div><div class="setting-row-control">${control}</div></div>`;
 const prefSelect=(key,options,label)=>`<select data-select data-pref="${key}" aria-label="${escapeHtml(label)}">${options.map(([v,l])=>`<option value="${escapeHtml(v)}" ${String(state.prefs[key])===String(v)?"selected":""}>${escapeHtml(l)}</option>`).join("")}</select>`;
@@ -81,7 +83,7 @@ function featuresTab(){
   return `<p class="subtle settings-lead">Включайте только то, чем пользуетесь. Выключенное пропадает из меню и с экранов; записи и данные остаются на месте и вернутся при включении.</p>
     <div class="features-actions"><span class="subtle text-small">Включено: ${on} из ${FEATURES.length}</span>${btn("features-minimal","Оставить только дневник")}${btn("features-all","Включить всё")}</div>
     ${groups.map(g=>settingsGroup(g==="Разделы"?"layout":g==="Записи"?"pen":"search",g,FEATURES.filter(f=>f.group===g).map(f=>sw(`data-pref="${f.key}"`,f.name,f.desc,featureOn(f.key))).join(""))).join("")}
-    ${settingsGroup("sparkle","Внешний помощник",row("Помощник на основе ИИ","Необязательный. Подключается ключом от любого ИИ-сервиса; управление — в разделе «Приватность».",btn("open-privacy","Открыть настройки")))}`;
+    ${settingsGroup("sparkle","Внешний помощник",row("Помощник на основе ИИ","Необязательный. Подключается ключом от любого ИИ-сервиса; управление — в разделе «Помощник».",btn("open-ai-settings","Открыть настройки")))}`;
 }
 
 /* ---------- editor ---------- */
@@ -90,6 +92,8 @@ function editorTab(){
     segmentedRow("editorFont","Шрифт письма","Для текста записи.",[["serif","С засечками"],["sans","Без засечек"]])
     +segmentedRow("editorWidth","Ширина строки","Узкая строка читается легче.",[["standard","Узкая"],["wide","Широкая"]]))}
     <section class="settings-group"><h2>${icon("eye")}Как это выглядит</h2><div class="card editor-sample" data-editor-sample><p>Утро было тихим. Я долго стояла у окна и думала о том, что хочу сохранить из этого года.</p></div></section>
+    ${settingsGroup("type","Панель форматирования",
+      row("Кнопки над текстом","Меняйте порядок, убирайте лишнее, добавляйте свои инструменты. В самом редакторе кнопку можно удержать и перетащить.",`<button type="button" class="secondary" data-action="toolbar-settings">Настроить</button>`))}
     ${settingsGroup("pen","Во время письма",
       sw('data-pref="editorStats"',"Счётчик слов","Слова, символы и время чтения под текстом.",state.prefs.editorStats)
       +sw('data-pref="spellcheck"',"Проверка орфографии браузера","Подчёркивание слов с ошибками. Проверку делает сам браузер.",state.prefs.spellcheck)
@@ -117,16 +121,42 @@ function checkinTab(){
 }
 
 /* ---------- privacy ---------- */
-function aiBlock(){
+const CAPS=[[0,"Без лимита"],[20000,"20 тыс. в день"],[50000,"50 тыс. в день"],[100000,"100 тыс. в день"],[250000,"250 тыс. в день"],[1000000,"1 млн в день"]];
+const selectAi=(key,options,value,label)=>`<select data-select data-ai="${key}" aria-label="${escapeHtml(label)}">${options.map(([v,l])=>`<option value="${escapeHtml(v)}" ${String(value)===String(v)?"selected":""}>${escapeHtml(l)}</option>`).join("")}</select>`;
+const swAi=(key,title,desc,checked)=>sw(`data-ai="${key}"`,title,desc,checked);
+function aiTab(){
   const ai=cleanAiState(state.ai),n=ai.log.length,p=providerById(ai.provider),ready=Boolean(p&&(state.aiKey||p.needsKey===false));
-  const feats=ai.enabled?AI_FEATURES.map(f=>sw(`data-ai="feature:${f.id}"`,f.name,`Отправляется: ${escapeHtml(f.sends)}. Только после вашего подтверждения.`,ai.features[f.id])).join(""):"";
   const conn=ready
     ?row("Подключено",`${escapeHtml(p.name)} · ${escapeHtml(ai.model||p.model)}${p.local?" · работает на вашем компьютере":""}`,`${btn("ai-connect","Изменить")}${btn("ai-test","Проверить")}${btn("ai-disconnect","Отключить",{cls:"ghost danger-quiet"})}`)
     :row("Подключение","Вставьте ключ доступа от любого ИИ-сервиса — сервис и модель подберутся сами. Подойдут OpenAI, Claude, Gemini, OpenRouter, Groq, Mistral, DeepSeek, xAI, а также локальные модели (Ollama, LM Studio) и любой сервис, совместимый с OpenAI.",btn("ai-connect","Добавить ключ",{cls:"primary"}));
+  const groups=FEATURE_GROUPS.map(g=>{
+    const list=AI_FEATURES.filter(f=>f.group===g.id);
+    return settingsGroup(g.icon,`${g.name}`,list.map(f=>swAi(`feature:${f.id}`,f.name,`${f.blurb?escapeHtml(f.blurb)+" ":""}Отправляется: ${escapeHtml(f.sends)}. Только после вашего подтверждения${f.kind==="chat"?" (один раз на беседу)":""}.`,ai.features[f.id])).join(""));
+  }).join("");
+  const t=ai.talk;
+  const talkGroup=ai.enabled&&ai.features.talk?settingsGroup("chat","Собеседник: как разговаривать",
+    row("Обращение","",selectAi("talk:address",ADDRESS,t.address,"Обращение"))
+    +row("Манера","",selectAi("talk:style",STYLES,t.style,"Манера"))
+    +row("Длина ответов","Короткие ответы дешевле.",selectAi("talk:length",LENGTHS,t.length,"Длина ответов"))
+    +swAi("talk:diary","Опираться на записи дневника","Портрет дневника и подобранные выдержки. Личные записи и скрытые темы не используются. Выключено — Собеседник видит только то, что вы пишете ему.",t.diary)
+    +swAi("talk:checkins","Учитывать отметки самочувствия","Динамика настроения, энергии и напряжения, чувства и триггеры из отметок.",t.checkins)
+    +swAi("talk:memory","Помнить прошлые беседы","Короткая память: над чем работали, ваши выводы и шаги. Хранится только у вас.",t.memory)
+    +swAi("talk:eval","Подробная оценка реплик","Скрытая оценка состояния помогает вести беседу (динамика, подсказки, безопасность). Добавляет ≈130 токенов к каждому ответу.",t.eval)
+    +row("Беседы и память","Удалить все беседы, выводы и шаги. Записи дневника не затрагиваются.",btn("talk-wipe","Стереть",{cls:"secondary danger"})),
+    "Собеседник не заменяет психотерапевта, не ставит диагнозов и может ошибаться. Признаки кризиса он замечает и на устройстве, до отправки, — и показывает, куда обратиться."):"";
+  const econ=ai.enabled?settingsGroup("coins","Экономия токенов",
+    row("Режим расхода",TIERS[ai.tier].hint,selectAi("tier",Object.values(TIERS).map(x=>[x.id,x.name]),ai.tier,"Режим расхода"))
+    +row("Быстрая модель",ai.modelFast?`Для подсказок и итогов: ${escapeHtml(ai.modelFast)}. Основная — ${escapeHtml(ai.model||p?.model||"")}.`:"Необязательно. Недорогая модель берёт на себя заголовки, разбор записи, итоги и вопросы дня — основная остаётся для бесед.",btn("ai-fast-model",ai.modelFast?"Изменить":"Указать"))
+    +row("Дневной лимит","Когда лимит исчерпан, запросы не уходят. Считаются токены входа и выхода.",selectAi("cap",CAPS,ai.dailyCap,"Дневной лимит"))
+    +swAi("cache","Запоминать ответы","Одинаковый запрос к тому же тексту не оплачивается дважды. Кэш хранится только у вас, зашифрован, живёт до двух недель.",ai.cache)
+    +`<div class="setting-row is-stacked"><div class="setting-row-text"><strong>Расход</strong><span>По данным сервисов. «Сэкономлено» — оценка: сколько токенов ушло бы, если бы отправлялись целые записи за 90 дней.</span></div><div id="ai-usage" class="ai-usage" aria-live="polite">Считаем…</div><div class="setting-actions">${btn("ai-usage-reset","Сбросить счётчик",{cls:"ghost"})}${btn("ai-cache-clear","Очистить кэш",{cls:"ghost"})}</div></div>`,
+    "Как это работает: Narra сама, без ИИ, считает портрет дневника, подбирает нужные записи, сжимает их вокруг вашего вопроса, сворачивает старые реплики, не отправляет повторов и выбирает модель по задаче. Платная модель получает только нужное."):"";
   return `${settingsGroup("sparkle","Помощник на основе ИИ",
-    sw('data-ai="enabled"',"Разрешить помощника","Выключен по умолчанию. Пока он выключен, ничего никуда не отправляется и кнопки помощника нигде не показываются.",ai.enabled)
-    +(ai.enabled?conn+feats:""),
-    "Запросы уходят напрямую с вашего устройства выбранному сервису, без посредников. Для каждой функции нужно отдельное согласие, а перед отправкой вы видите весь текст, который уйдёт. Ключ хранится только на этом устройстве в зашифрованном виде и не попадает в резервные копии. Результат — черновик: он ничего не меняет, пока вы его не примете.")}
+    swAi("enabled","Разрешить помощника","Выключен по умолчанию. Пока он выключен, ничего никуда не отправляется и кнопки помощника нигде не показываются.",ai.enabled)
+    +(ai.enabled?conn:""),
+    "Запросы уходят напрямую с вашего устройства выбранному сервису, без посредников. Для каждой функции нужно отдельное согласие, а перед отправкой вы видите, что уйдёт. Ключ хранится только на этом устройстве в зашифрованном виде и не попадает в резервные копии. Результат — черновик: он ничего не меняет, пока вы его не примете.")}
+    ${ai.enabled?`<p class="setting-note ai-consent-row">Согласия по функциям: ${btn("ai-consent-all","Разрешить все",{cls:"ghost"})}${btn("ai-consent-none","Снять все",{cls:"ghost"})}</p>${groups}`:""}
+    ${talkGroup}${econ}
     ${ai.enabled?settingsGroup("history","Журнал обращений",`<div class="setting-row is-stacked"><div class="setting-row-text"><strong>${n?`Записей: ${n}`:"Обращений не было"}</strong><span>В журнале только служебные данные: какая функция, когда, сколько знаков. Текста записей там нет.</span></div>${n?`<ul class="log-list">${ai.log.slice(-6).reverse().map(l=>`<li>${escapeHtml(AI_FEATURES.find(f=>f.id===l.feature)?.name||l.feature)} — ${l.status==="blocked"?"заблокировано":l.status==="ok"?"выполнено":"не удалось"}, ${new Intl.DateTimeFormat("ru-RU",{day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"}).format(new Date(l.at))}, ${l.chars} зн.</li>`).join("")}</ul><div class="setting-actions">${btn("ai-clear-log","Очистить журнал")}</div>`:""}</div>`):""}`;
 }
 function privacyTab(){
@@ -135,11 +165,12 @@ function privacyTab(){
     row(lock?"Пароль установлен":"Пароль не установлен",lock?"Дневник скрывается по вашей команде или после бездействия. Забыли пароль — поможет подсказка или код восстановления.":"Установите пароль, чтобы скрывать дневник от посторонних глаз на этом устройстве.",lock?`<button class="secondary" data-action="lock-now">${icon("lock")}<span>Заблокировать сейчас</span></button>`:btn("lock-setup","Установить пароль",{cls:"primary"}),{stacked:false})
     +(lock?row("Автоблокировка","Через сколько бездействия закрывать дневник.",prefSelect("lockMinutes",INACTIVITY_OPTIONS.map(([v,l])=>[String(v),l]),"Автоблокировка"))
       +row("Если забудете пароль",lock.recovery?"Есть код восстановления. "+(lock.hint?"Подсказка задана.":"Подсказки нет."):"Кода восстановления нет — выпустите его, пока пароль под рукой.",`${btn("lock-hint",lock.hint?"Изменить подсказку":"Добавить подсказку")}${btn("lock-recovery-new",lock.recovery?"Новый код":"Создать код")}`)
-      +row("Управление паролем","",`${btn("lock-change","Сменить пароль")}${btn("lock-remove","Убрать пароль",{cls:"secondary danger"})}`):""),
+      +row("Управление паролем","",`${btn("lock-change","Сменить пароль")}${btn("lock-remove","Убрать пароль",{cls:"secondary danger"})}`):"")
+    +row("Клавиатура для пароля","Совместимое поле принимает сторонние клавиатуры (Gboard, SwiftKey, Яндекс и другие). Системное защищённое поле на iOS допускает только встроенную клавиатуру, но лучше работает с менеджерами паролей.",prefSelect("secretInput",[["compat","Любая клавиатура"],["system","Системное поле"]],"Поле пароля")),
     "Это экранная блокировка, а не шифрование пароля. Данные на диске шифруются ключом, который хранится в браузере: это защищает от случайного просмотра, но не от человека с полным доступом к вашему профилю браузера. Для настоящей защиты включите шифрование диска в системе.")}
-    ${aiBlock()}
+    ${settingsGroup("sparkle","Помощник на основе ИИ",row("ИИ-функции, «Собеседник», расход токенов","Подключение, согласия по функциям и экономия — в отдельном разделе.",btn("open-ai-settings","Открыть «Помощник»")))}
     ${settingsGroup("shield","Что уходит из приложения",
-      row("Сеть","Ничего. В Narra нет аналитики, рекламы и запросов наружу — браузер блокирует их политикой безопасности.",`<span class="status-pill status-good">${icon("check")}<span>Ничего не отправляется</span></span>`)
+      row("Сеть",state.ai?.enabled?"Narra сама ничего не отправляет: нет аналитики, рекламы и счётчиков. Наружу уходит только то, что вы подтвердили для помощника ИИ, и только к выбранному вами сервису.":"Narra ничего не отправляет: нет аналитики, рекламы и счётчиков. Помощник ИИ выключен, запросов наружу нет.",`<span class="status-pill status-good">${icon("check")}<span>${state.ai?.enabled?"Только по вашему ключу":"Ничего не отправляется"}</span></span>`)
       +row("Тексты в журналах","Их нет: приложение не ведёт журналов с содержимым записей.",""))}`;
 }
 
@@ -181,16 +212,27 @@ function aboutTab(){
 
 export function settingsView(){
   if(!TABS.some(t=>t[0]===state.settingsTab))state.settingsTab="basic";
-  const body={basic:basicTab,features:featuresTab,editor:editorTab,checkin:checkinTab,privacy:privacyTab,data:dataTab,about:aboutTab}[state.settingsTab]();
+  const body={basic:basicTab,features:featuresTab,editor:editorTab,checkin:checkinTab,privacy:privacyTab,ai:aiTab,data:dataTab,about:aboutTab}[state.settingsTab]();
   return `${pageHeader("Под себя","Настройки","Всё необязательное можно выключить.")}${tabs("settings",TABS,state.settingsTab,{label:"Разделы настроек"})}<div id="panel-settings" role="tabpanel" aria-labelledby="tab-settings-${state.settingsTab}" class="settings-panel">${body}</div>`;
 }
 export function afterRender(route){
+  if(route==="settings"&&state.settingsTab==="ai"){paintUsage();return;}
   if(route!=="settings"||state.settingsTab!=="data")return;
   const box=$("#storage-usage");if(!box)return;
   if(!navigator.storage?.estimate){box.textContent="Браузер не сообщает.";return;}
   navigator.storage.estimate().then(e=>{if(box.isConnected)box.textContent=`${((e.usage||0)/1048576).toFixed(1).replace(".",",")} МБ из ${Math.round((e.quota||0)/1048576)} МБ доступных браузером.`;}).catch(()=>{if(box.isConnected)box.textContent="Браузер не сообщает.";});
 }
 
+async function paintUsage(){
+  const box=$("#ai-usage");if(!box)return;
+  try{
+    const hub=await import(`./hub.js?v=${APP_VERSION}`),u=await hub.usageSummary();
+    if(!box.isConnected)return;
+    const cell=w=>`<td>${w.calls+w.hits}</td><td>${fmtTok(w.inTok)}</td><td>${fmtTok(w.outTok)}</td><td>${fmtTok(w.saved)}</td>`;
+    box.innerHTML=`<table class="usage-table"><thead><tr><th></th><th>Запросов</th><th>Вход</th><th>Выход</th><th>Сэкономлено</th></tr></thead><tbody><tr><th scope="row">Сегодня</th>${cell(u.today)}</tr><tr><th scope="row">7 дней</th>${cell(u.week)}</tr><tr><th scope="row">30 дней</th>${cell(u.month)}</tr></tbody></table>
+      <p class="subtle text-small">Из кэша без оплаты: ${u.month.hits} ${u.month.hits%10===1&&u.month.hits%100!==11?"ответ":"ответов"} за 30 дней. В кэше сейчас: ${u.cache}. Токены по данным сервиса; у сервисов с кэшем запросов повторяющаяся часть стоит дешевле${u.month.cachedIn?` (за 30 дней из кэша сервиса: ${fmtTok(u.month.cachedIn)})`:""}.</p>`;
+  }catch{if(box.isConnected)box.textContent="Счётчик недоступен.";}
+}
 async function updateConfig(mutate){
   const next=structuredClone(cfg());mutate(next);
   const clean=cleanConfig(next);
@@ -201,6 +243,7 @@ const ownTitles={emotions:"Свои эмоции",needs:"Что сейчас н�
 export const views={settings:settingsView};
 export const actions={
   "open-privacy":()=>{state.settingsTab="privacy";ctx.render();},
+  "open-ai-settings":()=>{state.settingsTab="ai";if(state.route==="settings")ctx.render();else ctx.goTo("settings");},
   "features-minimal":()=>{for(const f of FEATURES)ctx.setPref(f.key,false);ctx.render();ctx.toast("Осталась только основа: дневник, запись, поиск. Данные не тронуты.");},
   "features-all":()=>{for(const f of FEATURES)if(f.key!=="featSemantic")ctx.setPref(f.key,true);ctx.render();ctx.toast("Все разделы включены. Близость слов в поиске включается отдельно.");},
   "cfg-add-custom":()=>ctx.formDialog({title:"Своё поле состояния",text:"Шкала из пяти делений. Подпишите её крайние значения.",iconName:"state",confirmLabel:"Добавить",fields:[{id:"name",label:"Название",placeholder:"Например, Творческий подъём",max:32},{id:"low",label:"Внизу шкалы",placeholder:"мало",max:20},{id:"high",label:"Вверху шкалы",placeholder:"много",max:20}]},async v=>{
@@ -251,7 +294,7 @@ export const actions={
       cfg.model=cfg.model||pickModel(ids,p.model);
       if(!cfg.model)return "Не удалось подобрать модель: укажите её название.";
       await store.saveAiSecret(useKey);
-      await store.saveAiState({...ai,enabled:true,provider:id,model:cfg.model,baseUrl:p.custom||p.local?cfg.baseUrl:(cfg.baseUrl||"")});
+      await store.saveAiState({...ai,enabled:true,provider:id,model:cfg.model,baseUrl:p.custom||p.local?cfg.baseUrl:""});
       setTimeout(()=>{ctx.render();ctx.toast(`Помощник подключён: ${p.name}, ${cfg.model}.`);},60);
       return "";
     });
@@ -274,6 +317,19 @@ export const actions={
       ctx.toast("Файлы проверены. Если есть новая версия, она подхватится при следующем открытии.");
     }catch{ctx.toast("Не удалось проверить обновление. Записи не затронуты.");}
   },
+  "ai-fast-model":()=>{
+    const ai=cleanAiState(state.ai);
+    ctx.formDialog({title:"Быстрая модель",iconName:"zap",confirmLabel:"Сохранить",text:"Необязательно: недорогая модель того же сервиса для подсказок, заголовков и итогов. Например: gpt-4o-mini, claude-haiku-4-5, gemini-2.0-flash. Пусто — всё идёт на основную модель.",
+      fields:[{id:"m",label:"Название модели",type:"text",max:120,value:ai.modelFast||""}]},async v=>{
+      const m=String(v.m||"").trim();
+      if(m&&!/^[\w./:@+-]{2,120}$/.test(m))return "В названии модели допустимы буквы, цифры и знаки . / : - _";
+      await store.saveAiState({...ai,modelFast:m});setTimeout(()=>ctx.render(),40);return "";
+    });
+  },
+  "ai-usage-reset":()=>ctx.confirmDialog({title:"Сбросить счётчик расхода?",text:"Обнулится только статистика. Кэш ответов и настройки не изменятся.",confirmLabel:"Сбросить",iconName:"refresh"},async()=>{const hub=await import(`./hub.js?v=${APP_VERSION}`);await hub.resetUsage();ctx.render();ctx.toast("Счётчик сброшен.");}),
+  "ai-cache-clear":async()=>{const hub=await import(`./hub.js?v=${APP_VERSION}`);await hub.clearCache();ctx.render();ctx.toast("Кэш ответов очищен.");},
+  "ai-consent-all":async()=>{const ai=cleanAiState(state.ai),f={};for(const x of AI_FEATURES)f[x.id]=true;await store.saveAiState({...ai,features:f});ctx.render();},
+  "ai-consent-none":async()=>{const ai=cleanAiState(state.ai),f={};for(const x of AI_FEATURES)f[x.id]=false;await store.saveAiState({...ai,features:f});ctx.render();},
   "ai-clear-log":async()=>{const ai=cleanAiState(state.ai);await store.saveAiState({...ai,log:[]});ctx.render();ctx.toast("Журнал очищен.");},
   "unmute-memory":async el=>{state.mutedMemoryIds=state.mutedMemoryIds.filter(x=>x!==el.dataset.id);await store.metaSet("muted-memory-ids",state.mutedMemoryIds);ctx.render();},
   "unmute-topic":async el=>{await store.saveMutedTopics(state.mutedTopics.filter(x=>x!==el.dataset.key));ctx.render();},
@@ -287,7 +343,8 @@ export const on={
     }
     if(t.dataset?.ai){
       const ai=cleanAiState(state.ai),[kind,id]=t.dataset.ai.split(":");
-      const next=kind==="enabled"?{...ai,enabled:t.checked}:{...ai,features:{...ai.features,[id]:t.checked}};
+      const val=t.type==="checkbox"?t.checked:t.value;
+      const next=kind==="enabled"?{...ai,enabled:t.checked}:kind==="talk"?{...ai,talk:{...ai.talk,[id]:val}}:kind==="tier"?{...ai,tier:val}:kind==="cap"?{...ai,dailyCap:Number(val)||0}:kind==="cache"?{...ai,cache:t.checked}:{...ai,features:{...ai.features,[id]:t.checked}};
       store.saveAiState(next).then(()=>ctx.render());return true;
     }
     return false;

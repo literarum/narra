@@ -1,19 +1,20 @@
 /* Narra 4.3 — application shell: routing, overlays, dialogs, command palette, global listeners, start-up.
    Everything a section does lives in its own module (today, journal, editor, insights, …); this file wires them together. */
-import {fuzzyScore,searchEntries,pluralRu,warmSearchIndex} from "./domain.mjs?v=4.5.0";
-import {enhance,closePopovers,popoverOpen,setDateOptions} from "./ui.mjs?v=4.5.0";
-import {entryText} from "./text.mjs?v=4.5.0";
-import {state,ctx,$,$$,escapeHtml,icon,relDay,kindLabels,activeEntries,isTyping,safeStorageGet,safeStorageSet,PREF_KEY,PREF_DEFAULTS,VALID_ROUTES,ROUTE_TITLES,ROUTE_FEATURE,SECONDARY_ROUTES,routeAllowed,featureOn,APP_VERSION,nowIso} from "./core.js?v=4.5.0";
-import {modalHeader,pageHeader,emptyState} from "./kit.js?v=4.5.0";
-import * as store from "./store.js?v=4.5.0";
-import * as today from "./today.js?v=4.5.0";
-import * as journal from "./journal.js?v=4.5.0";
-import * as search from "./search.js?v=4.5.0";
-import * as memories from "./memories.js?v=4.5.0";
-import * as editor from "./editor.js?v=4.5.0";
-import * as privacy from "./privacy.js?v=4.5.0";
-import * as media from "./media.js?v=4.5.0";
-import * as checkinUi from "./checkin-ui.js?v=4.5.0";
+import {fuzzyScore,searchEntries,pluralRu,warmSearchIndex} from "./domain.mjs?v=4.6.0";
+import {enhance,closePopovers,popoverOpen,setDateOptions} from "./ui.mjs?v=4.6.0";
+import {entryText} from "./text.mjs?v=4.6.0";
+import {talkAvailable,secretAttrs,state,ctx,$,$$,escapeHtml,icon,relDay,kindLabels,activeEntries,isTyping,safeStorageGet,safeStorageSet,PREF_KEY,PREF_DEFAULTS,VALID_ROUTES,ROUTE_TITLES,ROUTE_FEATURE,SECONDARY_ROUTES,routeAllowed,featureOn,APP_VERSION,nowIso} from "./core.js?v=4.6.0";
+import {modalHeader,pageHeader,emptyState} from "./kit.js?v=4.6.0";
+import * as store from "./store.js?v=4.6.0";
+import * as today from "./today.js?v=4.6.0";
+import * as journal from "./journal.js?v=4.6.0";
+import * as search from "./search.js?v=4.6.0";
+import * as memories from "./memories.js?v=4.6.0";
+import * as editor from "./editor.js?v=4.6.0";
+import * as privacy from "./privacy.js?v=4.6.0";
+import * as motion from "./motion.js?v=4.6.0";
+import * as media from "./media.js?v=4.6.0";
+import * as checkinUi from "./checkin-ui.js?v=4.6.0";
 
 const MODULES=[today,journal,search,memories,editor,privacy,media,checkinUi];
 const VIEWS={},ACTIONS={};
@@ -21,8 +22,8 @@ for(const m of MODULES){Object.assign(VIEWS,m.views||{});Object.assign(ACTIONS,m
 
 /* Sections that are not needed to open the journal load on first use (keeps the start-up bundle small).
    A view loads before its first render; an action that is not registered yet loads all of them and retries. */
-const LAZY_FILES={insights:"insights.js",lifemap:"lifemap.js",reviews:"reviews.js",settings:"settings.js",backup:"backup.js",assistant:"assistant.js",reminders:"reminders.js",device:"device.js"};
-const LAZY_ROUTES={insights:"insights",lifemap:"lifemap",reviews:"reviews",settings:"settings"};
+const LAZY_FILES={insights:"insights.js",lifemap:"lifemap.js",reviews:"reviews.js",settings:"settings.js",backup:"backup.js",assistant:"assistant.js",reminders:"reminders.js",device:"device.js",toolbar:"toolbar.js",talk:"talk.js"};
+const LAZY_ROUTES={insights:"insights",lifemap:"lifemap",reviews:"reviews",settings:"settings",talk:"talk"};
 const lazyLoaded=new Map();
 const lazyPromises=new Map();
 function loadLazy(name){
@@ -61,6 +62,8 @@ function applyFeatures(){
     const off=!featureOn(key);
     $$(`[data-route="${route}"]`).forEach(b=>{b.hidden=off;});
   }
+  const talk=talkAvailable();
+  $$('[data-route="talk"]').forEach(b=>{b.hidden=!talk;});
 }
 function resolveTheme(){return state.theme==="system"?(matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light"):state.theme;}
 function applyTheme(){
@@ -90,7 +93,7 @@ function routeTo(route,{scroll=true}={}){
   history.replaceState(null,"",`#/${route}`);
   document.title=`${ROUTE_TITLES[route]} — Narra`;
   render({enter:true});
-  if(scroll)window.scrollTo({top:0,left:0,behavior:"instant"});
+  if(scroll){window.scrollTo({top:0,left:0,behavior:"instant"});if(lockedAt!==null)lockedAt=0;}
   requestAnimationFrame(()=>$("#main")?.focus({preventScroll:true}));
 }
 function goTo(route){
@@ -102,6 +105,7 @@ function updateNav(){
   $$("[data-route]").forEach(b=>{const active=b.dataset.route===state.route;b.classList.toggle("is-active",active);if(active)b.setAttribute("aria-current","page");else b.removeAttribute("aria-current");});
   const more=$('.mobile-nav [data-action="open-more"]');
   if(more)more.classList.toggle("is-active",SECONDARY_ROUTES.has(state.route));
+  motion.paintNav();
 }
 
 /* ---------- toasts ---------- */
@@ -172,8 +176,9 @@ function render({enter=false}={}){
   if(!routeAllowed(state.route))state.route="today";
   const view=$("#view");
   view.classList.toggle("no-enter",!enter);
+  motion.rememberTabs(view);
   view.innerHTML=(VIEWS[state.route]||VIEWS.today)();
-  enhance(view);applyMeters();
+  enhance(view);applyMeters();motion.paintTabs(view);
   const activeTab=view.querySelector(".tabs .tab.is-active");
   if(activeTab){const t=activeTab.parentElement;t.scrollLeft=Math.max(0,activeTab.offsetLeft-(t.clientWidth-activeTab.offsetWidth)/2);}
   for(const m of MODULES)m.afterRender?.(state.route,view);
@@ -209,7 +214,25 @@ function overlay(content,className="modal",label="Диалог",{kind="modal",fo
   if(focus)focusFirst(box);
   return box;
 }
+/* ---------- nothing scrolls behind an open window ---------- */
+let lockedAt=null;
+function syncScrollLock(){
+  const need=["#overlay-root","#dialog-root"].some(sel=>$(sel)?.childElementCount>0);
+  const root=document.documentElement;
+  if(need&&lockedAt===null){
+    lockedAt=window.scrollY;
+    const gutter=Math.max(0,window.innerWidth-root.clientWidth);
+    root.style.setProperty("--lock-top",`${-lockedAt}px`);root.style.setProperty("--lock-gutter",`${gutter}px`);
+    root.classList.add("scroll-locked");
+  }else if(!need&&lockedAt!==null){
+    const y=lockedAt;lockedAt=null;
+    root.classList.remove("scroll-locked");root.style.removeProperty("--lock-top");root.style.removeProperty("--lock-gutter");
+    window.scrollTo({top:y,left:0,behavior:"instant"});
+  }
+}
+for(const sel of ["#overlay-root","#dialog-root"]){const n=$(sel);if(n)new MutationObserver(syncScrollLock).observe(n,{childList:true});}
 function closeOverlay({restoreFocus=true}={}){
+  if(state.overlayKind==="talk")ctx.talkClosed?.();
   clearTimeout(state.editorTimer);closePopovers();
   $("#overlay-root").innerHTML="";
   editor.onOverlayClosed?.();
@@ -230,7 +253,7 @@ function confirmDialog({title,text,detail="",ack="",confirmLabel="Подтвер
 function formDialog({title,text="",fields=[],confirmLabel="Сохранить",cancelLabel="Отмена",iconName="info",danger=false},onSubmit){
   const root=$("#dialog-root");
   state.dialogPrev=document.activeElement;
-  const inputs=fields.map(f=>`<label class="field"><span class="label">${escapeHtml(f.label)}</span>${f.type==="select"?`<select data-select id="fd-${f.id}" aria-label="${escapeHtml(f.label)}">${f.options.map(([v,l])=>`<option value="${escapeHtml(v)}" ${String(f.value||"")===String(v)?"selected":""}>${escapeHtml(l)}</option>`).join("")}</select>`:f.type==="textarea"?`<textarea class="input" id="fd-${f.id}" rows="${f.rows||3}" placeholder="${escapeHtml(f.placeholder||"")}" maxlength="${f.max||2000}">${escapeHtml(f.value||"")}</textarea>`:`<input class="input" id="fd-${f.id}" type="${f.type||"text"}" value="${escapeHtml(f.value||"")}" placeholder="${escapeHtml(f.placeholder||"")}" autocomplete="${f.autocomplete||"off"}" maxlength="${f.max||200}" ${f.type==="date"?"data-datepicker data-clearable":""}>`}${f.hint?`<span class="hint-text">${escapeHtml(f.hint)}</span>`:""}</label>`).join("");
+  const inputs=fields.map(f=>`<label class="field"><span class="label">${escapeHtml(f.label)}</span>${f.type==="select"?`<select data-select id="fd-${f.id}" aria-label="${escapeHtml(f.label)}">${f.options.map(([v,l])=>`<option value="${escapeHtml(v)}" ${String(f.value||"")===String(v)?"selected":""}>${escapeHtml(l)}</option>`).join("")}</select>`:f.type==="textarea"?`<textarea class="input" id="fd-${f.id}" rows="${f.rows||3}" placeholder="${escapeHtml(f.placeholder||"")}" maxlength="${f.max||2000}">${escapeHtml(f.value||"")}</textarea>`:`<input class="input" id="fd-${f.id}" ${f.type==="password"?secretAttrs(f.autocomplete||"off"):`type="${f.type||"text"}" autocomplete="${f.autocomplete||"off"}"`} value="${escapeHtml(f.value||"")}" placeholder="${escapeHtml(f.placeholder||"")}" maxlength="${f.max||200}" ${f.type==="date"?"data-datepicker data-clearable":""}>`}${f.hint?`<span class="hint-text">${escapeHtml(f.hint)}</span>`:""}</label>`).join("");
   root.innerHTML=`<div class="overlay" data-action="close-dialog-backdrop"><form class="modal confirm form-dialog" role="dialog" aria-modal="true" aria-label="${escapeHtml(title)}" tabindex="-1" novalidate>${modalHeader(title,"",iconName,"close-dialog")}<div class="modal-body">${text?`<p>${escapeHtml(text)}</p>`:""}${inputs}<p class="form-error" id="fd-error" role="alert" hidden></p></div><footer class="modal-footer"><button type="button" class="secondary" data-action="close-dialog">${escapeHtml(cancelLabel)}</button><button type="submit" class="primary${danger?" danger":""}">${escapeHtml(confirmLabel)}</button></footer></form></div>`;
   const form=root.querySelector("form");enhance(form);
   // only the real submit button may submit: a stray default button (the ✕, a peek eye) must never close the window on Enter
@@ -279,6 +302,7 @@ function moreMenu(){
     ${on("featLifemap")?item("map","Карта жизни","Люди, места, темы и проекты",'data-action="go" data-to="lifemap"'):""}
     ${on("featMemories")?item("memories","Воспоминания","Бережное возвращение к прошлому",'data-action="go" data-to="memories"'):""}
     ${on("featReviews")?item("reviews","Обзоры","Неделя, месяц, квартал, год",'data-action="go" data-to="reviews"'):""}
+    ${talkAvailable()?item("chat","Собеседник","Беседы на основе ваших записей",'data-action="go" data-to="talk"'):""}
     <div class="more-menu-sep" role="separator"></div>
     ${item("settings","Настройки","Функции, отметки, приватность, данные",'data-action="go" data-to="settings"')}
     ${item("backup","Резервная копия","Полная копия, Markdown или CSV",'data-action="export"')}
@@ -291,7 +315,7 @@ function moreMenu(){
 const recentCommandKeys=()=>{try{const v=JSON.parse(safeStorageGet("narra-recent-commands")||"[]");return Array.isArray(v)?v.slice(0,8):[];}catch{return [];}};
 const noteRecentCommand=key=>safeStorageSet("narra-recent-commands",JSON.stringify([key,...recentCommandKeys().filter(x=>x!==key)].slice(0,8)));
 function commandItems(){
-  const nav=[["today","home","Сегодня","главная старт"],["journal","journal","Дневник","лента записи календарь главы"],["insights","insights","Наблюдения","сводка статистика состояния"],["lifemap","map","Карта жизни","люди места темы проекты"],["search","search","Поиск","найти искать"],["memories","memories","Воспоминания","прошлое"],["reviews","reviews","Обзоры","итоги неделя месяц год"],["settings","settings","Настройки","параметры оформление функции"]].filter(([r])=>routeAllowed(r));
+  const nav=[["today","home","Сегодня","главная старт"],["journal","journal","Дневник","лента записи календарь главы"],["insights","insights","Наблюдения","сводка статистика состояния"],["lifemap","map","Карта жизни","люди места темы проекты"],["search","search","Поиск","найти искать"],["memories","memories","Воспоминания","прошлое"],["reviews","reviews","Обзоры","итоги неделя месяц год"],["talk","chat","Собеседник","беседа разговор психолог терапия спросить дневник ии"],["settings","settings","Настройки","параметры оформление функции"]].filter(([r])=>routeAllowed(r));
   const base=[
     {key:"new",group:"Действия",icon:"plus",label:"Новая запись",kw:"создать написать добавить",action:"new-entry"},
     {key:"quick",group:"Действия",icon:"pen",label:"Быстрая запись",kw:"заметка мысль фраза",action:"quick-focus"},
@@ -539,8 +563,9 @@ document.addEventListener("focusin",syncViewportHeight);document.addEventListene
 applyViewport();
 
 /* ---------- expose to modules ---------- */
-Object.assign(ctx,{render,routeTo,goTo,toast,overlay,closeOverlay,confirmDialog,resultDialog,formDialog,closeDialog,sheetDialog,animateIn,reducedMotion,collapseAndRemove,setPref,applyPrefs,applyTheme,commandPalette,reloadData,showFatal,overlayOpen,dialogOpen,checkStoragePersistence,requestStoragePersistence,handleAction,ACTIONS,VIEWS,setSegmentedActive,shiftMonth});
+Object.assign(ctx,{loadLazy,render,routeTo,goTo,toast,overlay,closeOverlay,confirmDialog,resultDialog,formDialog,closeDialog,sheetDialog,animateIn,reducedMotion,collapseAndRemove,setPref,applyPrefs,applyTheme,commandPalette,reloadData,showFatal,overlayOpen,dialogOpen,checkStoragePersistence,requestStoragePersistence,handleAction,ACTIONS,VIEWS,setSegmentedActive,shiftMonth});
 for(const m of MODULES)m.init?.(ctx);
+motion.init();
 
 /* ---------- start ---------- */
 async function init(){

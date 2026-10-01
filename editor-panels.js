@@ -1,14 +1,14 @@
 /* Editor side panels: entry details, links, decision journal, suggestions and writing help. Markup only; editor.js binds them. */
-import {state,ctx,escapeHtml,icon,localDateInputValue,fmtDate,fmtLong,kindOptions,kindLabels,capitalizeRu,featureOn,activeEntries,entryById} from "./core.js?v=4.5.0";
-import {parseRussianDateHint,extractHashtags,suggestEntryKindRu} from "./domain.mjs?v=4.5.0";
-import {entryText} from "./text.mjs?v=4.5.0";
-import {suggestKnownEntities,chapterOf,sortChapters,NO_CHAPTER} from "./entities.mjs?v=4.5.0";
-import {detailQuestions,reflectiveQuestions,clarityFindings} from "./writing.mjs?v=4.5.0";
-import {relatedEntriesFor} from "./memories.js?v=4.5.0";
-import {entityMap} from "./derived.js?v=4.5.0";
-import {selectHtml} from "./kit.js?v=4.5.0";
-import {checkinSummary} from "./checkin.mjs?v=4.5.0";
-import {LINK_TYPES} from "./domain.mjs?v=4.5.0";
+import {talkAvailable,state,ctx,escapeHtml,icon,localDateInputValue,fmtDate,fmtLong,kindOptions,kindLabels,capitalizeRu,featureOn,activeEntries,entryById} from "./core.js?v=4.6.0";
+import {parseRussianDateHint,extractHashtags,suggestEntryKindRu} from "./domain.mjs?v=4.6.0";
+import {entryText} from "./text.mjs?v=4.6.0";
+import {suggestKnownEntities,chapterOf,sortChapters,NO_CHAPTER} from "./entities.mjs?v=4.6.0";
+import {detailQuestions,reflectiveQuestions,clarityFindings} from "./writing.mjs?v=4.6.0";
+import {relatedEntriesFor} from "./memories.js?v=4.6.0";
+import {entityMap} from "./derived.js?v=4.6.0";
+import {selectHtml} from "./kit.js?v=4.6.0";
+import {checkinSummary} from "./checkin.mjs?v=4.6.0";
+import {LINK_TYPES} from "./domain.mjs?v=4.6.0";
 
 export const LINK_LABELS={related:"Связана",continuation:"Продолжение",decision_followup:"Итог решения",custom:"Другое"};
 const CONFIDENCE=[[0,"Не указано"],[1,"Совсем не уверен"],[2,"Скорее не уверен"],[3,"Сомневаюсь"],[4,"Скорее уверен"],[5,"Уверен"]];
@@ -62,7 +62,7 @@ export function linksMarkup(entry){
 export function decisionMarkup(entry){
   if(!featureOn("featDecisions")||entry.kind!=="decision")return `<div id="decision-panel" hidden></div>`;
   const d=entry.decision||{};
-  return `<div class="context-block" id="decision-panel"><div class="context-heading"><strong>Журнал решения</strong><span>чтобы потом честно сверить ожидания и итог</span></div>
+  return `<div class="context-block" id="decision-panel"><div class="context-heading"><strong>Журнал решения</strong><span>чтобы потом честно сверить ожидания и итог</span>${state.ai?.enabled?`<button type="button" class="link-button" data-action="ai-run" data-feature="decision">${icon("sparkle")}<span>Сверить с помощником</span></button>`:""}</div>
     <div class="context-grid">
       <label class="field context-wide"><span class="label">Что решаете</span><input class="input" data-decision="decision" maxlength="600" value="${escapeHtml(d.decision||"")}" placeholder="Одной фразой" autocomplete="off"></label>
       <label class="field context-wide"><span class="label">Контекст</span><textarea class="input" data-decision="context" rows="2" maxlength="2000" placeholder="Что происходит вокруг">${escapeHtml(d.context||"")}</textarea></label>
@@ -92,9 +92,15 @@ export function contextMarkup(entry){
 }
 
 /* ---------- writing help: every item is a button the user presses; nothing runs on its own ---------- */
+const AI_CHIPS=[["continue","Продолжить мысль","pen"],["questions","Вопросы к тексту","chat"],["title","Заголовок","type"],["analyze","Темы и люди","tag"],["reframe","Другой взгляд","compass"],["echoes","Эхо из прошлого","clock"]];
+function aiRowMarkup(){
+  const a=state.ai||{};
+  if(!a.enabled)return `<div class="ai-row"><strong>ИИ-помощник</strong><span class="subtle text-small">Выключен.</span><button type="button" class="link-button" data-action="ai-to-settings">Подключить</button></div>`;
+  return `<div class="ai-row"><strong>ИИ-помощник</strong><div class="ai-chips">${AI_CHIPS.map(([id,l,ic])=>`<button type="button" class="chip ai-chip" data-action="ai-run" data-feature="${id}">${icon(ic)}<span>${l}</span></button>`).join("")}<button type="button" class="chip ai-chip" data-action="ai-open">${icon("sparkle")}<span>Все функции…</span></button></div></div>`;
+}
 export function assistMarkup(){
   if(!featureOn("featWritingAssist"))return "";
-  return `<details class="assist-panel edit-only" id="assist-panel"><summary>${icon("sparkle")}<span>Помощь при письме</span><span class="context-summary">по вашей просьбе</span></summary><div class="assist-body">
+  return `<details class="assist-panel edit-only" id="assist-panel"><summary>${icon("sparkle")}<span>Помощь при письме</span><span class="context-summary">по вашей просьбе</span></summary><div class="assist-body">${aiRowMarkup()}
     <p class="subtle text-small">Ничего не вставляется и не меняется само. Вопросы и подсказки строятся по тексту прямо на вашем устройстве.</p>
     <div class="assist-actions">
       <button type="button" class="secondary" data-action="assist" data-kind="structure">Шаблон структуры</button>
@@ -144,5 +150,6 @@ export function viewMetaMarkup(entry){
     ${chips.length?`<div class="view-chips">${chips.join("")}</div>`:""}
     ${marks.length?`<ul class="view-marks">${marks.filter(summary).map(c=>`<li><strong>${phase[c.phase]||"Отметка"}</strong><span>${escapeHtml(summary(c))}</span></li>`).join("")}</ul>`:""}
     ${dRows.length?`<dl class="view-decision">${dRows.map(([k,v])=>`<dt>${escapeHtml(k)}</dt><dd>${escapeHtml(v)}</dd>`).join("")}</dl>`:""}
+    ${talkAvailable()?`<p class="view-talk"><button type="button" class="link-button" data-action="talk-about-entry" data-id="${escapeHtml(entry.id)}">${icon("chat")}<span>Обсудить эту запись в Собеседнике</span></button></p>`:""}
     ${links.length?`<p class="view-links"><span>Связано:</span> ${links.map(l=>`<button type="button" class="link-button" data-action="open-linked" data-id="${escapeHtml(l.to)}">${escapeHtml(entryText(entryById(l.to)).title)}</button>`).join(" ")}</p>`:""}`;
 }

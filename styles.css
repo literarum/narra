@@ -674,10 +674,15 @@ body.startup-error .view { min-height: 100dvh; display: grid; place-items: cente
 .entry-list > .entry-card:nth-child(4) { animation-delay: 99ms; } .entry-list > .entry-card:nth-child(n+5) { animation-delay: 121ms; }
 .insight-grid > .card { animation: view-in .495s var(--ease) backwards; }
 .insight-grid > .card:nth-child(2) { animation-delay: 66ms; } .insight-grid > .card:nth-child(3) { animation-delay: 132ms; } .insight-grid > .card:nth-child(4) { animation-delay: 198ms; }
-body[data-motion="off"] *, body[data-motion="off"] *::before, body[data-motion="off"] *::after { animation-duration: .001ms !important; animation-delay: 0ms !important; animation-iteration-count: 1 !important; transition-duration: .001ms !important; scroll-behavior: auto !important; }
+/* Reduced motion (system setting or Settings → Animations off): nothing moves and nothing is ever left half-drawn.
+   Animations are removed outright — a near-zero duration still paints a first frame at the keyframe start on some engines,
+   which shows up as flicker on every interaction. Colour/opacity changes stay as instant-feeling 90 ms fades. */
+body[data-motion="off"] *, body[data-motion="off"] *::before, body[data-motion="off"] *::after { animation: none !important; transition-property: color, background-color, border-color, box-shadow, opacity, fill, stroke, visibility !important; transition-duration: 90ms !important; transition-delay: 0ms !important; transition-timing-function: ease-out !important; scroll-behavior: auto !important; }
+body[data-motion="off"] .toast.is-leaving { opacity: 0; }
 @media (prefers-reduced-motion: reduce) {
   html { scroll-behavior: auto; }
-  *, *::before, *::after { animation-duration: .001ms !important; animation-delay: 0ms !important; animation-iteration-count: 1 !important; transition-duration: .001ms !important; scroll-behavior: auto !important; }
+  *, *::before, *::after { animation: none !important; transition-property: color, background-color, border-color, box-shadow, opacity, fill, stroke, visibility !important; transition-duration: 90ms !important; transition-delay: 0ms !important; transition-timing-function: ease-out !important; scroll-behavior: auto !important; }
+  .toast.is-leaving { opacity: 0; }
 }
 
 /* ---------- hover only where hover exists ---------- */
@@ -1788,3 +1793,249 @@ body.modal-open, body.modal-open main { overscroll-behavior: none; }
   .editor-top-left .save-state span:last-child { max-width: 88px; }
   .editor-top-right .icon-button { min-width: 40px; }
 }
+
+/* ===== 4.6 — nothing scrolls behind a window ===== */
+html.scroll-locked { overflow: hidden; }
+html.scroll-locked body { position: fixed; top: var(--lock-top, 0); left: 0; right: 0; width: 100%; overflow: hidden; padding-right: var(--lock-gutter, 0); }
+.overlay { touch-action: none; overscroll-behavior: contain; }
+.overlay .modal, .overlay .sheet, .overlay .command, .overlay .editor-modal { touch-action: auto; }
+
+/* ===== 4.6 — page headers: the title block always gets its full width; actions wrap underneath ===== */
+.page-header { flex-wrap: wrap; row-gap: 16px; }
+.page-header > div:first-child { flex: 1 1 min(320px, 100%); }
+.page-header .page-actions { flex: 0 1 auto; flex-wrap: wrap; }
+@media (max-width: 720px) {
+  .page-header { flex-direction: column; align-items: stretch; }
+  .page-header > div:first-child { flex: 0 0 auto; width: 100%; max-width: none; }
+  .page-header .page-actions { width: 100%; }
+  .page-header .page-actions > * { flex: 1 1 calc(50% - 9px); min-width: 0; justify-content: center; }
+  .page-header .page-actions > :only-child { flex-basis: 100%; }
+}
+
+/* ===== 4.6 — rows of secondary buttons on phones: equal, full-width cells instead of ragged stacks ===== */
+@media (max-width: 560px) {
+  .journal-tools, .features-actions, .notice-actions, .bulk-bar-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+  .journal-tools > button, .features-actions > button, .notice-actions > button { flex: 1 1 150px; min-width: 0; justify-content: center; }
+}
+@media (max-width: 560px) {
+  .setting-row:has(> .setting-row-control > .status-pill) { grid-template-columns: minmax(0, 1fr); gap: 10px; }
+  .setting-row:has(> .setting-row-control > .status-pill) .setting-row-control { justify-content: flex-start; }
+}
+@media (max-width: 400px) {
+  .segmented button { padding: 0 8px; font-size: 14px; }
+}
+
+/* ===== 4.6 — the toolbar is one flow the person arranges ===== */
+.tool-flow { border-right: 0; padding-right: 0; margin-right: 0; gap: 2px; }
+.tool-sep { width: 1px; height: 22px; background: var(--line); margin: 0 6px; flex: 0 0 auto; }
+.tool-button.is-custom { color: var(--accent-strong); }
+.editor-tools .tool-button { -webkit-touch-callout: none; }
+.editor-tools.is-reordering { touch-action: none; overflow: hidden; cursor: grabbing; }
+.editor-tools .tool-button.is-lifted { position: relative; z-index: 3; transform: scale(1.16); background: var(--surface-raised); border-color: var(--line-strong); box-shadow: var(--shadow-pop); transition: none; cursor: grabbing; }
+.editor-tools.is-reordering .tool-button:not(.is-lifted) { transition: transform 200ms var(--ease); }
+
+/* ---------- 4.6 toolbar settings sheet ---------- */
+.tb-sheet { display: grid; gap: 12px; }
+.tb-h { margin: 6px 0 0; font-size: 0.95rem; display: flex; align-items: baseline; gap: 8px; }
+.tb-h small { color: var(--muted); font-weight: 400; }
+.tb-preview { display: flex; align-items: center; gap: 2px; padding: 8px; border: 1px solid var(--line); border-radius: var(--radius-m, 12px); overflow-x: auto; background: var(--surface-2, var(--surface)); }
+.tb-chip { display: inline-grid; place-items: center; width: 30px; height: 30px; flex: 0 0 auto; color: var(--muted); }
+.tb-chip svg { width: 18px; height: 18px; }
+.tb-list { display: grid; gap: 6px; position: relative; }
+.tb-row { display: flex; align-items: center; gap: 8px; min-height: 48px; padding: 4px 6px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
+.tb-row.is-sep { background: transparent; border-style: dashed; }
+.tb-row.is-lifted { z-index: 2; box-shadow: var(--shadow-m, 0 8px 24px rgba(0,0,0,.2)); background: var(--surface); }
+.tb-list.is-reordering { touch-action: none; }
+.tb-list.is-reordering .tb-row:not(.is-lifted) { transition: transform 200ms var(--ease); }
+.tb-handle { display: grid; place-items: center; width: 40px; height: 40px; flex: 0 0 auto; border: 0; background: transparent; color: var(--muted); cursor: grab; touch-action: none; border-radius: 10px; }
+.tb-handle svg { width: 18px; height: 18px; }
+.tb-icon { display: grid; place-items: center; width: 28px; flex: 0 0 auto; color: var(--accent); }
+.tb-icon svg { width: 18px; height: 18px; }
+.tb-label { flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; }
+.tb-label small { display: block; color: var(--muted); font-size: 0.78rem; }
+.tb-label em { color: var(--muted); font-style: normal; font-size: 0.85rem; }
+.tb-sep-line { display: inline-block; width: 28px; height: 1px; background: var(--line); vertical-align: middle; margin-right: 8px; }
+.tb-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.tb-free { display: flex; flex-wrap: wrap; gap: 8px; }
+.tb-add { display: inline-flex; align-items: center; gap: 6px; min-height: 40px; padding: 0 12px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); color: var(--text); font: inherit; font-size: 0.9rem; }
+.tb-add svg { width: 16px; height: 16px; color: var(--accent); }
+.voice-choice { display: grid; gap: 10px; }
+.voice-option { display: grid; gap: 2px; text-align: left; padding: 14px 16px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); color: var(--text); font: inherit; min-height: 56px; }
+.voice-option span { color: var(--muted); font-size: 0.88rem; }
+
+/* 4.6 — password fields that any keyboard can type into */
+input[data-secret="1"] { -webkit-text-security: disc; text-security: disc; }
+input[data-secret="1"].is-revealed { -webkit-text-security: none; text-security: none; }
+
+/* ---------- 4.6 «Собеседник» ---------- */
+.talk-note { display: flex; gap: 12px; align-items: flex-start; padding: 14px 16px; margin-bottom: 14px; background: color-mix(in srgb, var(--accent-soft) 55%, var(--surface)); }
+.talk-note .icon { width: 20px; height: 20px; flex: 0 0 auto; color: var(--accent-strong); margin-top: 2px; }
+.talk-note p { margin: 0; font-size: 14px; line-height: 1.5; color: var(--muted); min-width: 0; overflow-wrap: anywhere; }
+.talk-status { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 6px; }
+.talk-status .status-pill { white-space: normal; min-height: 32px; padding-block: 6px; max-width: 100%; }
+.talk-starters { display: grid; gap: 10px; }
+.talk-starter, .talk-invite { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 60px; padding: 12px 16px; text-align: left; border: 1px solid var(--line); border-radius: var(--r-card); background: var(--surface); color: var(--text); font: inherit; line-height: 1.4; }
+.talk-starter > .icon:first-child, .talk-invite > .icon:first-child, .talk-mode > .icon { width: 22px; height: 22px; flex: 0 0 auto; color: var(--accent-strong); }
+.talk-starter span, .talk-invite span { flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; }
+.talk-go { width: 18px; height: 18px; flex: 0 0 auto; color: var(--faint); }
+.talk-starter:hover, .talk-mode:hover, .talk-invite:hover, .talk-session:hover { border-color: var(--line-strong); background: var(--surface-strong); }
+.talk-modes { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr)); gap: 10px; }
+.talk-mode { display: flex; gap: 14px; align-items: flex-start; padding: 14px 16px; text-align: left; border: 1px solid var(--line); border-radius: var(--r-card); background: var(--surface); color: var(--text); font: inherit; min-height: 76px; }
+.talk-mode-text { display: grid; gap: 3px; min-width: 0; }
+.talk-mode-text strong { font-weight: 640; }
+.talk-mode-text small { color: var(--muted); font-size: 13px; line-height: 1.42; overflow-wrap: anywhere; }
+.talk-mode.is-ask { border-style: dashed; }
+.talk-steps { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.talk-steps li { display: flex; align-items: flex-start; gap: 8px; padding: 6px 4px; }
+.talk-steps li .check { flex: 1 1 auto; min-width: 0; }
+.talk-steps small { display: block; color: var(--muted); font-size: 12px; margin-top: 2px; }
+.talk-steps li.is-overdue small { color: var(--warning); }
+ul.card.talk-steps { padding: 8px 12px; }
+.talk-sessions { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.talk-sessions li { display: flex; align-items: center; gap: 6px; }
+.talk-session { flex: 1 1 auto; min-width: 0; display: flex; align-items: center; gap: 10px; padding: 10px 14px; border: 1px solid var(--line); border-radius: var(--r-control); background: var(--surface); color: var(--text); font: inherit; text-align: left; min-height: 56px; }
+.talk-session-text { flex: 1 1 auto; min-width: 0; display: grid; gap: 2px; }
+.talk-session-text strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+.talk-session-text small { color: var(--muted); font-size: 12.5px; }
+.talk-noticed { padding: 16px 18px; display: grid; gap: 16px; }
+.talk-noticed h3 { margin: 0 0 6px; font-size: 14px; }
+.talk-noticed ul { margin: 0; padding-left: 18px; display: grid; gap: 6px; font-size: 14px; }
+.talk-noticed li small { display: block; color: var(--muted); font-size: 12px; }
+.talk-today { display: grid; gap: 10px; }
+
+/* the conversation window */
+.talk-modal { width: min(760px, 100%); }
+.talk-chat { display: flex; flex-direction: column; flex: 1 1 0; min-height: 0; }
+.talk-head { display: flex; align-items: center; gap: 6px; padding: 10px 12px; border-bottom: 1px solid var(--line); flex: 0 0 auto; }
+.talk-head-text { flex: 1 1 auto; min-width: 0; display: grid; gap: 1px; }
+.talk-head-text strong { font-size: 16px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.talk-head-text small { color: var(--muted); font-size: 12px; line-height: 1.3; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.talk-finish { min-height: 38px; padding: 0 14px; }
+.talk-mood { display: inline-flex; gap: 3px; align-items: center; padding: 0 4px; }
+.talk-mood i { width: 7px; height: 7px; border-radius: 50%; background: var(--faint); }
+.talk-mood i.m0 { background: var(--danger); } .talk-mood i.m1 { background: color-mix(in srgb, var(--danger) 55%, var(--faint)); }
+.talk-mood i.m2 { background: var(--faint); } .talk-mood i.m3 { background: color-mix(in srgb, var(--success) 60%, var(--faint)); } .talk-mood i.m4 { background: var(--success); }
+.talk-log { flex: 1 1 0; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 16px 14px 10px; display: flex; flex-direction: column; gap: 12px; }
+.talk-msg { display: grid; gap: 6px; max-width: min(86%, 600px); }
+.talk-msg.is-user { align-self: flex-end; justify-items: end; }
+.talk-msg.is-ai { align-self: flex-start; }
+.talk-bubble { padding: 10px 14px; border-radius: 18px; line-height: 1.52; font-size: 15.5px; overflow-wrap: anywhere; min-width: 0; }
+.talk-bubble p { margin: 0; } .talk-bubble p + p { margin-top: 8px; }
+.is-user .talk-bubble { background: var(--accent); color: var(--on-accent); border-bottom-right-radius: 6px; }
+.is-ai .talk-bubble { background: var(--surface); border: 1px solid var(--line); border-bottom-left-radius: 6px; font-family: var(--serif); }
+.talk-msg.is-error .talk-bubble { border-color: var(--danger); background: var(--danger-soft); font-family: var(--sans); font-size: 14px; }
+.talk-insight { display: flex; gap: 8px; align-items: flex-start; font-size: 12.5px; color: var(--muted); padding: 0 6px; }
+.talk-insight .icon { width: 14px; height: 14px; flex: 0 0 auto; margin-top: 2px; color: var(--warning); }
+.talk-msg.is-typing { display: flex; align-items: center; gap: 10px; }
+.talk-support { display: flex; gap: 12px; padding: 14px 16px; border-radius: var(--r-card); background: var(--warning-soft); border: 1px solid color-mix(in srgb, var(--warning) 40%, var(--line)); }
+.talk-support .icon { width: 22px; height: 22px; flex: 0 0 auto; color: var(--warning); }
+.talk-support p { margin: 4px 0 6px; font-size: 14px; line-height: 1.5; } .talk-support small { color: var(--muted); }
+.talk-foot { flex: 0 0 auto; padding: 8px 12px calc(10px + env(safe-area-inset-bottom, 0px)); border-top: 1px solid var(--line); display: grid; gap: 6px; background: var(--surface-strong); }
+.talk-hint { margin: 0; font-size: 13px; color: var(--muted); padding: 2px 4px; }
+.talk-ideas { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 2px; scrollbar-width: none; }
+.talk-ideas::-webkit-scrollbar { display: none; }
+.talk-ideas .chip { flex: 0 0 auto; min-height: 34px; font-size: 13px; }
+.talk-form { display: flex; gap: 8px; align-items: flex-end; }
+.talk-input { flex: 1 1 auto; min-width: 0; resize: none; min-height: 46px; max-height: 28vh; padding: 11px 14px; border: 1px solid var(--line-strong); border-radius: 22px; background: var(--surface); color: var(--text); font: inherit; line-height: 1.4; }
+.talk-input:focus { outline: none; box-shadow: var(--ring); border-color: var(--accent); }
+.talk-send { flex: 0 0 auto; width: 46px; height: 46px; min-height: 46px; padding: 0; border-radius: 50%; display: grid; place-items: center; }
+.talk-send .icon { width: 20px; height: 20px; }
+.talk-meter { margin: 0; font-size: 11.5px; line-height: 1.4; padding: 0 4px; }
+.talk-summary-wait { flex: 1 1 auto; display: grid; place-content: center; justify-items: center; gap: 14px; padding: 24px; text-align: center; }
+.talk-summary-wait p { margin: 0; color: var(--muted); max-width: 34ch; }
+.talk-result { gap: 10px; }
+.talk-result h3 { margin: 10px 0 2px; font-size: 14px; color: var(--muted); font-weight: 650; text-transform: uppercase; letter-spacing: .05em; }
+.talk-summary-text { margin: 0; font: 400 18px/1.55 var(--serif); }
+.talk-list { margin: 0; padding-left: 20px; display: grid; gap: 6px; }
+.talk-carry { margin: 0; font: italic 400 17px/1.5 var(--serif); }
+.talk-hw { display: grid; gap: 8px; }
+.talk-result-actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
+.talk-result-actions > button { flex: 1 1 200px; }
+.talk-how h3, .talk-inspect h3 { margin: 14px 0 4px; font-size: 14px; } .talk-how p { margin: 0; line-height: 1.55; }
+.talk-pre { white-space: pre-wrap; overflow-wrap: anywhere; font: 12.5px/1.5 var(--mono, ui-monospace, monospace); background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; max-height: 260px; overflow: auto; margin: 0; }
+.talk-inspect details { margin-top: 10px; } .talk-inspect summary { cursor: pointer; font-weight: 600; min-height: 40px; display: flex; align-items: center; }
+
+/* settings: assistant tab */
+.ai-usage { overflow-x: auto; }
+.usage-table { width: 100%; border-collapse: collapse; font-size: 13px; min-width: 300px; }
+.usage-table th, .usage-table td { padding: 6px 8px; text-align: right; border-bottom: 1px solid var(--line); white-space: nowrap; }
+.usage-table th:first-child { text-align: left; font-weight: 600; } .usage-table thead th { color: var(--muted); font-weight: 560; font-size: 12px; }
+.ai-consent-row { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; margin: 0 0 6px; }
+@media (max-width: 420px) {
+  .talk-msg { max-width: 92%; }
+  .talk-finish { padding: 0 10px; }
+  .talk-head { gap: 2px; padding-inline: 6px; }
+}
+
+/* 4.6 — AI helper in the writing panel and result windows */
+.assist-body > .ai-row { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; padding-bottom: 12px; margin-bottom: 12px; border-bottom: 1px solid var(--line); }
+.ai-row { display: grid; grid-template-columns: 84px minmax(0, 1fr); align-items: baseline; gap: 6px 12px; margin-block: 8px; }
+@media (max-width: 420px) { .ai-row { grid-template-columns: minmax(0, 1fr); gap: 4px; } }
+.ai-chips i { font-style: normal; padding: 3px 10px; border-radius: 999px; background: var(--accent-soft); font-size: 13px; }
+.ai-row > strong { font-weight: 580; font-size: 14px; }
+.ai-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.ai-chip { display: inline-flex; align-items: center; gap: 6px; min-height: 40px; padding: 8px 14px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface-strong); color: var(--text); font-size: 14px; transition: border-color var(--t-fast) ease, background var(--t-fast) ease, transform .165s ease; }
+.ai-chip svg { width: 16px; height: 16px; flex: none; color: var(--accent); }
+@media (hover: hover) { .ai-chip:hover { border-color: var(--accent); background: var(--accent-soft); } }
+.ai-chip:active { transform: scale(.97); }
+.ai-menu, .ai-styles, .ai-options, .ai-list { display: grid; gap: 10px; }
+.ai-styles { grid-template-columns: repeat(auto-fit, minmax(132px, 1fr)); }
+.ai-option { text-align: left; padding: 14px 16px; border: 1px solid var(--line); border-radius: var(--r-control); background: var(--surface-strong); font: 500 16px/1.4 var(--serif); overflow-wrap: anywhere; }
+@media (hover: hover) { .ai-option:hover { border-color: var(--accent); background: var(--accent-soft); } }
+.ai-h { margin: 6px 0 2px; font-size: 13px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); }
+.ai-k { color: var(--muted); }
+.ai-ul { margin: 0; padding-left: 20px; display: grid; gap: 6px; }
+.ai-summary { display: flex; flex-wrap: wrap; gap: 6px 14px; color: var(--muted); font-size: 13px; }
+.ai-foot, .ai-usage-line { overflow-wrap: anywhere; }
+@media (max-width: 640px) { .features-actions > button { flex: 1 1 100%; } }
+#assist-panel { scroll-margin-bottom: 84px; }
+
+/* ===== 4.6 — motion: real springs, staggered arrivals, sliding indicators, draggable sheets =====
+   Every rule below is an animation or transition, so «Анимации: выкл.» and the system Reduce Motion setting switch all of it off (see the reduced-motion block above). */
+:root { --spring: cubic-bezier(.34, 1.36, .64, 1); --spring-soft: cubic-bezier(.3, 1.15, .5, 1); }
+@supports (transition-timing-function: linear(0, 1)) {
+  :root { --spring: linear(0.0, 0.1837, 0.5215, 0.8152, 0.9964, 1.0728, 1.0813, 1.0587, 1.0306, 1.0091, 0.9972, 0.9932, 0.9937, 0.9959, 0.9982, 0.9997, 1.0004, 1.0006, 1.0005, 1.0003, 1.0001, 1.0, 1.0, 1.0, 1); --spring-soft: linear(0.0, 0.206, 0.5374, 0.792, 0.9371, 1.0008, 1.0191, 1.0179, 1.0114, 1.0056, 1.002, 1.0003, 0.9997, 0.9996, 0.9997, 0.9999, 0.9999, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1); }
+}
+@keyframes modal-spring { from { opacity: 0; transform: translateY(18px) scale(.94); } to { opacity: 1; transform: none; } }
+@keyframes sheet-spring { from { opacity: .4; transform: translateY(100%); } to { opacity: 1; transform: none; } }
+@keyframes arrive { from { opacity: 0; transform: translateY(14px) scale(.985); } to { opacity: 1; transform: none; } }
+@keyframes msg-in { from { opacity: 0; transform: translateY(10px) scale(.96); } to { opacity: 1; transform: none; } }
+@keyframes toast-spring { from { opacity: 0; transform: translateY(16px) scale(.94); } to { opacity: 1; transform: none; } }
+.overlay { animation: overlay-in .26s ease-out; }
+.modal, .sheet, .command { animation: modal-spring .52s var(--spring-soft); }
+.toast { animation: toast-spring .48s var(--spring); }
+.view > * { animation: arrive .62s var(--spring-soft) backwards; }
+.view > *:nth-child(2) { animation-delay: 50ms; } .view > *:nth-child(3) { animation-delay: 100ms; } .view > *:nth-child(4) { animation-delay: 150ms; }
+.view > *:nth-child(5) { animation-delay: 200ms; } .view > *:nth-child(n+6) { animation-delay: 240ms; }
+.entry-list > .entry-card, .insight-grid > .card { animation: arrive .56s var(--spring-soft) backwards; }
+.entry-list > .entry-card:nth-child(2), .insight-grid > .card:nth-child(2) { animation-delay: 40ms; }
+.entry-list > .entry-card:nth-child(3), .insight-grid > .card:nth-child(3) { animation-delay: 80ms; }
+.entry-list > .entry-card:nth-child(4), .insight-grid > .card:nth-child(4) { animation-delay: 120ms; }
+.entry-list > .entry-card:nth-child(5) { animation-delay: 160ms; } .entry-list > .entry-card:nth-child(6) { animation-delay: 200ms; }
+.entry-list > .entry-card:nth-child(n+7) { animation-delay: 230ms; }
+.talk-msg { animation: msg-in .5s var(--spring); }
+.primary, .secondary, .ghost, .chip, .icon-button, .mobile-nav-item, .nav-item, .ai-chip, .talk-mode { transition-property: background-color, border-color, color, box-shadow, transform, opacity; transition-duration: .18s, .18s, .18s, .18s, .5s, .18s; transition-timing-function: ease, ease, ease, ease, var(--spring), ease; }
+.primary:active, .secondary:active, .ghost:active, .chip:active, .icon-button:active, .talk-mode:active { transform: scale(.955); transition-duration: .09s; }
+@media (hover: hover) { .card.talk-invite:hover, .talk-mode:hover { transform: translateY(-2px); } }
+/* sliding indicators */
+.tabs { position: relative; }
+.tab-ink { position: absolute; bottom: 0; height: 2px; border-radius: 2px; background: var(--accent); pointer-events: none; }
+.tabs.has-ink .tab.is-active, .tabs.has-ink .tab[aria-selected="true"] { border-bottom-color: transparent; }
+.mobile-nav { position: fixed; }
+.nav-pill { position: absolute; z-index: 0; border-radius: 12px; background: color-mix(in srgb, var(--accent-soft) 70%, transparent); pointer-events: none; transition: left .55s var(--spring), width .55s var(--spring), opacity .2s ease; opacity: 0; }
+.mobile-nav.has-pill .nav-pill { opacity: 1; }
+.mobile-nav.has-pill .mobile-nav-item.is-active { background: transparent; }
+.mobile-nav-item { position: relative; z-index: 1; }
+/* draggable sheets (phones) */
+@media (max-width: 768px) {
+  .modal:not(.editor-modal):not(.talk-modal) .modal-header, .sheet .modal-header { touch-action: none; }
+  .modal:not(.editor-modal):not(.talk-modal) .modal-header::before, .sheet .modal-header::before { content: ""; position: absolute; top: 6px; left: 50%; width: 38px; height: 4px; margin-left: -19px; border-radius: 4px; background: var(--line-strong); }
+  .modal:not(.editor-modal):not(.talk-modal), .sheet { animation-name: sheet-spring; animation-duration: .58s; }
+  .modal.is-dragging, .sheet.is-dragging { transition: none; animation: none; }
+  .modal.is-settling, .sheet.is-settling { transition: transform .5s var(--spring-soft); }
+}
+
+.confirm-detail { max-height: 34vh; overflow: auto; overscroll-behavior: contain; white-space: pre-wrap; overflow-wrap: anywhere; }
+.prompt-card p { flex: 1 1 0; min-width: 0; overflow-wrap: anywhere; }
+.prompt-actions { flex-wrap: wrap; justify-content: flex-end; }
+@media (max-width: 640px) { .prompt-actions > * { flex: 1 1 auto; min-width: 0; justify-content: center; } .prompt-actions .button-with-icon span { white-space: nowrap; } }

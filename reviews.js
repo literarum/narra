@@ -2,17 +2,18 @@
    The draft is assembled from the person's own entries and check-ins — no model writes anything. Every factual line can show its sources
    and can be hidden; the person's own words live in separate fields, so rebuilding a draft never destroys them.
    The yearly review can be printed as a small book. */
-import {state,ctx,$,$$,escapeHtml,icon,uid,nowIso,downloadBlob,isoStamp,localDateKey,entryLabel,fmtDate,featureOn} from "./core.js?v=4.5.0";
-import {pageHeader,emptyState,tabs} from "./kit.js?v=4.5.0";
-import {PERIOD_KINDS,periodRange,shiftPeriod,buildReview,SECTION_TITLES,SECTION_ORDER,reviewToMarkdown,buildBook} from "./review.mjs?v=4.5.0";
-import {entryText,plural} from "./text.mjs?v=4.5.0";
-import {renderMarkdown} from "./md.mjs?v=4.5.0";
-import {capitalizeRu} from "./domain.mjs?v=4.5.0";
-import {dayKey} from "./stats.mjs?v=4.5.0";
-import {reviewSheetHtml as sheetHtml,bookSheetHtml as bookPrint} from "./print.mjs?v=4.5.0";
-import {aliasMap} from "./derived.js?v=4.5.0";
-import * as store from "./store.js?v=4.5.0";
-import * as media from "./media.js?v=4.5.0";
+import {talkAvailable,state,ctx,$,$$,escapeHtml,icon,uid,nowIso,downloadBlob,isoStamp,localDateKey,entryLabel,fmtDate,featureOn} from "./core.js?v=4.6.0";
+import {pageHeader,emptyState,tabs} from "./kit.js?v=4.6.0";
+import {PERIOD_KINDS,periodRange,shiftPeriod,buildReview,SECTION_TITLES,SECTION_ORDER,reviewToMarkdown,buildBook} from "./review.mjs?v=4.6.0";
+import {entryText,plural} from "./text.mjs?v=4.6.0";
+import {renderMarkdown} from "./md.mjs?v=4.6.0";
+import {capitalizeRu} from "./domain.mjs?v=4.6.0";
+import {dayKey} from "./stats.mjs?v=4.6.0";
+import {reviewSheetHtml as sheetHtml,bookSheetHtml as bookPrint} from "./print.mjs?v=4.6.0";
+import {aliasMap} from "./derived.js?v=4.6.0";
+import * as store from "./store.js?v=4.6.0";
+import * as hub from "./hub.js?v=4.6.0";
+import * as media from "./media.js?v=4.6.0";
 
 let showHidden=false,saveTimer=null,saveState="idle";
 const range=()=>periodRange(state.reviewKind,state.reviewCursor);
@@ -54,7 +55,7 @@ export function reviewsView(){
   const items=PERIOD_KINDS.map(([k,l])=>[k,l]);
   const s=review.stats;
   const isYear=r.kind==="year";
-  return `${pageHeader("Оглядываясь назад","Обзоры","Черновик из ваших записей. Слова в нём — ваши; выводы — тоже ваши.",`<button class="secondary" data-action="review-export">${icon("download")}<span>Markdown</span></button>${isYear?`<button class="secondary" data-action="review-book">${icon("printer")}<span>Книга года</span></button>`:`<button class="secondary" data-action="review-print">${icon("printer")}<span>Печать</span></button>`}`)}
+  return `${pageHeader("Оглядываясь назад","Обзоры","Черновик из ваших записей. Слова в нём — ваши; выводы — тоже ваши.",`${state.ai?.enabled&&review.hasData?`<button class="secondary" data-action="review-story">${icon("sparkle")}<span>Рассказать период</span></button>`:""}<button class="secondary" data-action="review-export">${icon("download")}<span>Markdown</span></button>${isYear?`<button class="secondary" data-action="review-book">${icon("printer")}<span>Книга года</span></button>`:`<button class="secondary" data-action="review-print">${icon("printer")}<span>Печать</span></button>`}`)}
     ${tabs("reviews",items,state.reviewKind,{label:"Период обзора"})}<div id="panel-reviews" role="tabpanel" aria-labelledby="tab-reviews-${state.reviewKind}">
     <div class="period-nav"><button class="icon-button" data-action="review-prev" aria-label="Предыдущий период">${icon("chevron-left")}</button><div class="period-label" aria-live="polite"><strong>${escapeHtml(capitalizeRu(r.label))}</strong><span class="subtle text-small">${review.hasData?`${s.entries} ${plural.entry(s.entries)}, ${s.words} ${plural.word(s.words)}, дней с записями: ${s.activeDays} из ${r.days}`:"В этом периоде записей нет"}</span></div><button class="icon-button" data-action="review-next" aria-label="Следующий период" ${canNext(r)?"":"disabled"}>${icon("chevron-right")}</button>${localDateKey(state.reviewCursor)!==localDateKey(new Date())&&!(r.from<=localDateKey(new Date())&&r.to>=localDateKey(new Date()))?`<button class="link-button" data-action="review-now">К текущему</button>`:""}</div>
     ${!review.hasData&&!saved.sections?.surprised&&!Object.values(saved.sections||{}).some(Boolean)?emptyState("За этот период записей нет","Когда появятся записи или отметки, здесь соберётся черновик обзора. Пока можно перейти к другому периоду.","","reviews"):`
@@ -134,6 +135,20 @@ export const actions={
     const r=range(),review=build(r);
     downloadBlob(reviewToMarkdown(review,savedFor(r.id)),"text/markdown;charset=utf-8",`narra-review-${r.id.replace(":","-")}.md`);
     ctx.toast("Обзор сохранён как Markdown. Файл не зашифрован.");
+  },
+  "review-story":async()=>{
+    await flush();
+    const r=range(),saved=savedFor(r.id),hid=new Set(saved.hidden||[]);
+    /* only what the assistant may read: nothing marked personal, nothing from a muted topic */
+    const allowed=new Set(hub.eligibleEntries().map(e=>e.id));
+    const review=buildReview({range:r,entries:state.entries.filter(e=>allowed.has(e.id)),checkins:state.checkins.filter(c=>!c.entryId||allowed.has(c.entryId)),config:state.config,chapters:state.chapters,notes:[],now:new Date()});
+    if(!review.hasData){ctx.toast("За этот период нечего рассказывать: личные записи и скрытые темы в рассказ не попадают.");return;}
+    const lines=SECTION_ORDER.flatMap(k=>(review.sections[k]||[]).filter(f=>!hid.has(f.id)).map(f=>`${SECTION_TITLES[k]}: ${f.text}`));
+    const st=review.stats||{};
+    const head=`Период: ${capitalizeRu(r.label)}. Записей: ${st.entries??st.count??"?"}.`;
+    const digest=[head,...lines].join("\n").slice(0,6000);
+    const m=await ctx.loadLazy("assistant");
+    m.periodStory(digest,capitalizeRu(r.label));
   },
   "review-print":async()=>{await flush();printRoot(reviewPrintHtml(range()));},
   "review-book":async()=>{await flush();printRoot(bookHtml(range()));ctx.toast("В окне печати выберите «Сохранить как PDF».");},
