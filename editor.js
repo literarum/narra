@@ -102,7 +102,7 @@ function editorMarkup(entry,mode="edit"){
       <div id="view-attach" class="view-only">${featureOn("featMedia")&&mode==="view"?media.galleryMarkup(entry.id,entry.body||""):""}</div>
       ${assistMarkup()}
     </div></div>
-    <div class="editor-bottom"><div id="editor-date">${escapeHtml(fmtLong(entry.happenedAt))}</div>${p.editorStats?`<div class="editor-stats" aria-label="Размер текста"><span id="word-count">${wc}</span><span id="char-count">${cc}</span></div>`:""}<span class="session-info edit-only" id="session-info" hidden></span></div>`;
+    <div class="editor-bottom"><div id="editor-date">${escapeHtml(fmtLong(entry.happenedAt))}</div>${p.editorStats?`<div class="editor-stats" aria-label="Размер текста"><span id="word-count">${wc}</span><span id="char-count">${cc}</span></div>`:""}${p.wordGoal?`<span class="word-goal edit-only" id="word-goal">${goalMarkup(words(entry.body||""))}</span>`:""}<span class="writing-timer edit-only" id="writing-timer" hidden></span><span class="session-info edit-only" id="session-info" hidden></span></div>`;
 }
 export async function openEditor(id=null,opts={}){
   ctx.loadLazy?.("toolbar")?.catch?.(()=>{});
@@ -122,7 +122,7 @@ export async function openEditor(id=null,opts={}){
   state.editorPreview=false;state.slash=null;state.find=null;
   state.editorMode=mode;state.editorOrigin=mode==="view"?"view":"direct";
   state.editorBaseline=existing?baselineOf(entry):null;
-  state.sessionStart=Date.now();state.sessionBaseWords=words(entry.body||"");
+  state.sessionStart=Date.now();state.sessionBaseWords=words(entry.body||"");state.goalToasted=words(entry.body||"")>=(state.prefs.wordGoal||Infinity);stopTimer();
   const box=ctx.overlay(editorMarkup(state.editing,mode),`modal editor-modal${mode==="view"?" is-viewing":""}`,mode==="view"?"Просмотр записи":"Редактор записи",{kind:"editor",focus:false});
   bindEditor(box,mode);
   return box;
@@ -178,12 +178,31 @@ function updateSessionInfo(text){
   el.hidden=false;el.textContent=`+${added} ${wordLabel(added)}${mins>=1?` · ${mins} мин`:""}`;
 }
 let pendingCaret=false;
+/** «120 / 250» with a thin bar: a soft guide, never a requirement. */
+function goalMarkup(n){const g=state.prefs.wordGoal||0;if(!g)return "";return `<progress class="word-goal-bar" max="${g}" value="${Math.min(n,g)}" aria-hidden="true"></progress><span aria-label="Слов ${n} из цели ${g}">${n} / ${g}</span>`;}
+/* Writing timer: 5–20 minutes (expressive writing is usually 15–20). When the time is up it only says so — writing goes on. */
+let timer=null;
+function stopTimer(){if(timer){clearInterval(timer.id);timer=null;}const el=$("#writing-timer");if(el){el.hidden=true;el.textContent="";el.classList.remove("is-over");}}
+function startTimer(min){
+  stopTimer();const end=Date.now()+min*60000,el=$("#writing-timer");
+  const tick=()=>{const t=$("#writing-timer");if(!t||!state.editing){stopTimer();return;}
+    const left=Math.round((end-Date.now())/1000);
+    if(left<=0){t.textContent="Время вышло";t.classList.add("is-over");clearInterval(timer.id);timer=null;ctx.toast(`${min} минут прошло. Можно закончить — или писать дальше.`);try{navigator.vibrate?.(30);}catch{}return;}
+    t.hidden=false;t.textContent=`⏱ ${Math.floor(left/60)}:${String(left%60).padStart(2,"0")}`;};
+  timer={id:setInterval(tick,1000)};tick();if(el)el.hidden=false;
+  ctx.toast(`Таймер на ${min} минут. Пишите не останавливаясь — ошибки и порядок не важны.`);
+}
+function askTimer(){
+  const opt=m=>`<button type="button" class="more-menu-item" data-action="timer-start" data-min="${m}">${icon("clock")}<span><strong>${m} ${pluralRu(m,"минута","минуты","минут")}</strong></span>${icon("chevron-right")}</button>`;
+  ctx.sheetDialog(`${modalHeader("Таймер письма","Тихий отсчёт в нижней строке. Когда время выйдет, Narra только скажет об этом.","clock","close-dialog")}<div class="modal-body more-menu">${[5,10,15,20].map(opt).join("")}${timer?`<button type="button" class="more-menu-item" data-action="timer-stop">${icon("x")}<span><strong>Остановить таймер</strong></span>${icon("chevron-right")}</button>`:""}</div>`,"Таймер письма");
+}
 function scheduleIdleWork(){
   clearTimeout(idleJob);
   idleJob=setTimeout(()=>{
     const body=$("#entry-body");if(!body||!state.editing)return;
     const [w,c]=statsText(body.value),wn=$("#word-count"),cn=$("#char-count");
     if(wn)wn.textContent=w;if(cn)cn.textContent=c;
+    const goal=$("#word-goal");if(goal){const n=words(body.value);goal.innerHTML=goalMarkup(n);const reached=n>=state.prefs.wordGoal;goal.classList.toggle("is-reached",reached);if(reached&&!state.goalToasted){state.goalToasted=true;ctx.toast(`Цель — ${state.prefs.wordGoal} ${wordLabel(state.prefs.wordGoal)} — достигнута. Можно остановиться или продолжать.`);}}
     updateSessionInfo(body.value);
     refreshEditorMeta();
     if(state.find)findRun(true);
@@ -225,6 +244,7 @@ function ensureCaretVisible(){
     const {top,lh}=caretMetrics(body,body.selectionEnd);
     const sr=surface.getBoundingClientRect(),br=body.getBoundingClientRect();
     const y=br.top-sr.top+surface.scrollTop+top;
+    if(state.prefs.typewriter&&state.editorMode!=="view"){surface.scrollTop=Math.max(0,y+lh/2-surface.clientHeight*.45);return;} // the line being written stays in the middle
     const bottomGap=$("#editor-slash-menu")&&!$("#editor-slash-menu").hidden?270:96,topGap=28;
     if(y+lh+bottomGap>surface.scrollTop+surface.clientHeight)surface.scrollTop=y+lh+bottomGap-surface.clientHeight;
     else if(y-topGap<surface.scrollTop)surface.scrollTop=Math.max(0,y-topGap);
@@ -872,6 +892,7 @@ function showEditorMore(){
   const item=(iconName,title,run,sub="")=>`<button type="button" class="more-menu-item" data-action="editor-run" data-run="${run}">${icon(iconName)}<span><strong>${title}</strong>${sub?`<small>${sub}</small>`:""}</span>${icon("chevron-right")}</button>`;
   ctx.sheetDialog(`${modalHeader("Запись","","pen","close-dialog")}<div class="modal-body more-menu">
     ${view?"":item("search","Найти в записи","find")}
+    ${view?"":item("clock",timer?"Таймер письма — идёт":"Таймер письма","timer","5, 10, 15 или 20 минут")}
     ${item("state","Отметить состояние","checkin")}
     ${item("history","История версий","versions")}
     ${item("star",ed.favorite?"Убрать из избранного":"Добавить в избранное","favorite")}
@@ -941,6 +962,7 @@ async function runEditorAction(run){
   else if(run==="export-md")exportEntryMarkdown();
   else if(run==="template")saveAsTemplate();
   else if(run==="pin")togglePin();
+  else if(run==="timer")askTimer();
   else if(run==="print")await printEntry();
 }
 
@@ -956,7 +978,7 @@ const LINK_PICKER=`${modalHeader("Связать с записью","Выбер�
 
 /* ----- exports to the shell ----- */
 export function onOverlayClosed(){
-  media.stopRecordingIfAny();clearTimeout(idleJob);cancelAnimationFrame(frameJob);frameJob=0;
+  stopTimer();media.stopRecordingIfAny();clearTimeout(idleJob);cancelAnimationFrame(frameJob);frameJob=0;
   document.removeEventListener("selectionchange",onSelectionChange);
   store.revokeMediaUrls();
 }
@@ -1027,6 +1049,8 @@ export const actions={
   "editor-more":()=>showEditorMore(),
   "editor-run":el=>runEditorAction(el.dataset.run),
   "apply-template":el=>applyTemplate(el.dataset.id),
+  "timer-start":el=>{ctx.closeDialog({restoreFocus:false});startTimer(Number(el.dataset.min)||15);$("#entry-body")?.focus({preventScroll:true});},
+  "timer-stop":()=>{ctx.closeDialog({restoreFocus:false});stopTimer();ctx.toast("Таймер остановлен.");},
   "restore-trash":el=>restoreTrashedEntry(el.dataset.id),
   "undo-trash":el=>restoreTrashedEntry(el.dataset.id),
   "conflict-both":()=>resolveConflict("both"),

@@ -51,7 +51,7 @@ function setPref(key,value){
 }
 function applyPrefs(){
   const b=document.body,p=state.prefs;
-  b.dataset.density=p.density;b.dataset.editorFont=p.editorFont;b.dataset.editorWidth=p.editorWidth;
+  b.dataset.density=p.density;b.dataset.editorFont=p.editorFont;b.dataset.editorWidth=p.editorWidth;b.dataset.editorSize=p.editorSize;b.dataset.typewriter=p.typewriter?"on":"off";
   b.dataset.motion=p.motion==="off"?"off":"on";b.dataset.kbd=p.shortcuts?"on":"off";b.dataset.mode=state.mode;
   setDateOptions({weekStart:p.weekStart});
   applyFeatures();

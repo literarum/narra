@@ -2221,3 +2221,22 @@ button.px:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px;
   .print-entry img { max-width: 100%; break-inside: avoid; }
   .print-entry .print-foot { margin-top: 24pt; color: #888; font: 8pt "Narra Sans", system-ui, sans-serif; }
 }
+
+/* ===== 4.7 — text size and typewriter mode ===== */
+body[data-editor-size="s"] :is(.entry-body, .body-mirror, .md-preview) { font-size: 17px; }
+body[data-editor-size="l"] :is(.entry-body, .body-mirror, .md-preview) { font-size: 22px; }
+body[data-editor-size="xl"] :is(.entry-body, .body-mirror, .md-preview) { font-size: 25px; }
+body[data-editor-size="s"][data-editor-font="sans"] :is(.entry-body, .body-mirror, .md-preview) { font-size: 15.5px; }
+body[data-editor-size="l"][data-editor-font="sans"] :is(.entry-body, .body-mirror, .md-preview) { font-size: 19.5px; }
+body[data-editor-size="xl"][data-editor-font="sans"] :is(.entry-body, .body-mirror, .md-preview) { font-size: 22px; }
+/* typewriter: room below the last line so it, too, can sit in the middle */
+body[data-typewriter="on"] .editor-modal:not(.is-viewing) .editor-surface { padding-bottom: 50vh; scroll-padding-bottom: 0; }
+/* word goal in the editor footer */
+.word-goal { display: inline-flex; align-items: center; gap: 8px; font-variant-numeric: tabular-nums; }
+.word-goal-bar { -webkit-appearance: none; appearance: none; width: 54px; height: 4px; border: 0; border-radius: 4px; background: var(--line); overflow: hidden; color: var(--accent); }
+.word-goal-bar::-webkit-progress-bar { background: var(--line); border-radius: 4px; }
+.word-goal-bar::-webkit-progress-value { background: var(--accent); border-radius: 4px; transition: width .3s var(--ease); }
+.word-goal-bar::-moz-progress-bar { background: var(--accent); border-radius: 4px; }
+.word-goal.is-reached { color: var(--accent-strong); }
+.writing-timer { font-variant-numeric: tabular-nums; color: var(--accent-strong); }
+.writing-timer.is-over { color: var(--muted); }

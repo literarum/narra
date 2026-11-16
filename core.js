@@ -27,7 +27,7 @@ export const PREF_DEFAULTS={
   /* feature switches: everything optional can be turned off, and its sections disappear */
   featInsights:true,featLifemap:true,featMemories:true,featReviews:true,featChapters:true,featDecisions:true,featMedia:true,
   featWritingAssist:true,featEntitySuggest:true,featSemantic:true,featEmotionsInJournal:true,
-  onboarded:false,quickKey:"n",reminderOn:false,reminderTime:"21:00",notifyDaily:false,notifyWeekly:false,notifyWeeklyDay:0,notifyDecisions:false,notifyMemory:false,toolbar:[],customTools:[],autoBackup:false,keepAwake:true,secretInput:"compat",haptics:true,badge:true,lockMinutes:0,journalPage:40,hideDeleteHint:false
+  onboarded:false,quickKey:"n",reminderOn:false,reminderTime:"21:00",notifyDaily:false,notifyWeekly:false,notifyWeeklyDay:0,notifyDecisions:false,notifyMemory:false,toolbar:[],customTools:[],autoBackup:false,keepAwake:true,secretInput:"compat",haptics:true,badge:true,lockMinutes:0,journalPage:40,hideDeleteHint:false,typewriter:false,wordGoal:0,editorSize:"m",journalOrder:"new",pixelMode:"mood"
 };
 export const FEATURES=[
   {key:"featInsights",name:"Наблюдения",desc:"Сводки по отметкам и записям: состояния, контексты, эмоции, темы, ритм.",group:"Разделы"},
@@ -62,6 +62,10 @@ export function loadPrefs(){
   if(![0,1,2,3,4,5,6].includes(prefs.notifyWeeklyDay))prefs.notifyWeeklyDay=0;
   if(![0,1,5,15,60].includes(prefs.lockMinutes))prefs.lockMinutes=0;
   if(![20,40,80].includes(prefs.journalPage))prefs.journalPage=40;
+  if(![0,100,250,500,750,1000].includes(prefs.wordGoal))prefs.wordGoal=0;
+  if(!["s","m","l","xl"].includes(prefs.editorSize))prefs.editorSize="m";
+  if(!["new","old"].includes(prefs.journalOrder))prefs.journalOrder="new";
+  if(!["mood","words"].includes(prefs.pixelMode))prefs.pixelMode="mood";
   return prefs;
 }
 /* Password-type fields make iOS show only its own keyboard. A text field whose characters are drawn as dots lets any installed keyboard work.

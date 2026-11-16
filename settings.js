@@ -96,7 +96,11 @@ function templatesGroup(){
 function editorTab(){
   return `${settingsGroup("type","Шрифт и ширина",
     segmentedRow("editorFont","Шрифт письма","Для текста записи.",[["serif","С засечками"],["sans","Без засечек"]])
-    +segmentedRow("editorWidth","Ширина строки","Узкая строка читается легче.",[["standard","Узкая"],["wide","Широкая"]]))}
+    +segmentedRow("editorWidth","Ширина строки","Узкая строка читается легче.",[["standard","Узкая"],["wide","Широкая"]])
+    +segmentedRow("editorSize","Размер текста","Для письма и чтения записей.",[["s","Мельче"],["m","Обычный"],["l","Крупнее"],["xl","Крупный"]]))}
+    ${settingsGroup("focus","Письмо",
+      switchRow("typewriter","Печатная машинка","Строка, которую вы пишете, держится в середине экрана — взгляд не уходит вниз.")
+      +segmentedRow("wordGoal","Цель на запись","Мягкий ориентир в нижней строке редактора. Ничего не требует и не считает серии.",[["0","Нет"],["100","100"],["250","250"],["500","500"],["1000","1000"]],{stacked:true}))}
     <section class="settings-group"><h2>${icon("eye")}Как это выглядит</h2><div class="card editor-sample" data-editor-sample><p>Утро было тихим. Я долго стояла у окна и думала о том, что хочу сохранить из этого года.</p></div></section>
     ${settingsGroup("type","Панель форматирования",
       row("Кнопки над текстом","Меняйте порядок, убирайте лишнее, добавляйте свои инструменты. В самом редакторе кнопку можно удержать и перетащить.",`<button type="button" class="secondary" data-action="toolbar-settings">Настроить</button>`))}
