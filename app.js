@@ -41,7 +41,7 @@ function loadLazy(name){
 }
 const loadAllLazy=()=>Promise.all(Object.keys(LAZY_FILES).map(loadLazy));
 window.addEventListener("beforeinstallprompt",e=>{e.preventDefault();window.__narraInstall=e;});
-ACTIONS["reload-app"]=()=>location.reload();
+ACTIONS["reload-app"]=async()=>{if(state.editing&&state.dirty)await editor.saveEditing("reload").catch(()=>false);location.reload();}; // never reload over unsaved text
 
 /* ---------- preferences & theme ---------- */
 function setPref(key,value){
@@ -653,6 +653,9 @@ async function init(){
   if(seen!==APP_VERSION){safeStorageSet("narra-seen-version",APP_VERSION);if(seen&&state.mode!=="demo")setTimeout(()=>toast(`Narra обновлена до версии ${APP_VERSION}. Записи на месте.${matchMedia("(hover: hover) and (pointer: fine)").matches?" Подсказка по клавишам — «?»":""}`,null,{duration:7000}),1200);}
   if("serviceWorker" in navigator&&window.isSecureContext){
     try{
+      // a new version installed in the background takes over the cache: offer a reload instead of mixing old and new files
+      const hadController=Boolean(navigator.serviceWorker.controller);let offered=false;
+      navigator.serviceWorker.addEventListener("controllerchange",()=>{if(!hadController||offered)return;offered=true;toast("Доступна новая версия Narra. Записи не затронуты.",{label:"Обновить",action:"reload-app"},{duration:15000});});
       const registration=await navigator.serviceWorker.register(`./sw.js?v=${APP_VERSION}`,{updateViaCache:"none"});
       registration?.update?.()?.catch?.(()=>{});
     }catch(error){console.warn("Не удалось зарегистрировать service worker",error);}

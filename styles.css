@@ -2085,3 +2085,6 @@ ul.card.talk-steps { padding: 8px 12px; }
 .tabs.fade-end:not(.fade-start) { -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 36px), transparent); mask-image: linear-gradient(to right, #000 calc(100% - 36px), transparent); }
 .tabs.fade-start:not(.fade-end) { -webkit-mask-image: linear-gradient(to left, #000 calc(100% - 36px), transparent); mask-image: linear-gradient(to left, #000 calc(100% - 36px), transparent); }
 .tabs.fade-start.fade-end { -webkit-mask-image: linear-gradient(to right, transparent, #000 36px, #000 calc(100% - 36px), transparent); mask-image: linear-gradient(to right, transparent, #000 36px, #000 calc(100% - 36px), transparent); }
+/* tab rows scroll, so an outside focus ring would be clipped into an odd shape: draw it inside the tab */
+.tabs .tab:focus-visible { outline-offset: -3px; border-radius: 10px; }
+.segmented button:focus-visible, .mobile-nav-item:focus-visible { outline-offset: -3px; }
