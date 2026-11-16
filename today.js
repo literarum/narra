@@ -1,5 +1,5 @@
 /* Today: quick capture, a short check-in, one memory, one question, recent entries, first-run welcome. */
-import {talkAvailable,state,ctx,$,$$,escapeHtml,icon,uid,nowIso,fmtLong,fmtTime,relDay,activeEntries,sameDay,todayKey,safeStorageGet,safeStorageSet,featureOn,PREF_KEY,pluralRu} from "./core.js?v=4.7.0";
+import {talkAvailable,state,ctx,$,$$,escapeHtml,icon,uid,nowIso,fmtLong,fmtTime,relDay,activeEntries,sameDay,todayKey,safeStorageGet,safeStorageSet,featureOn,PREF_KEY,pluralRu,backupDue} from "./core.js?v=4.7.0";
 import {entryText} from "./text.mjs?v=4.7.0";
 import {pageHeader,modalHeader} from "./kit.js?v=4.7.0";
 import {entryRows} from "./entries-ui.js?v=4.7.0";
@@ -54,6 +54,14 @@ function storageNoticeMarkup(){
   if(Date.now()<=Number(safeStorageGet("narra-storage-notice-until")||0))return "";
   return `<aside class="card notice-card" role="note"><p><strong>Дневник хранится только в этом браузере.</strong> Браузер пока не гарантирует, что данные переживут нехватку места. Защитите хранилище и время от времени делайте резервную копию.</p><div class="notice-actions"><button class="ghost" data-action="snooze-storage-notice">Позже</button><button class="secondary" data-action="request-persistence">Защитить</button></div></aside>`;
 }
+/* Only one quiet notice at a time: the storage notice first, then the backup reminder. */
+function backupNoticeMarkup(){
+  if(storageNoticeMarkup())return "";
+  const due=backupDue();if(!due)return "";
+  if(Date.now()<=Number(safeStorageGet("narra-backup-notice-until")||0))return "";
+  const text=due.never?"Резервной копии на этом устройстве ещё не было. Если браузер очистит данные или устройство потеряется, записи не вернуть.":`Последняя резервная копия — ${due.days} ${pluralRu(due.days,"день","дня","дней")} назад, с тех пор появились новые записи.`;
+  return `<aside class="card notice-card" role="note"><p><strong>Пора сохранить копию.</strong> ${escapeHtml(text)}</p><div class="notice-actions"><button class="ghost" data-action="snooze-backup-notice">Позже</button><button class="secondary" data-action="export">Сделать копию</button></div></aside>`;
+}
 function welcomeMarkup(){
   if(state.prefs.onboarded||state.mode==="demo")return "";
   return `<aside class="card welcome-card" role="note" aria-labelledby="welcome-title"><div><p class="eyebrow">Добро пожаловать</p><h2 id="welcome-title">Здесь можно просто начать писать</h2><p class="subtle">Всё остальное — отметки состояния, темы, обзоры — необязательно и включается в настройках. Дневник хранится только на этом устройстве.</p></div><div class="welcome-actions"><button class="ghost" data-action="onboard-skip">Пропустить</button><button class="secondary" data-action="onboard-open">Коротко о главном</button></div></aside>`;
@@ -71,7 +79,7 @@ export function todayView(){
   const unfinished=p.showContinue?activeEntries().filter(e=>!e.completedAt).sort((a,b)=>new Date(b.updatedAt)-new Date(a.updatedAt))[0]:null;
   const recent=activeEntries().slice(0,4);
   const memory=p.showMemory&&featureOn("featMemories")?memoryCard():"";
-  return `${pageHeader(fmtLong(now),greetingText(now),"Спокойное место для того, что хочется сохранить.")}${welcomeMarkup()}${pauseNote(state.entries)}${storageNoticeMarkup()}${reminderMarkup()}
+  return `${pageHeader(fmtLong(now),greetingText(now),"Спокойное место для того, что хочется сохранить.")}${welcomeMarkup()}${pauseNote(state.entries)}${storageNoticeMarkup()}${backupNoticeMarkup()}${reminderMarkup()}
     ${unfinished?`<article class="card continue-card"><div><p class="eyebrow">Продолжить</p><h3>${escapeHtml(entryText(unfinished).title)}</h3><p>Последнее изменение: ${escapeHtml(relDay(unfinished.updatedAt))}, ${escapeHtml(fmtTime(unfinished.updatedAt))}</p></div><button class="secondary" data-action="open-entry" data-id="${escapeHtml(unfinished.id)}">Продолжить</button></article>`:""}
     <div class="hero-grid${p.showCheckin?"":" is-single"}">
       <article class="card quick-card"><div><p class="eyebrow">Быстрая запись</p><h2>Что сейчас хочется запомнить?</h2></div>
@@ -103,7 +111,19 @@ function autosizeQuick(q){
   q.style.height=`${want}px`;
   q.classList.toggle("is-capped",q.scrollHeight>max&&q.scrollTop+q.clientHeight<q.scrollHeight-2);
 }
-function clearQuick(){state.quickDraft="";const q=$("#quick-capture");if(q){q.value="";updateQuickState();autosizeQuick(q);}}
+/* The quick note survives the tab being closed or unloaded by the phone: it is kept encrypted, like everything written here. */
+let draftTimer=0;
+function persistQuickDraft(now=false){
+  clearTimeout(draftTimer);
+  const write=()=>store.metaSetSecure("quick-draft",{text:state.quickDraft||"",at:nowIso()}).catch(()=>{});
+  if(now)return write();
+  draftTimer=setTimeout(write,700);
+}
+export async function restoreQuickDraft(){
+  try{const d=await store.metaGetSecure("quick-draft",null);if(d?.text&&!state.quickDraft){state.quickDraft=d.text;return true;}}catch{}
+  return false;
+}
+function clearQuick(){state.quickDraft="";persistQuickDraft(true);const q=$("#quick-capture");if(q){q.value="";updateQuickState();autosizeQuick(q);}}
 async function quickToEntry(expand=false){
   if(state.quickSaving)return;
   const q=$("#quick-capture")?.value.trim()||"";
@@ -130,7 +150,8 @@ export function afterRender(route){
   if(quick){
     if(state.quickDraft){quick.value=state.quickDraft;updateQuickState();}
     autosizeQuick(quick);
-    quick.addEventListener("input",()=>{state.quickDraft=quick.value;updateQuickState();autosizeQuick(quick);});
+    quick.addEventListener("input",()=>{state.quickDraft=quick.value;updateQuickState();autosizeQuick(quick);persistQuickDraft();});
+    quick.addEventListener("blur",()=>persistQuickDraft(true));
     quick.addEventListener("scroll",()=>autosizeQuick(quick),{passive:true});
     if(!resizeBound){resizeBound=true;window.addEventListener("resize",()=>{const q=$("#quick-capture");if(q)autosizeQuick(q);},{passive:true});} // once, not on every render
     quick.closest(".quick-card")?.addEventListener("click",e=>{if(!e.target.closest("button,a,input,textarea,select,label"))quick.focus();});

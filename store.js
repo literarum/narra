@@ -52,14 +52,26 @@ export async function put(store,value,durability="strict"){const tx=openTx(store
 export async function del(store,key,durability="strict"){const tx=openTx(store,"readwrite",durability),done=txDone(tx);tx.objectStore(store).delete(key);await done;}
 
 /* ---------- encryption ---------- */
+/* Key canary: a known text encrypted with the local key. If it decrypts, the key is right, so a record that does not decrypt
+   is a damaged record (isolated, the rest opens) — not a wrong key (then nothing is opened or written). */
+const CANARY="narra-key-check";
+let keyVerified=false;
+async function checkCanary(){
+  const row=await getRecord(STORES.meta,"key-canary");
+  if(!row?.value){keyVerified=false;return;}
+  if(await decryptText(row.value)!==CANARY)throw new Error("Ключ шифрования не подходит к этому дневнику. Narra остановилась до попытки что-либо перезаписать.");
+  keyVerified=true;
+}
+async function writeCanary(){try{await put(STORES.meta,{key:"key-canary",value:await encryptText(CANARY)});keyVerified=true;}catch(error){console.warn(error);}}
 export async function ensureCryptoKey(){
   const stored=await getRecord(STORES.meta,"local-key");
-  if(stored?.value){state.cryptoKey=stored.value;return;}
+  if(stored?.value){state.cryptoKey=stored.value;await checkCanary();return;}
   const [e,v,c]=await Promise.all([all(STORES.entries),all(STORES.versions),all(STORES.checkins)]);
   if(e.length||v.length||c.some(x=>x.payloadEnc))throw new Error("Локальный ключ шифрования отсутствует, хотя зашифрованные данные ещё существуют. Narra не станет создавать новый ключ или перезаписывать эти данные.");
   const key=await crypto.subtle.generateKey({name:"AES-GCM",length:256},false,["encrypt","decrypt"]);
   await put(STORES.meta,{key:"local-key",value:key});
   state.cryptoKey=key;
+  await writeCanary();
 }
 export async function encryptText(value=""){
   const iv=crypto.getRandomValues(new Uint8Array(12));
@@ -166,18 +178,34 @@ export const syncLockHint=()=>{try{if(state.lock&&state.lock.enabled!==false)loc
 export const saveLock=async lock=>{if(lock)await metaSet("lock",lock);else await del(STORES.meta,"lock");state.lock=lock||null;syncLockHint();}; // memory follows the disk, never the other way round
 export const saveMutedTopics=async list=>{state.mutedTopics=[...new Set(list)];await metaSet("muted-topics",state.mutedTopics);};
 
+/** Records that could not be decrypted on the last load. They stay in the database untouched (never overwritten or deleted);
+    the rest of the diary opens normally and the interface says how many could not be read. */
+export const damaged=[];
+/** Decrypts every row on its own: one damaged record must not keep the whole diary closed.
+    If every row of a non-empty store fails, the key itself is the problem — then stop, as before, before anything is written. */
+async function unpackAll(storeName,rows,fn){
+  const res=await Promise.allSettled(rows.map(fn)),out=[];
+  res.forEach((r,i)=>{if(r.status==="fulfilled")out.push(r.value);else damaged.push({store:storeName,id:rows[i]?.id??rows[i]?.key??"?",error:String(r.reason?.message||r.reason)});});
+  if(!keyVerified&&rows.length&&!out.length&&res.some(r=>r.status==="rejected"))throw res.find(r=>r.status==="rejected").reason;
+  return out;
+}
 export async function loadData(){
   const [entries,checkins,atts,chapters,reviews,entities]=await Promise.all([all(STORES.entries),all(STORES.checkins),all(STORES.attachments),all(STORES.chapters),all(STORES.reviews),all(STORES.entities)]);
-  state.entries=(await Promise.all(entries.map(unpackEntry))).sort((a,b)=>new Date(b.happenedAt)-new Date(a.happenedAt));
-  state.checkins=(await Promise.all(checkins.map(unpackCheckin))).sort((a,b)=>new Date(b.observedAt)-new Date(a.observedAt));
-  state.attachments=(await Promise.all(atts.map(unpackAttachmentMeta))).sort((a,b)=>new Date(a.createdAt)-new Date(b.createdAt));
-  state.chapters=(await Promise.all(chapters.map(async r=>cleanChapter(await unpackSecure(r))))).filter(Boolean);
-  state.reviews=(await Promise.all(reviews.map(async r=>cleanReview(await unpackSecure(r))))).filter(Boolean);
-  state.entityNotes=(await Promise.all(entities.map(async r=>cleanEntityNote(await unpackSecure(r))))).filter(Boolean);
+  damaged.length=0;
+  state.entries=(await unpackAll("entries",entries,unpackEntry)).sort((a,b)=>new Date(b.happenedAt)-new Date(a.happenedAt));
+  state.checkins=(await unpackAll("checkins",checkins,unpackCheckin)).sort((a,b)=>new Date(b.observedAt)-new Date(a.observedAt));
+  state.attachments=(await unpackAll("attachments",atts,unpackAttachmentMeta)).sort((a,b)=>new Date(a.createdAt)-new Date(b.createdAt));
+  state.chapters=(await unpackAll("chapters",chapters,async r=>cleanChapter(await unpackSecure(r)))).filter(Boolean);
+  state.reviews=(await unpackAll("reviews",reviews,async r=>cleanReview(await unpackSecure(r)))).filter(Boolean);
+  state.entityNotes=(await unpackAll("entities",entities,async r=>cleanEntityNote(await unpackSecure(r)))).filter(Boolean);
+  state.damaged=damaged.length;
+  // older diaries have no canary yet: once something decrypted with this key, remember the key as the right one
+  if(!keyVerified&&(state.entries.length||state.checkins.length))await writeCanary();
   state.config=cleanConfig(await metaGetSecure("checkin-config",DEFAULT_CONFIG));
   state.ai=cleanAiState(await metaGet("ai-state",null));
   try{state.aiKey=(await decryptText(await metaGet("ai-secret",null)))||"";}catch{state.aiKey="";}
   state.lock=await metaGet("lock",null);syncLockHint();
+  state.lastBackup=await metaGet("last-backup",null);
   const list=v=>Array.isArray(v)?v.filter(x=>typeof x==="string"):[];
   state.mutedMemoryIds=list(await metaGet("muted-memory-ids",[]));
   state.mutedTopics=list(await metaGet("muted-topics",[]));
@@ -273,10 +301,15 @@ export async function saveVersionOnly(entry,source){
 /* ---------- raw reads for export ---------- */
 export async function readAllVersions(){
   const rows=await all(STORES.versions),out=[];
+  let skipped=0;
   for(const v of rows){
-    const meta=v.metaEnc?await decryptJson(v.metaEnc,{}):{};
-    out.push({id:v.id,entryId:v.entryId,revision:v.revision,createdAt:v.createdAt,source:v.source,title:await decryptText(v.titleEnc),body:await decryptText(v.bodyEnc),metadata:meta});
+    // a damaged old version is skipped (and counted) instead of failing the whole export
+    try{
+      const meta=v.metaEnc?await decryptJson(v.metaEnc,{}):{};
+      out.push({id:v.id,entryId:v.entryId,revision:v.revision,createdAt:v.createdAt,source:v.source,title:await decryptText(v.titleEnc),body:await decryptText(v.bodyEnc),metadata:meta});
+    }catch{skipped++;}
   }
+  out.skipped=skipped;
   return out;
 }
 export async function readBlobBundle(id){

@@ -138,11 +138,30 @@ export const splitCsv=(value="")=>[...new Set(value.split(",").map(x=>x.trim()).
 export const todayKey=()=>localDateInputValue(nowIso());
 export const localDateKey=date=>`${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,"0")}-${String(date.getDate()).padStart(2,"0")}`;
 export const isTyping=el=>el&&(el.isContentEditable||/^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName));
+/** Changes to the diary since a backup: number of entries and check-ins and the newest edit. */
+export const diaryFingerprint=()=>{let last="";for(const e of state.entries)if((e.updatedAt||"")>last)last=e.updatedAt||"";return `${state.entries.length}|${state.checkins.length}|${last}`;};
+/** When a new backup is due: never made with 10+ entries, or older than 30 days with changes since. */
+export function backupDue(){
+  if(state.mode==="demo")return null;
+  const n=state.entries.filter(e=>!e.deletedAt).length,b=state.lastBackup;
+  if(!b?.at)return n>=10?{never:true,days:null}:null;
+  const days=Math.floor((Date.now()-Date.parse(b.at))/86400000);
+  return days>=30&&b.fingerprint!==diaryFingerprint()?{never:false,days}:null;
+}
 export const activeEntries=()=>state.entries.filter(e=>!e.deletedAt);
 export const trashedEntries=()=>state.entries.filter(e=>Boolean(e.deletedAt));
 export const entryById=id=>state.entries.find(e=>e.id===id);
 export function mediaOf(entryId){return state.attachments.filter(a=>a.entryId===entryId);}
 
+/* ---------- flight recorder ----------
+   The last unexpected errors of this session, for the self-check and a copyable report. Only the error text and where it
+   happened are kept — never diary text — and only in memory. */
+export const flightLog=[];
+export function recordError(kind,error,source=""){
+  const msg=String(error?.message||error||"").slice(0,300),stack=String(error?.stack||"").split("\n").slice(0,4).join(" | ").slice(0,500);
+  flightLog.push({at:new Date().toISOString(),kind,msg,where:String(source).slice(0,200),stack});
+  if(flightLog.length>30)flightLog.shift();
+}
 /** Filled in by app.js (render, toast, dialogs, …) so feature modules never import app.js. */
 export const ctx={state};
 export function downloadBlob(content,type,filename){

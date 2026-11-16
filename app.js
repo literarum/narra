@@ -3,7 +3,7 @@
 import {fuzzyScore,searchEntries,pluralRu,warmSearchIndex} from "./domain.mjs?v=4.7.0";
 import {enhance,closePopovers,popoverOpen,setDateOptions} from "./ui.mjs?v=4.7.0";
 import {entryText} from "./text.mjs?v=4.7.0";
-import {talkAvailable,secretAttrs,state,ctx,$,$$,escapeHtml,icon,relDay,kindLabels,activeEntries,isTyping,safeStorageGet,safeStorageSet,PREF_KEY,PREF_DEFAULTS,VALID_ROUTES,ROUTE_TITLES,ROUTE_FEATURE,SECONDARY_ROUTES,routeAllowed,featureOn,APP_VERSION,nowIso,shortcutList,MOD_KEY} from "./core.js?v=4.7.0";
+import {talkAvailable,secretAttrs,state,ctx,$,$$,escapeHtml,icon,relDay,kindLabels,activeEntries,isTyping,safeStorageGet,safeStorageSet,PREF_KEY,PREF_DEFAULTS,VALID_ROUTES,ROUTE_TITLES,ROUTE_FEATURE,SECONDARY_ROUTES,routeAllowed,featureOn,APP_VERSION,nowIso,shortcutList,MOD_KEY,recordError} from "./core.js?v=4.7.0";
 import {modalHeader,pageHeader,emptyState} from "./kit.js?v=4.7.0";
 import * as store from "./store.js?v=4.7.0";
 import * as today from "./today.js?v=4.7.0";
@@ -192,10 +192,12 @@ function render({enter=false}={}){
 /** A single quiet strip under the header: demo mode, or changes made in another tab. */
 function renderBanner(){
   let bar=$("#app-banner");
-  const demo=state.mode==="demo",remote=state.remoteChanged&&!state.editing;
-  if(!demo&&!remote){bar?.remove();return;}
+  const demo=state.mode==="demo",remote=state.remoteChanged&&!state.editing,damaged=state.damaged>0;
+  if(!demo&&!remote&&!damaged){bar?.remove();return;}
   if(!bar){bar=document.createElement("div");bar.id="app-banner";bar.className="app-banner";bar.setAttribute("role","status");$("#main").prepend(bar);}
-  bar.innerHTML=demo?`<span>${icon("info")}<span>Демонстрация: вымышленные данные в отдельном хранилище. Ваши записи не затронуты.</span></span><button class="link-button" data-action="exit-demo">Выйти из демонстрации</button>`
+  bar.classList.toggle("is-warning",damaged&&!demo&&!remote);
+  bar.innerHTML=damaged&&!demo&&!remote?`<span>${icon("shield")}<span>Не удалось прочитать ${state.damaged} ${pluralRu(state.damaged,"элемент","элемента","элементов")} дневника. ${state.damaged===1?"Он остался":"Они остались"} в хранилище нетронутым${state.damaged===1?"":"и"}, остальное работает. Восстановить можно из резервной копии.</span></span><button class="link-button" data-action="run-diagnostics">Подробнее</button>`
+    :demo?`<span>${icon("info")}<span>Демонстрация: вымышленные данные в отдельном хранилище. Ваши записи не затронуты.</span></span><button class="link-button" data-action="exit-demo">Выйти из демонстрации</button>`
     :`<span>${icon("refresh")}<span>Дневник изменился в другой вкладке.</span></span><button class="link-button" data-action="reload-data">Обновить</button>`;
 }
 
@@ -412,6 +414,7 @@ const CORE_ACTIONS={
     setPref(key,typeof PREF_DEFAULTS[key]==="number"?Number(raw):raw);setSegmentedActive(el);
   },
   "request-persistence":()=>requestStoragePersistence(),
+  "snooze-backup-notice":el=>{safeStorageSet("narra-backup-notice-until",String(Date.now()+14*86400000));const n=el.closest(".notice-card");if(n)collapseAndRemove(n);},
   "snooze-storage-notice":el=>{safeStorageSet("narra-storage-notice-until",String(Date.now()+7*86400000));const n=el.closest(".notice-card");if(n)collapseAndRemove(n);},
   "close-overlay":()=>closeOverlay(),
   "close-overlay-backdrop":async(el,event)=>{
@@ -551,6 +554,17 @@ window.addEventListener("hashchange",async()=>{
   }
   if(next!==state.route){closePopovers();state.route=next;document.title=`${ROUTE_TITLES[next]} — Narra`;render({enter:true});window.scrollTo({top:0,left:0,behavior:"instant"});}
 });
+/* Unexpected errors: written to the flight recorder; the person hears about it once per session, calmly.
+   Expected interruptions (a cancelled picker, a blocked autoplay, an aborted fetch) are not errors. */
+let errorToastShown=false;
+const benign=e=>/^(AbortError|NotAllowedError)$/.test(e?.name||"")||/ResizeObserver loop/.test(String(e?.message||e||""));
+function onUnexpected(kind,error,source){
+  if(benign(error))return;
+  recordError(kind,error,source);
+  if(!errorToastShown){errorToastShown=true;setTimeout(()=>toast("Что-то пошло не так, но записи на месте. Если повторится — откройте Настройки → О Narra → Самопроверка.",null,{duration:8000}),0);}
+}
+window.addEventListener("error",e=>{if(e.error||e.message)onUnexpected("error",e.error||e.message,`${e.filename||""}:${e.lineno||0}`);});
+window.addEventListener("unhandledrejection",e=>onUnexpected("promise",e.reason,""));
 /* Caps Lock is the usual reason a right password «does not fit»: say so under every password field while typing */
 const capsWatch=e=>{const t=e.target;if(!(t instanceof HTMLInputElement)||!(t.type==="password"||t.dataset.secret==="1")||!e.getModifierState)return;t.closest(".field")?.classList.toggle("caps-on",e.getModifierState("CapsLock"));};
 document.addEventListener("keydown",capsWatch,true);document.addEventListener("keyup",capsWatch,true);
@@ -611,6 +625,7 @@ async function init(){
   state.db=await store.openDB();await store.ensureCryptoKey();
   if(state.mode==="demo")await (await loadLazy("backup")).ensureDemoData();
   await store.loadData();await checkStoragePersistence();
+  await today.restoreQuickDraft?.();
   document.title=`${ROUTE_TITLES[state.route]} — Narra`;
   store.onRemoteChange(async()=>{
     if(state.locked)return;

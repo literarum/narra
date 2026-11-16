@@ -1,7 +1,7 @@
 /* Backup, export, import, demo data and the self-check.
    Formats (schema-versioned): a full ZIP with manifest + JSON + media, a JSON file without media, a Markdown folder (ZIP), CSV.
    Nothing here talks to a network. Files are plain unless the person picks the password-protected copy (seal.mjs); the interface says which. */
-import {state,ctx,$,$$,escapeHtml,icon,uid,nowIso,downloadBlob,isoStamp,safeStorageSet,safeStorageRemove,APP_VERSION,entryLabel,plural} from "./core.js?v=4.7.0";
+import {diaryFingerprint,backupDue,fmtDate,flightLog,state,ctx,$,$$,escapeHtml,icon,uid,nowIso,downloadBlob,isoStamp,safeStorageSet,safeStorageRemove,APP_VERSION,entryLabel,plural} from "./core.js?v=4.7.0";
 import {SCHEMA,planImport,cleanEntry} from "./domain.mjs?v=4.7.0";
 import {seal,unseal,isSealed} from "./seal.mjs?v=4.7.0";
 import {createZip,readZip,utf8,toBytes,safeSegment} from "./zip.mjs?v=4.7.0";
@@ -66,12 +66,42 @@ async function mediaFiles(list,{thumbs=true}={}){
   }
   return files;
 }
+/* ---------- backup bookkeeping and verification ----------
+   A copy is checked before it is handed over (it must read back with the same counts and every media file),
+   and the moment of the last good copy is remembered so the interface can say when a new one is due. */
+/** Changes to the diary since a copy: newest edit time and the number of entries. */
+export {diaryFingerprint};
+export async function recordBackup(kind,counts={}){
+  const rec={at:nowIso(),kind,entries:counts.entries??state.entries.length,fingerprint:diaryFingerprint()};
+  try{await store.metaSet("last-backup",rec);state.lastBackup=rec;}catch(error){console.warn(error);}
+}
+/** {at, kind, entries, changed} or null when no copy was ever made on this device. */
+export async function backupStatus(){
+  const b=await store.metaGet("last-backup",null).catch(()=>null);
+  if(!b?.at)return null;
+  return {...b,changed:b.fingerprint!==diaryFingerprint(),days:Math.floor((Date.now()-Date.parse(b.at))/86400000)};
+}
+export function verifyZip(zip,manifest,files=[]){
+  const items=readZip(zip),byName=new Map(items.map(i=>[i.name,i]));
+  const main=byName.get("narra.json");
+  if(!main)throw new Error("Проверка копии не прошла: в архиве нет данных. Файл не сохранён, дневник не изменился.");
+  return main.read().then(bytes=>{
+    const payload=JSON.parse(utf8(bytes));
+    for(const key of ["entries","versions","checkins","chapters","reviews"])
+      if((payload[key]||[]).length!==manifest.counts[key])throw new Error(`Проверка копии не прошла (${key}). Файл не сохранён, дневник не изменился.`);
+    // every file that went in must come out with the same size (an attachment whose data was already lost is not packed at all)
+    for(const f of files){const item=byName.get(f.name),size=typeof f.data==="string"?new TextEncoder().encode(f.data).length:f.data.byteLength;if(!item||item.size!==size)throw new Error("Проверка копии не прошла: файл в архиве не совпадает. Копия не сохранена.");}
+    return true;
+  });
+}
 export async function buildFullZip(){
   const payload=await buildPayload();
   const manifest={format:"narra-backup",schema:SCHEMA,app:APP_VERSION,createdAt:payload.exportedAt,encrypted:false,
     counts:{entries:payload.entries.length,versions:payload.versions.length,checkins:payload.checkins.length,chapters:payload.chapters.length,reviews:payload.reviews.length,attachments:payload.attachments.length}};
   const files=[{name:"manifest.json",data:JSON.stringify(manifest,null,2)},{name:"narra.json",data:JSON.stringify(payload)},{name:"README.txt",data:README_TEXT},...await mediaFiles(state.attachments)];
-  return {zip:createZip(files),manifest};
+  const zip=createZip(files);
+  await verifyZip(zip,manifest,files); // read the archive back before anyone relies on it
+  return {zip,manifest,skippedVersions:payload.versions.skipped||0};
 }
 export async function buildMarkdownZip(){
   const files=[],byEntry=new Map();
@@ -110,8 +140,12 @@ function askSealPassword(){
     if(!await privacy.reauth("Копия содержит весь дневник. Подтвердите паролем от Narra."))return "Копия не создана.";
     ctx.toast("Шифруем копию…",null,{duration:3000});
     const {zip,manifest}=await buildFullZip();
-    const bytes=await seal(new Uint8Array(await new Blob([zip]).arrayBuffer()),v.p1);
+    const plain=new Uint8Array(await new Blob([zip]).arrayBuffer()),bytes=await seal(plain,v.p1);
+    // open the sealed file with the same password before handing it over: a copy that cannot be opened is worse than none
+    const back=await unseal(bytes,v.p1);
+    if(back.length!==plain.length||back.some((b,i)=>b!==plain[i]))throw new Error("Проверка защищённой копии не прошла. Файл не сохранён.");
     downloadBlob(bytes,"application/octet-stream",`narra-backup-${isoStamp()}.narra`);
+    await recordBackup("sealed",manifest.counts);ctx.render();
     ctx.toast(`Защищённая копия сохранена: записей ${manifest.counts.entries}. Пароль восстановить нельзя.`);
     return "";
   });
@@ -130,8 +164,8 @@ async function doExport(kind){
   ctx.toast("Готовим файл…",null,{duration:2500});
   try{
     const stamp=isoStamp();
-    if(kind==="zip"){const {zip,manifest}=await buildFullZip();downloadBlob(zip,"application/zip",`narra-backup-${stamp}.zip`);ctx.toast(`Копия сохранена: записей ${manifest.counts.entries}, вложений ${manifest.counts.attachments}. Файл не зашифрован.`);}
-    else if(kind==="json"){const p=await buildPayload({withMediaIndex:false});downloadBlob(JSON.stringify(p,null,2),"application/json",`narra-data-${stamp}.json`);ctx.toast("Данные сохранены без фото и аудио. Файл не зашифрован.");}
+    if(kind==="zip"){const {zip,manifest}=await buildFullZip();downloadBlob(zip,"application/zip",`narra-backup-${stamp}.zip`);await recordBackup("zip",manifest.counts);ctx.render();ctx.toast(`Копия сохранена: записей ${manifest.counts.entries}, вложений ${manifest.counts.attachments}. Файл не зашифрован.`);}
+    else if(kind==="json"){const p=await buildPayload({withMediaIndex:false});downloadBlob(JSON.stringify(p,null,2),"application/json",`narra-data-${stamp}.json`);if(!state.attachments.length){await recordBackup("json",{entries:p.entries.length});ctx.render();}ctx.toast("Данные сохранены без фото и аудио. Файл не зашифрован.");}
     else if(kind==="md"){const {zip,count}=await buildMarkdownZip();downloadBlob(zip,"application/zip",`narra-markdown-${stamp}.zip`);ctx.toast(`Markdown: записей ${count}. Файлы не зашифрованы.`);}
     else if(kind==="csv-entries"){downloadBlob(entriesCsv(state.entries,state.chapters),"text/csv;charset=utf-8",`narra-entries-${stamp}.csv`);ctx.toast("Таблица записей сохранена.");}
     else if(kind==="csv-checkins"){downloadBlob(checkinsCsv(state.checkins,state.config),"text/csv;charset=utf-8",`narra-checkins-${stamp}.csv`);ctx.toast("Таблица отметок сохранена.");}
@@ -304,8 +338,8 @@ export async function diagnostics(){
   add(Boolean(state.db),"Локальное хранилище открыто",state.db?`Версия структуры: ${store.DB_VERSION}.`:"Хранилище закрыто, перезагрузите страницу.");
   try{
     const [e,c,a,b]=await Promise.all([store.all(store.STORES.entries),store.all(store.STORES.checkins),store.all(store.STORES.attachments),store.all(store.STORES.blobs)]);
-    add(e.length===state.entries.length,"Все записи читаются",`В хранилище: ${e.length}, в памяти: ${state.entries.length}.`);
-    add(c.length===state.checkins.length,"Все отметки читаются",`В хранилище: ${c.length}, в памяти: ${state.checkins.length}.`);
+    add(e.length===state.entries.length,e.length===state.entries.length?"Все записи читаются":"Не все записи читаются",`В хранилище: ${e.length}, в памяти: ${state.entries.length}.`);
+    add(c.length===state.checkins.length,c.length===state.checkins.length?"Все отметки читаются":"Не все отметки читаются",`В хранилище: ${c.length}, в памяти: ${state.checkins.length}.`);
     const ids=new Set(e.map(x=>x.id)),orphan=a.filter(x=>!ids.has(x.entryId));
     add(!orphan.length,"Нет лишних вложений",orphan.length?`Вложений без записи: ${orphan.length}.`:"Каждое фото и аудио привязано к записи.",orphan.length?{action:"clean-orphans",label:"Убрать лишние"}:null);
     const blobIds=new Set(b.map(x=>x.id)),lost=a.filter(x=>!blobIds.has(x.id));
@@ -317,9 +351,22 @@ export async function diagnostics(){
   try{
     if(navigator.storage?.estimate){const est=await navigator.storage.estimate(),used=est.usage||0,quota=est.quota||1;add(used/quota<.8,"Достаточно места",`Занято ${(used/1048576).toFixed(1).replace(".",",")} МБ из доступных ${Math.round(quota/1048576)} МБ.`);}
   }catch{}
+  if(state.damaged){
+    const by={};for(const d of store.damaged)by[d.store]=(by[d.store]||0)+1;
+    const names={entries:"записей",checkins:"отметок",attachments:"вложений",chapters:"глав",reviews:"обзоров",entities:"заметок о людях и местах"};
+    add(false,"Часть данных не читается",`${Object.entries(by).map(([k,n])=>`${names[k]||k}: ${n}`).join(", ")}. Они остались в хранилище нетронутыми. Восстановите их из резервной копии: Дневник → Резервная копия → Восстановить из файла.`);
+  }
+  {
+    const b=state.lastBackup,due=backupDue();
+    add(!due,"Резервная копия",!b?.at?"На этом устройстве копий ещё не делали.":`Последняя: ${fmtDate(b.at,{year:"numeric"})}${b.fingerprint===diaryFingerprint()?", после неё ничего не менялось.":"."}`,due?{action:"export",label:"Сделать копию"}:null);
+  }
   await ctx.checkStoragePersistence?.();
   add(state.storagePersistent!==false,"Защита от автоочистки",state.storagePersistent===true?"Браузер подтвердил постоянное хранение.":state.storagePersistent===null?"Браузер не сообщает об этом. Делайте резервные копии.":"Браузер может очистить данные при нехватке места. Включите защиту в настройках и делайте копии.",state.storagePersistent===false?{action:"request-persistence",label:"Запросить защиту"}:null);
-  add("serviceWorker" in navigator&&Boolean(await navigator.serviceWorker.getRegistration?.()),"Работа без сети","Приложение сохранено в браузере и откроется без интернета.");
+  {
+    const offline="serviceWorker" in navigator&&Boolean(await navigator.serviceWorker.getRegistration?.().catch(()=>null));
+    add(offline,"Работа без сети",offline?"Приложение сохранено в браузере и откроется без интернета.":"Приложение пока не сохранено для работы без сети. Откройте его по адресу https:// и обновите страницу при подключении.");
+  }
+  add(!flightLog.length,"Сбоев за этот сеанс нет",flightLog.length?`Неожиданных ошибок: ${flightLog.length}. Последняя: ${flightLog[flightLog.length-1].msg}`:"Приложение работает без ошибок с момента открытия.",flightLog.length?{action:"copy-report",label:"Скопировать отчёт"}:null);
   const result={at:nowIso(),rows,ok:rows.every(r=>r.ok)};
   state.diagnostics=result;return result;
 }
@@ -347,6 +394,13 @@ export const actions={
   "exit-demo":()=>switchMode("main"),
   "reset-demo":()=>ctx.confirmDialog({title:"Начать демонстрацию заново?",text:"Вымышленные данные вернутся к исходным. Ваш настоящий дневник это не затрагивает.",confirmLabel:"Сбросить демонстрацию",iconName:"refresh"},async()=>{await store.eraseEverything();safeStorageSet("narra-mode","demo");location.reload();}),
   "erase-all":()=>eraseAll(),
+  /* a technical report without diary text: versions, browser, storage state, counts and the recent errors */
+  "copy-report":async()=>{
+    const report={app:APP_VERSION,at:nowIso(),ua:navigator.userAgent,mode:state.mode,persistent:state.storagePersistent,counts:{entries:state.entries.length,checkins:state.checkins.length,attachments:state.attachments.length,damaged:state.damaged||0},
+      checks:(state.diagnostics?.rows||[]).map(r=>({ok:r.ok,title:r.title})),errors:flightLog};
+    try{await navigator.clipboard.writeText(JSON.stringify(report,null,2));ctx.toast("Отчёт скопирован. Текста записей в нём нет.");}
+    catch{downloadBlob(JSON.stringify(report,null,2),"application/json",`narra-report-${isoStamp()}.json`);ctx.toast("Отчёт сохранён файлом. Текста записей в нём нет.");}
+  },
   "run-diagnostics":async()=>{const r=await diagnostics();ctx.overlay(diagnosticsMarkup(r),"modal","Самопроверка");},
   "clean-orphans":async()=>{
     const ids=new Set(state.entries.map(e=>e.id));

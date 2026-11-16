@@ -81,7 +81,7 @@ export async function folderStatus(){
   return {state:perm==="granted"?"ready":"needs-permission",name:h.name,last};
 }
 async function writeBackup(h){
-  const {buildFullZip}=await import("./backup.js?v=4.7.0");
+  const {buildFullZip,recordBackup}=await import("./backup.js?v=4.7.0");
   const {zip,manifest}=await buildFullZip();
   const name=`narra-auto-${isoStamp()}.zip`;
   const f=await h.getFileHandle(name,{create:true}),w=await f.createWritable();
@@ -89,6 +89,7 @@ async function writeBackup(h){
   const mine=[];for await(const [n,e] of h.entries())if(e.kind==="file"&&/^narra-auto-.*\.zip$/.test(n))mine.push(n);
   mine.sort().reverse();for(const n of mine.slice(KEEP)){try{await h.removeEntry(n);}catch{}}
   await kvSet("backupLast",{at:nowIso(),name,entries:manifest.counts.entries}).catch(()=>{});
+  await recordBackup("folder",manifest.counts);
   return manifest.counts.entries;
 }
 async function chooseFolder(){
