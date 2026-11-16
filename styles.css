@@ -2095,3 +2095,45 @@ ul.card.talk-steps { padding: 8px 12px; }
 .talk-bubble :is(p, ul, ol, blockquote, pre, .md-table) + :is(p, ul, ol, blockquote, pre, .md-table) { margin-top: 8px; }
 .talk-bubble blockquote { margin: 0; padding-left: 10px; border-left: 2px solid var(--line-strong); color: var(--muted); }
 .talk-bubble pre { overflow-x: auto; font-size: 13px; }
+
+/* ===== 4.7 — small phones (iPhone SE, mini) ===== */
+@media (max-width: 400px) {
+  /* editor bar: the save status must stay readable next to the buttons */
+  .editor-top { padding: 8px 10px; gap: 6px; }
+  .editor-top-right .primary { padding: 0 12px; }
+  .editor-top-right .primary .icon { display: none; }
+  .editor-top-left .save-state span:last-child { max-width: 110px; }
+  /* footer: one quiet line — the date is already in «Детали записи» */
+  .editor-bottom #editor-date { display: none; }
+  .editor-bottom .editor-stats { margin-left: auto; }
+}
+.editor-stats > span, .editor-bottom #editor-date { white-space: nowrap; }
+/* while typing on a phone the text gets the room: the footer steps aside with the keyboard */
+@media (max-width: 720px) { html.kb-open .editor-bottom { display: none; } }
+/* buttons in notices sit side by side whenever two fit */
+@media (max-width: 720px) { .notice-actions > button { flex: 1 1 110px; } }
+/* entity page: button labels never break inside a word */
+.entity-head .page-actions > * { white-space: nowrap; }
+/* Apple HIG: touch targets of at least 44 pt where the pointer is a finger */
+@media (pointer: coarse) {
+  .chip, .sort-chip { min-height: 44px; }
+  .fact-sources > summary { min-height: 44px; display: flex; align-items: center; }
+  .entry-title-link { min-height: 32px; }
+}
+
+/* ===== 4.7 — short screens: a phone held sideways, split view ===== */
+@media (max-height: 500px) and (pointer: coarse), (max-height: 460px) {
+  /* the editor takes the whole screen and keeps its chrome thin, so several lines of text stay visible */
+  .overlay:has(.editor-modal) { padding: 0; align-items: stretch; }
+  .editor-modal { width: 100%; height: var(--vvh, 100dvh); border-radius: 0; border: 0; }
+  .editor-top { min-height: 46px; padding: 4px max(10px, var(--safe-l)) 4px max(10px, var(--safe-r)); }
+  .editor-top-right .primary { min-height: 36px; }
+  .editor-tools { min-height: 42px; padding: 2px max(10px, var(--safe-l)); }
+  .editor-surface { padding: 12px max(18px, var(--safe-l)) 48px max(18px, var(--safe-r)); }
+  .entry-title { font-size: 24px; margin-bottom: 6px; }
+  .editor-bottom { display: none; }
+  /* the demo strip is a single line here too */
+  #main > .app-banner { flex-wrap: nowrap; padding: 6px 12px; }
+  .app-banner .banner-long { display: none; }
+  .app-banner .banner-short { display: inline; }
+}
