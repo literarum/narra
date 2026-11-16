@@ -2205,3 +2205,19 @@ button.px:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px;
   .pixels { gap: 2px; }
   .px { border-radius: 2px; }
 }
+
+/* ===== 4.7 — pinned entries ===== */
+.pinned-group > h2 { display: flex; align-items: center; gap: 8px; }
+.pinned-group > h2 .icon { width: 18px; height: 18px; color: var(--accent-strong); }
+.pinned-group { padding-bottom: 6px; border-bottom: 1px dashed var(--line); margin-bottom: 18px; }
+
+/* ===== 4.7 — printing a single entry ===== */
+@media print {
+  .print-entry article { max-width: 16cm; margin: 0 auto; }
+  .print-entry h1 { font-size: 22pt; margin: 0 0 6pt; }
+  .print-entry .print-meta { color: #555; font: 9pt/1.4 "Narra Sans", system-ui, sans-serif; margin: 0 0 3pt; }
+  .print-entry .print-body { margin-top: 16pt; }
+  .print-entry .print-body p + p, .print-entry .print-body * + p { margin-top: 7pt; }
+  .print-entry img { max-width: 100%; break-inside: avoid; }
+  .print-entry .print-foot { margin-top: 24pt; color: #888; font: 8pt "Narra Sans", system-ui, sans-serif; }
+}

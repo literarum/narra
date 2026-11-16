@@ -47,13 +47,16 @@ const weekdayLong=iso=>capitalizeRu(new Intl.DateTimeFormat("ru-RU",{weekday:"lo
 function timelineMarkup(entries){
   if(!entries.length)return filtersActive()?emptyState("Ничего не найдено","Попробуйте убрать часть фильтров.",`<button class="secondary" data-action="journal-filters-reset">Сбросить фильтры</button>`,"journal"):entryRows(entries);
   const limit=state.journalLimit,shown=entries.slice(0,limit),select=state.journalSelect;
+  // pinned entries sit above the timeline (and stay in their place in it too), like pinned notes
+  const pinned=filtersActive()?[]:entries.filter(e=>e.pinned).slice(0,12);
+  const pins=pinned.length?`<section class="timeline-group pinned-group" aria-label="Закреплённые записи"><h2>${icon("pin")}Закреплённые</h2>${entryRows(pinned,null,{select})}</section>`:"";
   const months=new Map();
   for(const e of shown){const k=dayKey(e.happenedAt).slice(0,7);if(!months.has(k))months.set(k,new Map());const m=months.get(k),d=dayKey(e.happenedAt);if(!m.has(d))m.set(d,[]);m.get(d).push(e);}
   const html=[...months.entries()].map(([k,days])=>`<section class="timeline-group"><h2>${fmtMonthYear(new Date(`${k}-01T12:00:00`))}</h2>${[...days.entries()].map(([d,list])=>{
     const hint=state.prefs.showCheckin?dayHint(d):"";
     return `<div class="day-block"><div class="day-head"><h3>${escapeHtml(weekdayLong(list[0].happenedAt))}</h3>${hint?`<span class="day-hint" title="Отметки этого дня">${escapeHtml(hint)}</span>`:""}</div>${entryRows(list,null,{select})}</div>`;}).join("")}</section>`).join("");
   const more=entries.length>limit?`<div class="load-more"><button class="secondary" data-action="journal-more">Показать ещё ${Math.min(state.prefs.journalPage,entries.length-limit)}</button><span class="subtle text-small">Показано ${limit} из ${entries.length}</span></div>`:"";
-  return html+more;
+  return pins+html+more;
 }
 const chipToggle=(id,label,checked,iconName)=>`<label class="chip-toggle${checked?" is-on":""}"><input id="${id}" type="checkbox" ${checked?"checked":""}><span>${icon(iconName)}<span>${label}</span></span></label>`;
 function filtersMarkup(found,total){

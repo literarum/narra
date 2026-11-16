@@ -613,11 +613,11 @@ function dismissSuggestion(el){
 
 /* ----- persistence of the open entry ----- */
 const isPrefillOnly=e=>!e.revision&&e.prefill&&e.body.trim()===e.prefill.trim();
-const META_KEYS=["title","body","favorite","completedAt","deletedAt","happenedAt","kind","sensitive","location","people","themes","projects","dismissedSuggestions","happenedEnd","chapterId","links","decision"];
+const META_KEYS=["title","body","favorite","pinned","openOn","completedAt","deletedAt","happenedAt","kind","sensitive","location","people","themes","projects","dismissedSuggestions","happenedEnd","chapterId","links","decision"];
 const sameValue=(a,b)=>JSON.stringify(a??null)===JSON.stringify(b??null);
 const baselineOf=e=>{const o={};for(const k of META_KEYS)o[k]=structuredClone(e[k]??null);return o;};
 /* what counts as "you changed this entry" when leaving; favourites and dismissed hints are not worth a question */
-const GUARD_KEYS=["title","body","kind","happenedAt","happenedEnd","location","people","themes","projects","chapterId","decision","links","sensitive"];
+const GUARD_KEYS=["title","body","kind","happenedAt","openOn","happenedEnd","location","people","themes","projects","chapterId","decision","links","sensitive"];
 function changedSinceOpen(){
   const ed=state.editing,b=state.editorBaseline;
   if(!ed)return false;
@@ -812,6 +812,27 @@ export async function restoreTrashedEntry(id){
     await store.commitEntrySnapshot(restored,"restore_trash");await store.trimVersions(restored.id,100);await store.loadData();store.notifyChange("entry");ctx.render();ctx.toast("Запись восстановлена.");
   }catch(error){console.error("Ошибка восстановления из корзины",error);ctx.toast("Не удалось восстановить запись.");}
 }
+/* One entry on paper (or as a PDF from the print dialog): title, date, place, people, the text and its pictures. Nothing leaves the device. */
+async function printEntry(){
+  const ed=state.editing;if(!ed)return;
+  if(state.dirty)await saveEditing("print").catch(()=>false);
+  document.querySelector("#print-root")?.remove();
+  const meta=[fmtLong(ed.happenedAt)+", "+fmtTime(ed.happenedAt),ed.location,(ed.people||[]).join(", ")].filter(Boolean).map(escapeHtml).join(" · ");
+  const root=document.createElement("div");root.id="print-root";root.className="print-root print-entry";
+  root.innerHTML=`<article><h1>${escapeHtml(ed.title||entryText(ed).title)}</h1><p class="print-meta">${meta}</p>${(ed.themes||[]).length?`<p class="print-meta">${ed.themes.map(t=>"#"+escapeHtml(t)).join(" ")}</p>`:""}<div class="print-body">${renderMarkdown(ed.body||"")}</div><p class="print-foot">Narra · напечатано ${escapeHtml(fmtDate(new Date().toISOString(),{year:"numeric"}))}</p></article>`;
+  document.body.append(root);document.body.classList.add("print-mode");
+  let done=false;const finish=()=>{if(done)return;done=true;root.remove();document.body.classList.remove("print-mode");window.removeEventListener("afterprint",finish);};
+  window.addEventListener("afterprint",finish);setTimeout(finish,180000); // iOS home-screen apps may never report afterprint
+  media.hydrate(root);
+  const imgs=[...root.querySelectorAll("img")].filter(i=>!i.complete);
+  if(imgs.length)await Promise.race([Promise.all(imgs.map(i=>new Promise(r=>{i.addEventListener("load",r,{once:true});i.addEventListener("error",r,{once:true});}))),new Promise(r=>setTimeout(r,4000))]);
+  window.print();
+}
+function togglePin(){
+  if(!state.editing)return;
+  state.editing.pinned=!state.editing.pinned;markEditorDirty("pin");
+  ctx.toast(state.editing.pinned?"Запись закреплена вверху дневника.":"Запись откреплена.");
+}
 function toggleFavorite(el){
   if(!state.editing)return;
   const on=!state.editing.favorite;state.editing.favorite=on;
@@ -854,10 +875,12 @@ function showEditorMore(){
     ${item("state","Отметить состояние","checkin")}
     ${item("history","История версий","versions")}
     ${item("star",ed.favorite?"Убрать из избранного":"Добавить в избранное","favorite")}
+    ${item("pin",ed.pinned?"Открепить":"Закрепить вверху дневника","pin")}
     ${item("copy","Скопировать текст","copy")}
     ${view?"":item("layout","Сохранить как шаблон","template","Структура записи без вашего текста")}
     ${navigator.share?item("share","Поделиться…","share"):""}
     ${item("download","Сохранить как файл Markdown","export-md")}
+    ${item("printer","Печать или PDF","print","В окне печати выберите «Сохранить как PDF»")}
     ${view?"":item("focus","Режим фокуса","focus")}
     ${ed.revision?`<div class="more-menu-sep" role="separator"></div>${item("trash","Переместить в корзину","trash")}`:""}</div>`,"Действия с записью");
 }
@@ -917,6 +940,8 @@ async function runEditorAction(run){
   else if(run==="share")await ctx.handleAction("share-entry",null);
   else if(run==="export-md")exportEntryMarkdown();
   else if(run==="template")saveAsTemplate();
+  else if(run==="pin")togglePin();
+  else if(run==="print")await printEntry();
 }
 
 /* ----- link picker ----- */
