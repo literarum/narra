@@ -867,14 +867,14 @@ export async function restoreTrashedEntry(id){
     await store.commitEntrySnapshot(restored,"restore_trash");await store.trimVersions(restored.id,100);await store.loadData();store.notifyChange("entry");ctx.render();ctx.toast("Запись восстановлена.");
   }catch(error){console.error("Ошибка восстановления из корзины",error);ctx.toast("Не удалось восстановить запись.");}
 }
-/* One entry on paper (or as a PDF from the print dialog): title, date, place, people, the text and its pictures. Nothing leaves the device. */
-async function printEntry(){
-  const ed=state.editing;if(!ed)return;
-  if(state.dirty)await saveEditing("print").catch(()=>false);
+/* Entries on paper (or as a PDF from the print dialog): title, date, place, people, the text and its pictures. Nothing leaves the device. */
+export async function printEntries(list){
+  if(!list?.length)return;
   document.querySelector("#print-root")?.remove();
-  const meta=[fmtLong(ed.happenedAt)+", "+fmtTime(ed.happenedAt),ed.location,(ed.people||[]).join(", ")].filter(Boolean).map(escapeHtml).join(" · ");
+  const one=e=>{const meta=[fmtLong(e.happenedAt)+", "+fmtTime(e.happenedAt),e.location,(e.people||[]).join(", ")].filter(Boolean).map(escapeHtml).join(" · ");
+    return `<article><h1>${escapeHtml(e.title||entryText(e).title)}</h1><p class="print-meta">${meta}</p>${(e.themes||[]).length?`<p class="print-meta">${e.themes.map(t=>"#"+escapeHtml(t)).join(" ")}</p>`:""}<div class="print-body">${renderMarkdown(e.body||"")}</div></article>`;};
   const root=document.createElement("div");root.id="print-root";root.className="print-root print-entry";
-  root.innerHTML=`<article><h1>${escapeHtml(ed.title||entryText(ed).title)}</h1><p class="print-meta">${meta}</p>${(ed.themes||[]).length?`<p class="print-meta">${ed.themes.map(t=>"#"+escapeHtml(t)).join(" ")}</p>`:""}<div class="print-body">${renderMarkdown(ed.body||"")}</div><p class="print-foot">Narra · напечатано ${escapeHtml(fmtDate(new Date().toISOString(),{year:"numeric"}))}</p></article>`;
+  root.innerHTML=`${list.map(one).join("")}<p class="print-foot">Narra · ${list.length>1?`записей: ${list.length} · `:""}напечатано ${escapeHtml(fmtDate(new Date().toISOString(),{year:"numeric"}))}</p>`;
   document.body.append(root);document.body.classList.add("print-mode");
   let done=false;const finish=()=>{if(done)return;done=true;root.remove();document.body.classList.remove("print-mode");window.removeEventListener("afterprint",finish);};
   window.addEventListener("afterprint",finish);setTimeout(finish,180000); // iOS home-screen apps may never report afterprint
@@ -883,16 +883,10 @@ async function printEntry(){
   if(imgs.length)await Promise.race([Promise.all(imgs.map(i=>new Promise(r=>{i.addEventListener("load",r,{once:true});i.addEventListener("error",r,{once:true});}))),new Promise(r=>setTimeout(r,4000))]);
   window.print();
 }
-const isTypingTarget=el=>el&&(el.isContentEditable||/^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName))&&!el.readOnly;
-/* A copy of the entry as a new draft dated now: same text, people, places and themes, no history, no media links. */
-async function duplicateEntry(){
+async function printEntry(){
   const ed=state.editing;if(!ed)return;
-  if(state.dirty)await saveEditing("switch").catch(()=>false);
-  const body=String(ed.body||"").replace(/!\[[^\]]*\]\(narra-media:[^)]+\)\n?/g,"");
-  const {id,revision,createdAt,updatedAt,completedAt,deletedAt,happenedAt,happenedEnd,openOn,pinned,favorite,links,decision,...rest}=ed;
-  await openEditor(null,{...rest,body,title:ed.title?`${ed.title} (копия)`:"",edit:true});
-  markEditorDirty("duplicate");
-  ctx.toast("Копия открыта как новая запись. Фото и аудио не копируются.");
+  if(state.dirty)await saveEditing("print").catch(()=>false);
+  await printEntries([ed]);
 }
 function togglePin(){
   if(!state.editing)return;

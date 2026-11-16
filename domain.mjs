@@ -468,7 +468,7 @@ export function staleVersions(rows,limit,now=Date.now()){
   const sorted=[...rows].sort((a,b)=>String(b.createdAt).localeCompare(String(a.createdAt)));
   const keep=new Set(sorted.slice(0,Math.ceil(limit*.4)).map(v=>v.id)),seen=new Set();
   for(const v of sorted.slice(Math.ceil(limit*.4))){
-    if(/^(import|restore|restore_trash|revert|conflict_.*|trash|complete|before_versions|manual|talk_session)$/.test(v.source||"")){keep.add(v.id);continue;}
+    if(/^(import|restore|restore_trash|revert|conflict_.*|trash|complete|before_versions|manual|talk_session|merge|merged_into|capsule_open)$/.test(v.source||"")){keep.add(v.id);continue;}
     const t=Date.parse(v.createdAt)||0,age=now-t,d=new Date(t);
     const bucket=age<7*86400000?`h${d.getFullYear()}-${d.getMonth()}-${d.getDate()}-${d.getHours()}`:`d${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
     if(!seen.has(bucket)){seen.add(bucket);keep.add(v.id);} // the newest version in each hour/day (list is newest first)

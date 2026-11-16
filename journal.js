@@ -80,6 +80,8 @@ function bulkBar(){
   const n=state.journalSelected.size;
   return `<div class="bulk-bar" role="region" aria-label="Действия с выбранными записями"><span class="bulk-count">${n?`Выбрано: ${n}`:"Отметьте записи"}</span><div class="bulk-actions">
     <button class="secondary" data-action="bulk-export" ${n?"":"disabled"}>${icon("download")}<span>Экспорт</span></button>
+    <button class="secondary" data-action="bulk-print" ${n?"":"disabled"}>${icon("printer")}<span>Печать</span></button>
+    <button class="secondary" data-action="bulk-merge" ${n>1?"":"disabled"}>${icon("layout")}<span>Объединить</span></button>
     <button class="secondary" data-action="bulk-theme" ${n?"":"disabled"}>${icon("tag")}<span>Тема</span></button>
     ${featureOn("featChapters")&&state.chapters.length?`<button class="secondary" data-action="bulk-chapter" ${n?"":"disabled"}>${icon("book")}<span>В главу</span></button>`:""}
     ${featureOn("featChapters")&&state.chapters.length?`<button class="secondary" data-action="bulk-unchapter" ${n?"":"disabled"}>${icon("x")}<span>Вне глав</span></button>`:""}
@@ -179,22 +181,34 @@ async function bulkUpdate(ids,patch,source){
 }
 const selected=()=>[...state.journalSelected].filter(id=>state.entries.some(e=>e.id===id));
 
+/* All photos of the visible entries, newest first: a quick way back to a day by its picture. */
+function galleryItems(){
+  const visible=new Map(activeEntries().map(e=>[e.id,e]));
+  return state.attachments.filter(a=>a.kind==="image"&&visible.has(a.entryId)).map(a=>({a,e:visible.get(a.entryId)})).sort((x,y)=>String(y.e.happenedAt).localeCompare(String(x.e.happenedAt)));
+}
+function galleryMarkup(items){
+  return `<p class="subtle text-small gallery-note">Фото из записей: ${items.length}. Нажмите, чтобы открыть запись.</p><div class="photo-grid">${items.slice(0,600).map(({a,e})=>`<button type="button" class="photo-cell" data-action="open-entry" data-id="${escapeHtml(e.id)}" aria-label="${escapeHtml(`${entryText(e).title}, ${fmtDate(e.happenedAt,{year:"numeric"})}`)}"><img data-media-thumb="${escapeHtml(a.id)}" alt="" loading="lazy"><span>${escapeHtml(fmtDate(e.happenedAt))}</span></button>`).join("")}</div>`;
+}
 export function journalView(){
   const trashCount=trashedEntries().length;
   const items=[["timeline","Лента"],["calendar","Календарь"]];
   if(featureOn("featChapters"))items.push(["chapters","Главы"]);
+  const photos=featureOn("featMedia")?galleryItems():[];
+  if(photos.length)items.push(["photos","Фото"]);
   items.push(["trash",`Корзина${trashCount?` · ${trashCount}`:""}`]);
   if(!items.some(i=>i[0]===state.journalView))state.journalView="timeline";
   const v=state.journalView,filtered=v==="timeline"||v==="calendar"?applyFilters(activeEntries()):null;
-  const content=v==="calendar"?calendarMarkup():v==="trash"?trashMarkup():v==="chapters"?chaptersMarkup():timelineMarkup(filtered);
+  const ordered=filtered&&state.prefs.journalOrder==="old"?[...filtered].reverse():filtered;
+  const content=v==="calendar"?calendarMarkup():v==="trash"?trashMarkup():v==="chapters"?chaptersMarkup():v==="photos"?galleryMarkup(photos):timelineMarkup(ordered);
   const showTools=v==="timeline"||v==="calendar";
     return `${pageHeader("Ваша история","Дневник","Хронология без оценок и давления.")}
   <div class="journal-controls">${tabs("journal",items,v,{label:"Вид дневника"})}
-    <div class="journal-tools">${v==="timeline"?`<button class="secondary button-with-icon" data-action="bulk-toggle" aria-pressed="${state.journalSelect}">${icon("check")}<span>${state.journalSelect?"Выбор включён":"Выбрать"}</span></button>`:""}<button class="secondary button-with-icon" data-action="export">${icon("backup")}<span>Резервная копия</span></button></div></div>
+    <div class="journal-tools">${v==="timeline"?`<button class="secondary button-with-icon" data-action="journal-order" aria-label="Порядок: ${state.prefs.journalOrder==="old"?"сначала старые":"сначала новые"}">${icon(state.prefs.journalOrder==="old"?"chevron-up":"chevron-down")}<span>${state.prefs.journalOrder==="old"?"Сначала старые":"Сначала новые"}</span></button>`:""}${v==="timeline"?`<button class="secondary button-with-icon" data-action="bulk-toggle" aria-pressed="${state.journalSelect}">${icon("check")}<span>${state.journalSelect?"Выбор включён":"Выбрать"}</span></button>`:""}<button class="secondary button-with-icon" data-action="export">${icon("backup")}<span>Резервная копия</span></button></div></div>
   ${showTools?filtersMarkup(filtered?filtered.length:0,activeEntries().length):""}${v==="timeline"?bulkBar():""}<div id="panel-journal" role="tabpanel" aria-labelledby="tab-journal-${v}">${content}</div>`;
 }
 export const views={journal:journalView};
 export const actions={
+  "journal-order":()=>{ctx.setPref("journalOrder",state.prefs.journalOrder==="old"?"new":"old");state.journalLimit=state.prefs.journalPage;ctx.render();},
   "calendar-prev":()=>{state.calendarCursor=ctx.shiftMonth(state.calendarCursor,-1);state.calendarSelectedDate=null;ctx.render();},
   "calendar-next":()=>{state.calendarCursor=ctx.shiftMonth(state.calendarCursor,1);state.calendarSelectedDate=null;ctx.render();},
   "calendar-today":()=>{const n=new Date();state.calendarCursor=new Date(n.getFullYear(),n.getMonth(),1);state.calendarSelectedDate=localDateKey(n);ctx.render();},
@@ -227,6 +241,30 @@ export const actions={
   "bulk-toggle":()=>{state.journalSelect=!state.journalSelect;state.journalSelected=new Set();ctx.render();},
   "bulk-done":()=>{state.journalSelect=false;state.journalSelected=new Set();ctx.render();},
   "bulk-all":()=>{const shown=applyFilters(activeEntries()).slice(0,state.journalLimit);state.journalSelected=new Set(shown.map(e=>e.id));ctx.render();},
+  "bulk-print":async()=>{
+    const list=selected().map(id=>state.entries.find(e=>e.id===id)).filter(Boolean).sort((a,b)=>new Date(a.happenedAt)-new Date(b.happenedAt));
+    (await import("./editor.js?v=4.7.0")).printEntries(list);
+  },
+  /* several entries become one: the texts in time order under their dates, people/places/themes combined, photos moved along.
+     The originals go to the trash, so the step can be undone from there. */
+  "bulk-merge":()=>{
+    const list=selected().map(id=>state.entries.find(e=>e.id===id)).filter(Boolean).sort((a,b)=>new Date(a.happenedAt)-new Date(b.happenedAt));
+    if(list.length<2)return;
+    ctx.confirmDialog({title:`Объединить ${list.length} ${entryLabel(list.length)}?`,text:"Получится одна запись: тексты по порядку под своими датами, люди, места и темы — вместе, фото и аудио переедут в неё.",detail:"Исходные записи уйдут в корзину — оттуда их можно вернуть.",confirmLabel:"Объединить",iconName:"layout"},async()=>{
+      try{
+        const id=uid(),now=nowIso(),u=k=>[...new Set(list.flatMap(e=>e[k]||[]))];
+        const body=list.map(e=>`## ${fmtDate(e.happenedAt,{year:"numeric"})}${e.title?` · ${e.title}`:""}\n\n${String(e.body||"").trim()}`).join("\n\n");
+        const merged={id,title:`Вместе: ${fmtDayRange(dayKey(list[0].happenedAt),dayKey(list[list.length-1].happenedAt))}`,body,kind:"thought",happenedAt:list[0].happenedAt,createdAt:now,updatedAt:now,revision:1,favorite:list.some(e=>e.favorite),completedAt:now,deletedAt:null,
+          people:u("people"),themes:u("themes"),projects:u("projects").slice(0,12),location:list.find(e=>e.location)?.location||"",sensitive:list.some(e=>e.sensitive),dismissedSuggestions:[],happenedEnd:list.length>1?list[list.length-1].happenedAt:null,chapterId:null,links:[],decision:null,pinned:false,openOn:null};
+        await store.commitEntrySnapshot(merged,"merge");
+        for(const e of list)for(const a of state.attachments.filter(a=>a.entryId===e.id))await store.moveAttachment(a.id,id);
+        await bulkUpdate(list.map(e=>e.id),()=>({deletedAt:nowIso()}),"merged_into");
+        state.journalSelected=new Set();state.journalSelect=false;
+        await store.loadData();store.notifyChange("entry");ctx.render();
+        ctx.toast("Записи объединены. Исходные — в корзине.",{label:"Открыть",action:"open-entry",id});
+      }catch(error){console.error(error);await store.loadData().catch(()=>{});ctx.render();ctx.toast("Не удалось объединить записи. Ничего не потеряно.");}
+    });
+  },
   "bulk-export":()=>{
     const list=selected().map(id=>state.entries.find(e=>e.id===id)).sort((a,b)=>new Date(a.happenedAt)-new Date(b.happenedAt));
     downloadBlob(list.map(e=>entryToMarkdown(e)).join("\n---\n\n"),"text/markdown;charset=utf-8",`narra-selected-${isoStamp()}.md`);

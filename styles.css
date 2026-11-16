@@ -2249,3 +2249,13 @@ body[data-typewriter="on"] .editor-modal:not(.is-viewing) .editor-surface { padd
 .entry-toc .link-button { text-align: left; min-height: 32px; }
 #read-aloud.is-active { color: var(--accent-strong); background: var(--accent-soft); }
 @media (max-width: 400px) { .editor-top-right [data-action="entry-step"] { display: none; } }
+
+@media print { .print-entry article + article { break-before: page; } }
+
+/* ===== 4.7 — journal photos ===== */
+.gallery-note { margin: 0 0 12px; }
+.photo-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 8px; }
+.photo-cell { position: relative; aspect-ratio: 1; padding: 0; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; background: var(--surface); }
+.photo-cell img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.photo-cell span { position: absolute; left: 6px; bottom: 6px; padding: 2px 7px; border-radius: 8px; font-size: 11.5px; background: color-mix(in srgb, #000 48%, transparent); color: #fff; }
+@media (max-width: 720px) { .photo-grid { grid-template-columns: repeat(3, 1fr); gap: 4px; } .photo-cell { border-radius: 8px; } }
