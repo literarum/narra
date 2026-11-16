@@ -1,5 +1,5 @@
 /* Today: quick capture, a short check-in, one memory, one question, recent entries, first-run welcome. */
-import {talkAvailable,state,ctx,$,$$,escapeHtml,icon,uid,nowIso,fmtLong,fmtTime,relDay,activeEntries,sameDay,todayKey,safeStorageGet,safeStorageSet,featureOn,PREF_KEY} from "./core.js?v=4.6.0";
+import {talkAvailable,state,ctx,$,$$,escapeHtml,icon,uid,nowIso,fmtLong,fmtTime,relDay,activeEntries,sameDay,todayKey,safeStorageGet,safeStorageSet,featureOn,PREF_KEY,pluralRu} from "./core.js?v=4.6.0";
 import {entryText} from "./text.mjs?v=4.6.0";
 import {pageHeader,modalHeader} from "./kit.js?v=4.6.0";
 import {entryRows} from "./entries-ui.js?v=4.6.0";
@@ -40,8 +40,11 @@ export function pauseNote(entries,now=new Date()){
   const last=act.reduce((a,e)=>Math.max(a,new Date(e.createdAt||e.happenedAt).getTime()),0); // when it was written, not the date it is about
   const days=Math.floor((now.getTime()-last)/86400000);
   if(days<5)return "";
-  const n=days>=60?"больше двух месяцев":days>=30?"больше месяца":`${days} ${days%10===1&&days%100!==11?"день":days%10>=2&&days%10<=4&&(days%100<12||days%100>14)?"дня":"дней"}`;
-  return `<p class="pause-note">${icon("moon")}<span>С последней записи прошло ${n}. Ничего страшного — можно начать с одной фразы.</span></p>`;
+  const word=pluralRu(days,"день","дня","дней");
+  const n=days>=365?"больше года":days>=180?"больше полугода":days>=60?"больше двух месяцев":days>=30?"больше месяца":`${days} ${word}`;
+  // «прошёл 21 день», but «прошло 5 дней» and «прошло больше месяца»
+  const verb=days<30&&word==="день"?"прошёл":"прошло";
+  return `<p class="pause-note">${icon("moon")}<span>С последней записи ${verb} ${n}. Ничего страшного — можно начать с одной фразы.</span></p>`;
 }
 const promptMarkup=()=>`<section class="section" id="prompt-section"><div class="section-heading"><h2>Вопрос для размышления</h2></div><article class="card prompt-card"><p>${escapeHtml(dailyPrompt())}</p><div class="prompt-actions"><button class="ghost button-with-icon" data-action="next-prompt" aria-label="Другой вопрос">${icon("refresh")}<span>Другой</span></button>${state.ai?.enabled?`<button class="ghost button-with-icon" data-action="prompt-ai" aria-label="Вопрос по моим записям">${icon("sparkle")}<span>По моим записям</span></button>`:""}<button class="secondary" data-action="use-prompt">Ответить</button></div></article></section>`;
 export const greetingText=(now=new Date())=>{const h=now.getHours();return h<5?"Доброй ночи":h<12?"Доброе утро":h<18?"Добрый день":"Добрый вечер";};

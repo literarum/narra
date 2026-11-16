@@ -2054,3 +2054,6 @@ ul.card.talk-steps { padding: 8px 12px; }
 .shortcuts-help dl > div:last-child { border-bottom: 0; }
 .shortcuts-help dt { order: 2; margin: 0; }
 .shortcuts-help dd { margin: 0; }
+
+/* calendar: days that have not come yet are quieter than empty days in the past */
+.day.is-future:not(.is-selected) { opacity: .5; }
