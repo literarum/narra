@@ -2045,3 +2045,12 @@ ul.card.talk-steps { padding: 8px 12px; }
 .prompt-card p { flex: 1 1 0; min-width: 0; overflow-wrap: anywhere; }
 .prompt-actions { flex-wrap: wrap; justify-content: flex-end; }
 @media (max-width: 640px) { .prompt-actions > * { flex: 1 1 auto; min-width: 0; justify-content: center; } .prompt-actions .button-with-icon span { white-space: nowrap; } }
+
+/* ===== 4.7 — keyboard help sheet («?») ===== */
+.shortcuts-help h3 { margin: 4px 0 8px; font: 650 12px/1.4 var(--sans); letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+.shortcuts-help h3:not(:first-child) { margin-top: 18px; }
+.shortcuts-help dl { margin: 0; display: grid; gap: 2px; }
+.shortcuts-help dl > div { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 7px 0; border-bottom: 1px solid var(--line); }
+.shortcuts-help dl > div:last-child { border-bottom: 0; }
+.shortcuts-help dt { order: 2; margin: 0; }
+.shortcuts-help dd { margin: 0; }

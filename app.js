@@ -3,7 +3,7 @@
 import {fuzzyScore,searchEntries,pluralRu,warmSearchIndex} from "./domain.mjs?v=4.6.0";
 import {enhance,closePopovers,popoverOpen,setDateOptions} from "./ui.mjs?v=4.6.0";
 import {entryText} from "./text.mjs?v=4.6.0";
-import {talkAvailable,secretAttrs,state,ctx,$,$$,escapeHtml,icon,relDay,kindLabels,activeEntries,isTyping,safeStorageGet,safeStorageSet,PREF_KEY,PREF_DEFAULTS,VALID_ROUTES,ROUTE_TITLES,ROUTE_FEATURE,SECONDARY_ROUTES,routeAllowed,featureOn,APP_VERSION,nowIso} from "./core.js?v=4.6.0";
+import {talkAvailable,secretAttrs,state,ctx,$,$$,escapeHtml,icon,relDay,kindLabels,activeEntries,isTyping,safeStorageGet,safeStorageSet,PREF_KEY,PREF_DEFAULTS,VALID_ROUTES,ROUTE_TITLES,ROUTE_FEATURE,SECONDARY_ROUTES,routeAllowed,featureOn,APP_VERSION,nowIso,shortcutList,MOD_KEY} from "./core.js?v=4.6.0";
 import {modalHeader,pageHeader,emptyState} from "./kit.js?v=4.6.0";
 import * as store from "./store.js?v=4.6.0";
 import * as today from "./today.js?v=4.6.0";
@@ -296,6 +296,12 @@ function sheetDialog(content,label){
   return box;
 }
 
+/* ---------- keyboard help («?») ---------- */
+function showShortcuts(){
+  sheetDialog(`${modalHeader("Клавиши","Сочетания работают, когда курсор не в поле ввода (кроме редактора).","keyboard","close-dialog")}<div class="modal-body shortcuts-help">${shortcutList().map(([group,list])=>`<h3>${escapeHtml(group)}</h3><dl>${list.map(([k,t])=>`<div><dt><kbd>${escapeHtml(k)}</kbd></dt><dd>${escapeHtml(t)}</dd></div>`).join("")}</dl>`).join("")}</div>`,"Клавиши");
+}
+ACTIONS["show-shortcuts"]=()=>showShortcuts();
+
 /* ---------- more sheet (phones) ---------- */
 function moreMenu(){
   const item=(iconName,title,sub,attrs)=>`<button class="more-menu-item" ${attrs}>${icon(iconName)}<span><strong>${title}</strong><small>${sub}</small></span>${icon("chevron-right")}</button>`;
@@ -331,6 +337,7 @@ function commandItems(){
     {key:"export",group:"Система",icon:"backup",label:"Экспорт и резервная копия",kw:"скачать сохранить архив",action:"export"},
     {key:"import",group:"Система",icon:"upload",label:"Восстановить из копии",kw:"импорт загрузить файл markdown",action:"import"},
     {key:"diagnostics",group:"Система",icon:"shield",label:"Самопроверка",kw:"диагностика хранилище",action:"run-diagnostics"},
+    {key:"keys",group:"Система",icon:"keyboard",label:"Клавиши",kw:"горячие сочетания shortcuts помощь справка",action:"show-shortcuts"},
   ];
   if(state.lock)base.push({key:"lock",group:"Система",icon:"lock",label:"Заблокировать",kw:"пароль скрыть закрыть замок",action:"lock-now"});
   return base;
@@ -529,6 +536,7 @@ document.addEventListener("keydown",async e=>{
   if(mod&&e.code==="KeyF"&&!e.shiftKey&&!overlayOpen()){e.preventDefault();goTo("search");return;}
   const plain=!mod&&!e.altKey&&!e.shiftKey&&!isTyping(document.activeElement)&&!overlayOpen()&&!dialogOpen();
   if(e.key==="/"&&plain){e.preventDefault();goTo("search");return;}
+  if(e.key==="?"&&!mod&&!e.altKey&&!isTyping(document.activeElement)&&!overlayOpen()&&!dialogOpen()){e.preventDefault();showShortcuts();return;}
   if(plain&&state.prefs.quickKey!=="off"&&e.key.toLowerCase()===state.prefs.quickKey){e.preventDefault();ctx.openEditor();}
 });
 window.addEventListener("hashchange",async()=>{
@@ -583,6 +591,9 @@ async function init(){
   if(!("indexedDB" in window))throw new Error("IndexedDB недоступна в этом браузере.");
   if(!crypto?.subtle)throw new Error("Web Crypto недоступен в этом контексте браузера.");
   applyPrefs();applyTheme();
+  // ⌘ on Apple keyboards, Ctrl elsewhere
+  for(const k of $$(".rail kbd"))k.textContent=`${MOD_KEY} K`;
+  for(const btn of $$('[data-action="open-command"][title]'))btn.title=`Команды (${MOD_KEY} K)`;
   state.db=await store.openDB();await store.ensureCryptoKey();
   if(state.mode==="demo")await (await loadLazy("backup")).ensureDemoData();
   await store.loadData();await checkStoragePersistence();

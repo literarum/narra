@@ -149,4 +149,17 @@ export function downloadBlob(content,type,filename){
   const blob=content instanceof Blob?content:new Blob([content],{type}),a=document.createElement("a");
   a.href=URL.createObjectURL(blob);a.download=filename;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),4000);
 }
+/** Keyboard labels follow the platform: ⌘ on Apple devices, Ctrl elsewhere. */
+export const IS_APPLE=typeof navigator!=="undefined"&&/Mac|iPhone|iPad|iPod/.test(navigator.userAgentData?.platform||navigator.platform||navigator.userAgent||"");
+export const MOD_KEY=IS_APPLE?"⌘":"Ctrl";
+/** "Ctrl+Shift+Z" → "⇧⌘Z" on Apple devices, unchanged elsewhere. */
+export const kbdLabel=s=>IS_APPLE?String(s).replace(/Ctrl\+/g,"⌘").replace(/Alt\+/g,"⌥").replace(/Shift\+/g,"⇧"):String(s);
+/** The shortcuts that really work with the current preferences (the quick-note key can be changed or switched off). */
+export function shortcutList(){
+  const m=MOD_KEY,q=state.prefs.quickKey;
+  return [
+    ["Везде",[[`${m} K`,"Палитра команд"],...(q!=="off"?[[q.toUpperCase(),"Новая запись"]]:[]),["/","Поиск"],[`${m} F`,"Поиск (в редакторе — найти в тексте)"],["?","Эта подсказка"],["Esc","Закрыть окно"]]],
+    ["В редакторе",[[`${m} S`,"Сохранить сейчас"],[`${m} Enter`,"Готово, закрыть запись"],[`${m} B`,"Жирный"],[`${m} I`,"Курсив"],[`${m} E`,"Код"],[`${m} K`,"Ссылка"],[`${m} Z`,"Отменить"],[`${m} G`,"Следующее совпадение"]]],
+  ];
+}
 export const isoStamp=()=>localDateKey(new Date()); // local date: a backup made at 00:30 is named after today, not after yesterday in UTC

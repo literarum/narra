@@ -2,7 +2,7 @@
    writing help and safe saving. Saving is atomic, versioned, and refuses to overwrite an entry edited elsewhere. */
 import {validateCanonicalEntry,nextRevision,searchEntries,parseRussianDateHint} from "./domain.mjs?v=4.6.0";
 import {applyFormat,activeFormats,continueList,shiftIndent,diffRange,renderMarkdown} from "./md.mjs?v=4.6.0";
-import {state,ctx,$,$$,escapeHtml,icon,uid,nowIso,fmtLong,fmtTime,fmtDate,localDateInputValue,dateInputToIso,splitCsv,words,chars,wordLabel,pluralRu,featureOn,activeEntries,entryById,mediaOf,kindLabels,capitalizeRu,downloadBlob} from "./core.js?v=4.6.0";
+import {state,ctx,$,$$,escapeHtml,icon,uid,nowIso,fmtLong,fmtTime,fmtDate,localDateInputValue,dateInputToIso,splitCsv,words,chars,wordLabel,pluralRu,featureOn,activeEntries,entryById,mediaOf,kindLabels,capitalizeRu,downloadBlob,kbdLabel} from "./core.js?v=4.6.0";
 import {entryText,excerpt} from "./text.mjs?v=4.6.0";
 import {cleanDecision,cleanLinks} from "./domain.mjs?v=4.6.0";
 import {modalHeader,statusPill} from "./kit.js?v=4.6.0";
@@ -36,7 +36,7 @@ function toolAvailable(info){
   return true;
 }
 function toolButton(info){
-  const tip=info.shortcut&&state.prefs.shortcuts?`${info.label} (${info.shortcut})`:info.label;
+  const tip=info.shortcut&&state.prefs.shortcuts?`${info.label} (${kbdLabel(info.shortcut)})`:info.label;
   const hook=info.format?`data-format="${info.format}"`:info.custom?`data-custom="${escapeHtml(info.key.slice(2))}"`:`data-action="${info.action}"`;
   const pressed=info.pressed||info.format||info.custom?` aria-pressed="false"`:"";
   return `<button type="button" class="tool-button${info.custom?" is-custom":""}" data-tool="${escapeHtml(info.key)}" ${hook}${pressed} aria-label="${escapeHtml(info.label)}" title="${escapeHtml(tip)}">${icon(info.icon)}</button>`;
@@ -63,7 +63,7 @@ function editorMarkup(entry,mode="edit"){
   const [wc,cc]=statsText(entry.body),p=state.prefs;
   return `<div class="editor-top"><div class="editor-top-left"><button type="button" class="icon-button icon-button-quiet" data-action="close-editor" aria-label="Закрыть редактор" title="Закрыть (Esc)">${icon("arrow-left")}</button><span class="save-state edit-only" id="editor-save" role="status"><i class="save-dot"></i><span>${escapeHtml(state.saveStatus)}</span></span></div>
     <div class="editor-top-right">
-      <button type="button" class="icon-button icon-button-quiet only-desktop edit-only" data-action="editor-find" aria-label="Найти в записи" title="Найти в записи${p.shortcuts?" (Ctrl+F)":""}">${icon("search")}</button>
+      <button type="button" class="icon-button icon-button-quiet only-desktop edit-only" data-action="editor-find" aria-label="Найти в записи" title="Найти в записи${p.shortcuts?` (${kbdLabel("Ctrl+F")})`:""}">${icon("search")}</button>
       <button type="button" class="icon-button icon-button-quiet edit-only" data-action="toggle-preview" id="preview-toggle" aria-pressed="false" aria-label="Показать, как выглядит текст" title="Просмотр">${icon("eye")}</button>
       <button type="button" class="icon-button icon-button-quiet only-desktop" data-action="entry-checkin" aria-label="Отметить состояние" title="Отметить состояние">${icon("state")}</button>
       ${navigator.share?`<button type="button" class="icon-button icon-button-quiet only-desktop view-only" data-action="share-entry" aria-label="Поделиться" title="Поделиться">${icon("share")}</button>`:""}
@@ -76,7 +76,7 @@ function editorMarkup(entry,mode="edit"){
       <button type="button" class="primary button-with-icon view-only" data-action="edit-entry">${icon("pen")}<span>Изменить</span></button>
     </div></div>
     <div class="editor-tools edit-only" id="editor-tools" role="toolbar" aria-label="Форматирование текста">
-      <div class="tool-group history-group" role="group" aria-label="История правок"><button type="button" class="tool-button" data-history="undo" aria-label="Отменить" title="Отменить${p.shortcuts?" (Ctrl+Z)":""}" disabled>${icon("undo")}</button><button type="button" class="tool-button" data-history="redo" aria-label="Повторить" title="Повторить${p.shortcuts?" (Ctrl+Shift+Z)":""}" disabled>${icon("undo","icon-flip")}</button></div>
+      <div class="tool-group history-group" role="group" aria-label="История правок"><button type="button" class="tool-button" data-history="undo" aria-label="Отменить" title="Отменить${p.shortcuts?` (${kbdLabel("Ctrl+Z")})`:""}" disabled>${icon("undo")}</button><button type="button" class="tool-button" data-history="redo" aria-label="Повторить" title="Повторить${p.shortcuts?` (${kbdLabel("Ctrl+Shift+Z")})`:""}" disabled>${icon("undo","icon-flip")}</button></div>
       <div class="tool-group tool-flow" id="tool-flow" role="group" aria-label="Форматирование">${toolbarFlowMarkup()}</div>
       ${mediaInputs()}
       <span class="tool-spacer"></span>

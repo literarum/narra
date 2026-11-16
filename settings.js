@@ -1,6 +1,6 @@
 /* Settings: interface, feature switches, editor, check-in fields, privacy (lock and assistant), data, and an honest «about».
    Everything optional can be turned off here and its screens disappear; nothing that was written is deleted by a switch. */
-import {state,ctx,$,$$,escapeHtml,icon,FEATURES,APP_VERSION,featureOn,entryLabel,plural,kindLabels} from "./core.js?v=4.6.0";
+import {state,ctx,$,$$,escapeHtml,icon,FEATURES,APP_VERSION,featureOn,entryLabel,plural,kindLabels,shortcutList} from "./core.js?v=4.6.0";
 import {pageHeader,tabs,settingsGroup,switchRow,segmentedRow,selectHtml} from "./kit.js?v=4.6.0";
 import {CORE_DIMENSIONS,DEEP_DIMENSIONS,activeDimensions,cleanConfig,DEFAULT_CONFIG} from "./checkin.mjs?v=4.6.0";
 import {AI_FEATURES,FEATURE_GROUPS,PROVIDERS,providerById,detectProvider,listModels,pickModel,createProvider,runFeature,cleanAiState,REASON_TEXT} from "./ai.mjs?v=4.6.0";
@@ -197,7 +197,7 @@ function dataTab(){
 
 /* ---------- about ---------- */
 function aboutTab(){
-  const shortcuts=[["Ctrl/⌘ K","Палитра команд"],["N","Новая запись"],["/","Поиск"],["Ctrl/⌘ Enter","Готово, закрыть запись"],["Ctrl/⌘ F","Найти в тексте записи (в редакторе) или поиск"],["Esc","Закрыть окно"]];
+  const shortcuts=shortcutList().flatMap(([,list])=>list);
   return `${settingsGroup("info","Narra",row("Версия",`Narra ${APP_VERSION}`,"")+row("Обновление приложения","Проверить, нет ли новой версии файлов Narra. Записи не затрагиваются.",`<button class="secondary" data-action="refresh-app-shell">Проверить</button>`)+row("Где хранятся записи","Только в этом браузере, на этом устройстве. Нет аккаунта, сервера и синхронизации.",""))}
     ${settingsGroup("insights","Как считаются наблюдения",
       row("Что это","Описание совпадений в ваших записях: «в дни с этой темой напряжение чаще выше». Это не причины и не диагнозы.","")
