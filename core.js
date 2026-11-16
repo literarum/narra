@@ -153,6 +153,9 @@ export const trashedEntries=()=>state.entries.filter(e=>Boolean(e.deletedAt));
 export const entryById=id=>state.entries.find(e=>e.id===id);
 export function mediaOf(entryId){return state.attachments.filter(a=>a.entryId===entryId);}
 
+/** The browser refused a write because the storage it allows this site is full. */
+export const isQuotaError=e=>Boolean(e)&&(e.name==="QuotaExceededError"||e.cause?.name==="QuotaExceededError"||/quota/i.test(String(e.message||"")));
+export const QUOTA_TEXT="Место для дневника в браузере закончилось. Текст остаётся в редакторе. Сохраните резервную копию и освободите место: удалите крупные фото или аудио, очистите корзину или освободите память устройства.";
 /* ---------- flight recorder ----------
    The last unexpected errors of this session, for the self-check and a copyable report. Only the error text and where it
    happened are kept — never diary text — and only in memory. */

@@ -2,7 +2,7 @@
    writing help and safe saving. Saving is atomic, versioned, and refuses to overwrite an entry edited elsewhere. */
 import {validateCanonicalEntry,nextRevision,searchEntries,parseRussianDateHint} from "./domain.mjs?v=4.7.0";
 import {applyFormat,activeFormats,continueList,shiftIndent,diffRange,renderMarkdown} from "./md.mjs?v=4.7.0";
-import {state,ctx,$,$$,escapeHtml,icon,uid,nowIso,fmtLong,fmtTime,fmtDate,localDateInputValue,dateInputToIso,splitCsv,words,chars,wordLabel,pluralRu,featureOn,activeEntries,entryById,mediaOf,kindLabels,capitalizeRu,downloadBlob,kbdLabel} from "./core.js?v=4.7.0";
+import {state,ctx,$,$$,escapeHtml,icon,uid,nowIso,fmtLong,fmtTime,fmtDate,localDateInputValue,dateInputToIso,splitCsv,words,chars,wordLabel,pluralRu,featureOn,activeEntries,entryById,mediaOf,kindLabels,capitalizeRu,downloadBlob,kbdLabel,isQuotaError,QUOTA_TEXT} from "./core.js?v=4.7.0";
 import {entryText,excerpt} from "./text.mjs?v=4.7.0";
 import {cleanDecision,cleanLinks} from "./domain.mjs?v=4.7.0";
 import {modalHeader,statusPill} from "./kit.js?v=4.7.0";
@@ -618,6 +618,7 @@ async function persistEditingSnapshot(snapshot,source,epoch){
     if(i>=0)state.entries[i]={...state.entries[i],...next};else state.entries.unshift(next);
     state.entries=[...state.entries].sort((a,b)=>new Date(b.happenedAt)-new Date(a.happenedAt));
     store.notifyChange("entry");
+    state.quotaWarned=false;
     if(state.editing?.id===snapshot.id){
       state.editing.revision=next.revision;state.editing.updatedAt=next.updatedAt;
       const tb=$("#trash-button");if(tb)tb.hidden=false;
@@ -628,6 +629,8 @@ async function persistEditingSnapshot(snapshot,source,epoch){
   }catch(err){
     if(err?.name==="ConflictError"){await handleConflict(snapshot,err.current);return false;}
     console.error("Ошибка локального сохранения",err);
+    // a full disk does not fix itself in a few seconds: say what happened and what helps instead of retrying blindly
+    if(isQuotaError(err)&&state.editing?.id===snapshot.id){setSaveStatus("Не сохранено: нет места","error");if(!state.quotaWarned){state.quotaWarned=true;ctx.toast(QUOTA_TEXT,null,{duration:12000});}return false;}
     if(state.editing?.id===snapshot.id){
       /* bounded retries with exponential backoff and jitter; the text never leaves the editor */
       const n=state.saveRetries=(state.saveRetries||0)+1;

@@ -3,7 +3,7 @@
    kept next to the data (protects against casual reading of the database, not against someone who has the whole browser profile —
    the interface says so). Dates and ids stay readable so the database can be indexed. */
 import {state,uid,nowIso,DB_NAME_MAIN,DB_NAME_DEMO} from "./core.js?v=4.7.0";
-import {pickEntryMeta,cleanMeta,cleanChapter,cleanReview,cleanEntityNote,ENTRY_META_DEFAULTS} from "./domain.mjs?v=4.7.0";
+import {staleVersions,pickEntryMeta,cleanMeta,cleanChapter,cleanReview,cleanEntityNote,ENTRY_META_DEFAULTS} from "./domain.mjs?v=4.7.0";
 import {cleanConfig,DEFAULT_CONFIG} from "./checkin.mjs?v=4.7.0";
 import {cleanAiState} from "./ai-state.mjs?v=4.7.0";
 
@@ -152,7 +152,7 @@ export async function trimVersions(entryId,limit){
   const count=await reqP(idx.count(entryId));
   if(count<=limit)return;
   const rows=await reqP(idx.getAll(entryId));
-  const stale=rows.sort((a,b)=>new Date(b.createdAt)-new Date(a.createdAt)).slice(limit);
+  const stale=staleVersions(rows,limit);
   if(!stale.length)return;
   const tx=openTx(STORES.versions,"readwrite","relaxed"),done=txDone(tx),store=tx.objectStore(STORES.versions);stale.forEach(v=>store.delete(v.id));await done;
 }

@@ -626,6 +626,8 @@ async function init(){
   if(state.mode==="demo")await (await loadLazy("backup")).ensureDemoData();
   await store.loadData();await checkStoragePersistence();
   await today.restoreQuickDraft?.();
+  // warn before the disk is full, not after a save has failed
+  try{if(navigator.storage?.estimate){const e=await navigator.storage.estimate();state.storageTight=e.quota>0&&e.usage/e.quota>.85?Math.round(e.usage/e.quota*100):0;}}catch{}
   document.title=`${ROUTE_TITLES[state.route]} — Narra`;
   store.onRemoteChange(async()=>{
     if(state.locked)return;

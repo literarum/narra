@@ -2067,3 +2067,6 @@ ul.card.talk-steps { padding: 8px 12px; }
 
 /* any password field: a quiet Caps Lock notice under it (set from app.js) */
 .field.caps-on::after { content: "Включён Caps Lock"; display: block; margin-top: 6px; font-size: 13px; color: var(--warning); }
+
+/* notices that need action soon (space running out, unreadable data) */
+.notice-card.is-warning, .app-banner.is-warning { border-color: color-mix(in srgb, var(--warning) 45%, var(--line)); background: var(--warning-soft); }

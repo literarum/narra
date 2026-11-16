@@ -460,3 +460,18 @@ export function planImport(payload,existing={entries:[],checkins:[],versions:[],
   return {ok:true,entries,checkins,versions,chapters,reviews,entities,config,fromSchema:migrated.from,stats,
     nothingToDo:!entries.length&&!checkins.length&&!versions.length&&!chapters.length&&!reviews.length&&!entities.length};
 }
+
+/** History thinning instead of a hard cut: the newest versions are all kept; older ones keep one per hour for a week,
+    then one per day; imports, restores and conflict copies are never thinned. Only beyond `limit*2` the oldest go. */
+export function staleVersions(rows,limit,now=Date.now()){
+  const sorted=[...rows].sort((a,b)=>String(b.createdAt).localeCompare(String(a.createdAt)));
+  const keep=new Set(sorted.slice(0,Math.ceil(limit*.4)).map(v=>v.id)),seen=new Set();
+  for(const v of sorted.slice(Math.ceil(limit*.4))){
+    if(/^(import|restore|restore_trash|revert|conflict_.*|trash|complete|before_versions|manual|talk_session)$/.test(v.source||"")){keep.add(v.id);continue;}
+    const t=Date.parse(v.createdAt)||0,age=now-t,d=new Date(t);
+    const bucket=age<7*86400000?`h${d.getFullYear()}-${d.getMonth()}-${d.getDate()}-${d.getHours()}`:`d${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+    if(!seen.has(bucket)){seen.add(bucket);keep.add(v.id);} // the newest version in each hour/day (list is newest first)
+  }
+  const kept=sorted.filter(v=>keep.has(v.id)),overflow=kept.slice(limit*2).map(v=>v.id);
+  return sorted.filter(v=>!keep.has(v.id)||overflow.includes(v.id));
+}

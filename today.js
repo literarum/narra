@@ -49,14 +49,19 @@ export function pauseNote(entries,now=new Date()){
 const promptMarkup=()=>`<section class="section" id="prompt-section"><div class="section-heading"><h2>Вопрос для размышления</h2></div><article class="card prompt-card"><p>${escapeHtml(dailyPrompt())}</p><div class="prompt-actions"><button class="ghost button-with-icon" data-action="next-prompt" aria-label="Другой вопрос">${icon("refresh")}<span>Другой</span></button>${state.ai?.enabled?`<button class="ghost button-with-icon" data-action="prompt-ai" aria-label="Вопрос по моим записям">${icon("sparkle")}<span>По моим записям</span></button>`:""}<button class="secondary" data-action="use-prompt">Ответить</button></div></article></section>`;
 export const greetingText=(now=new Date())=>{const h=now.getHours();return h<5?"Доброй ночи":h<12?"Доброе утро":h<18?"Добрый день":"Добрый вечер";};
 
+function spaceNoticeMarkup(){
+  if(!state.storageTight)return "";
+  return `<aside class="card notice-card is-warning" role="alert"><p><strong>Место почти закончилось: занято ${state.storageTight}%.</strong> Скоро новые записи и фото перестанут сохраняться. Сделайте резервную копию и освободите место: удалите крупные вложения или очистите корзину.</p><div class="notice-actions"><button class="secondary" data-action="export">Сделать копию</button></div></aside>`;
+}
 function storageNoticeMarkup(){
+  if(state.storageTight)return "";
   if(!state.prefs.showStorageNotice||state.storagePersistent!==false)return "";
   if(Date.now()<=Number(safeStorageGet("narra-storage-notice-until")||0))return "";
   return `<aside class="card notice-card" role="note"><p><strong>Дневник хранится только в этом браузере.</strong> Браузер пока не гарантирует, что данные переживут нехватку места. Защитите хранилище и время от времени делайте резервную копию.</p><div class="notice-actions"><button class="ghost" data-action="snooze-storage-notice">Позже</button><button class="secondary" data-action="request-persistence">Защитить</button></div></aside>`;
 }
 /* Only one quiet notice at a time: the storage notice first, then the backup reminder. */
 function backupNoticeMarkup(){
-  if(storageNoticeMarkup())return "";
+  if(state.storageTight||storageNoticeMarkup())return "";
   const due=backupDue();if(!due)return "";
   if(Date.now()<=Number(safeStorageGet("narra-backup-notice-until")||0))return "";
   const text=due.never?"Резервной копии на этом устройстве ещё не было. Если браузер очистит данные или устройство потеряется, записи не вернуть.":`Последняя резервная копия — ${due.days} ${pluralRu(due.days,"день","дня","дней")} назад, с тех пор появились новые записи.`;
@@ -79,7 +84,7 @@ export function todayView(){
   const unfinished=p.showContinue?activeEntries().filter(e=>!e.completedAt).sort((a,b)=>new Date(b.updatedAt)-new Date(a.updatedAt))[0]:null;
   const recent=activeEntries().slice(0,4);
   const memory=p.showMemory&&featureOn("featMemories")?memoryCard():"";
-  return `${pageHeader(fmtLong(now),greetingText(now),"Спокойное место для того, что хочется сохранить.")}${welcomeMarkup()}${pauseNote(state.entries)}${storageNoticeMarkup()}${backupNoticeMarkup()}${reminderMarkup()}
+  return `${pageHeader(fmtLong(now),greetingText(now),"Спокойное место для того, что хочется сохранить.")}${welcomeMarkup()}${pauseNote(state.entries)}${spaceNoticeMarkup()}${storageNoticeMarkup()}${backupNoticeMarkup()}${reminderMarkup()}
     ${unfinished?`<article class="card continue-card"><div><p class="eyebrow">Продолжить</p><h3>${escapeHtml(entryText(unfinished).title)}</h3><p>Последнее изменение: ${escapeHtml(relDay(unfinished.updatedAt))}, ${escapeHtml(fmtTime(unfinished.updatedAt))}</p></div><button class="secondary" data-action="open-entry" data-id="${escapeHtml(unfinished.id)}">Продолжить</button></article>`:""}
     <div class="hero-grid${p.showCheckin?"":" is-single"}">
       <article class="card quick-card"><div><p class="eyebrow">Быстрая запись</p><h2>Что сейчас хочется запомнить?</h2></div>

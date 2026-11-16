@@ -1,6 +1,6 @@
 /* Photos and voice notes. Photos are re-drawn on a canvas, which drops all embedded metadata (location, camera, time),
    scaled down and stored encrypted with a thumbnail. Audio is stored as recorded. Nothing is uploaded anywhere. */
-import {state,ctx,$,$$,escapeHtml,icon,featureOn,mediaOf} from "./core.js?v=4.7.0";
+import {state,ctx,$,$$,escapeHtml,icon,featureOn,mediaOf,isQuotaError} from "./core.js?v=4.7.0";
 import * as store from "./store.js?v=4.7.0";
 
 export const LIMITS={imageIn:30*1024*1024,audioIn:30*1024*1024,perEntry:40,maxSide:2000,thumbSide:360,recordSeconds:600};
@@ -56,7 +56,7 @@ export async function addFiles(entryId,files){
         const id=await store.addAttachment({entryId,kind:"audio",mime:file.type||"audio/webm",bytes,meta:{name:(file.name||"голосовая заметка").slice(0,120),duration,caption:""}});
         added.push({id,kind:"audio",name:file.name||"голосовая заметка"});
       }else throw new Error(`«${file.name}» — не фото и не аудио.`);
-    }catch(error){console.error(error);ctx.toast(error.message||"Не удалось добавить файл.");}
+    }catch(error){console.error(error);ctx.toast(isQuotaError(error)?"Не хватает места, чтобы сохранить вложение. Освободите место или уменьшите файл.":error.message||"Не удалось добавить файл.");if(isQuotaError(error))break;}
   }
   if(added.length)await store.reloadAttachments();
   return added;
