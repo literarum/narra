@@ -2137,3 +2137,18 @@ ul.card.talk-steps { padding: 8px 12px; }
   .app-banner .banner-long { display: none; }
   .app-banner .banner-short { display: inline; }
 }
+
+/* ===== 4.7 — bottom sheets on phones: one grab handle, a header that seals the top =====
+   The sheet used to draw a handle of its own and the header a second one, and the header stuck 12px below the top,
+   so list items scrolled through that gap above «Ещё». Now the handle lives in the header, which sticks at 0 and is opaque. */
+@media (max-width: 768px) {
+  .sheet::before, .modal:not(.editor-modal)::before { content: none; display: none; }
+  .modal:not(.editor-modal):not(.talk-modal) .modal-header, .sheet .modal-header {
+    top: 0; padding-top: 22px; border-radius: 22px 22px 0 0;
+    background: var(--surface-raised); backdrop-filter: none; -webkit-backdrop-filter: none;
+  }
+  .modal:not(.editor-modal):not(.talk-modal) .modal-header::before, .sheet .modal-header::before { top: 8px; }
+  .sheet, .modal:not(.editor-modal) { overscroll-behavior: contain; }
+}
+/* menu rows are buttons, but their captions are sentences: balanced wrapping broke them after two words */
+.more-menu-item, .more-menu-item small, .more-menu-item strong, .command-item { text-wrap: pretty; }
