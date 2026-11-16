@@ -89,8 +89,11 @@ function normalizeRoute(route){return VALID_ROUTES.has(route)&&routeAllowed(rout
 function routeTo(route,{scroll=true}={}){
   route=normalizeRoute(route);
   closePopovers();
+  // a new section is a new history step, so the browser's (and Android's) Back returns to the previous section instead of leaving the app
+  const from=state.route,target=`#/${route}`;
+  if(!location.hash||location.hash.split("?")[0]==="#/")history.replaceState(null,"",`#/${from}`);
+  if(from!==route&&location.hash.split("?")[0]!==target)history.pushState(null,"",target);else history.replaceState(null,"",target);
   state.route=route;
-  history.replaceState(null,"",`#/${route}`);
   document.title=`${ROUTE_TITLES[route]} — Narra`;
   render({enter:true});
   if(scroll){window.scrollTo({top:0,left:0,behavior:"instant"});if(lockedAt!==null)lockedAt=0;}
@@ -528,9 +531,16 @@ document.addEventListener("keydown",async e=>{
   if(e.key==="/"&&plain){e.preventDefault();goTo("search");return;}
   if(plain&&state.prefs.quickKey!=="off"&&e.key.toLowerCase()===state.prefs.quickKey){e.preventDefault();ctx.openEditor();}
 });
-window.addEventListener("hashchange",()=>{
+window.addEventListener("hashchange",async()=>{
   const route=location.hash.replace("#/","").split("?")[0],next=normalizeRoute(route);
-  if(next!==state.route){state.route=next;document.title=`${ROUTE_TITLES[next]} — Narra`;render({enter:true});}
+  // Back while a window is open closes the window first (an open entry is saved the usual way, or asks); the section stays
+  if(next!==state.route&&(overlayOpen()||dialogOpen())){
+    history.pushState(null,"",`#/${state.route}`);
+    if(dialogOpen()){closeDialog();return;}
+    if(state.editing){await editor.closeEditor();return;}
+    closeOverlay();return;
+  }
+  if(next!==state.route){closePopovers();state.route=next;document.title=`${ROUTE_TITLES[next]} — Narra`;render({enter:true});window.scrollTo({top:0,left:0,behavior:"instant"});}
 });
 window.addEventListener("online",()=>toast("Сеть снова доступна. Дневник по-прежнему хранится только на этом устройстве."));
 window.addEventListener("offline",()=>toast("Сети нет. Можно продолжать писать — сохранение локальное."));

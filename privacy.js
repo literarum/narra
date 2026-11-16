@@ -181,7 +181,8 @@ let lastActivity=Date.now(),watching=false;
 export function startIdleWatch(){
   if(watching)return;watching=true;
   const bump=()=>{lastActivity=Date.now();};
-  for(const ev of ["pointerdown","keydown","touchstart","wheel"])window.addEventListener(ev,bump,{passive:true,capture:true});
+  // "input" covers dictation and IME keyboards that type without key events: a long dictated entry must not lock mid-sentence
+  for(const ev of ["pointerdown","keydown","touchstart","wheel","input","scroll"])window.addEventListener(ev,bump,{passive:true,capture:true});
   const check=()=>{
     const min=state.prefs.lockMinutes;
     if(state.lock&&!state.locked&&min>0&&Date.now()-lastActivity>=min*60000&&!$("#dialog-root .recovery-dialog"))lockNow();

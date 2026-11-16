@@ -149,4 +149,4 @@ export function downloadBlob(content,type,filename){
   const blob=content instanceof Blob?content:new Blob([content],{type}),a=document.createElement("a");
   a.href=URL.createObjectURL(blob);a.download=filename;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),4000);
 }
-export const isoStamp=()=>new Date().toISOString().slice(0,10);
+export const isoStamp=()=>localDateKey(new Date()); // local date: a backup made at 00:30 is named after today, not after yesterday in UTC
