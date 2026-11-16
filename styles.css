@@ -1404,7 +1404,8 @@ body.is-locked { overflow: hidden; }
 .view-meta { display: grid; gap: 14px; margin: 0 0 26px; }
 .view-meta:empty { display: none; }
 .view-line { margin: 0; display: flex; flex-wrap: wrap; gap: 2px 0; color: var(--muted); font-size: 14px; line-height: 1.5; }
-.view-line > span + span::before { content: "·"; margin: 0 9px; color: var(--faint); }
+/* the dot ends a part instead of starting the next one, so a wrapped line never begins with «·» */
+.view-line > span:not(:last-child)::after { content: "·"; margin: 0 9px; color: var(--faint); }
 .view-chips { display: flex; flex-wrap: wrap; gap: 8px; }
 .view-chip { display: inline-flex; align-items: center; min-height: 30px; padding: 0 12px; border: 1px solid var(--line); border-radius: var(--r-pill); background: var(--surface); color: var(--text); font-size: 13px; }
 .view-chip.is-chapter { border-color: color-mix(in srgb, var(--accent) 55%, var(--line)); background: var(--accent-soft); color: var(--accent-strong); }
@@ -2070,3 +2071,17 @@ ul.card.talk-steps { padding: 8px 12px; }
 
 /* notices that need action soon (space running out, unreadable data) */
 .notice-card.is-warning, .app-banner.is-warning { border-color: color-mix(in srgb, var(--warning) 45%, var(--line)); background: var(--warning-soft); }
+
+/* ===== 4.7 — phone polish ===== */
+.banner-short { display: none; }
+@media (max-width: 720px) {
+  #main > .app-banner { flex-wrap: nowrap; padding: 7px 12px; }
+  .app-banner .banner-long { display: none; }
+  .app-banner .banner-short { display: inline; }
+  .app-banner .link-button { flex: 0 0 auto; white-space: nowrap; }
+  /* two tool buttons share a row when they fit, otherwise each takes its own: never cut at the screen edge */
+  .journal-tools > button { flex: 1 1 auto; }
+}
+.tabs.fade-end:not(.fade-start) { -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 36px), transparent); mask-image: linear-gradient(to right, #000 calc(100% - 36px), transparent); }
+.tabs.fade-start:not(.fade-end) { -webkit-mask-image: linear-gradient(to left, #000 calc(100% - 36px), transparent); mask-image: linear-gradient(to left, #000 calc(100% - 36px), transparent); }
+.tabs.fade-start.fade-end { -webkit-mask-image: linear-gradient(to right, transparent, #000 36px, #000 calc(100% - 36px), transparent); mask-image: linear-gradient(to right, transparent, #000 36px, #000 calc(100% - 36px), transparent); }

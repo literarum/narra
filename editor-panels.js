@@ -1,5 +1,5 @@
 /* Editor side panels: entry details, links, decision journal, suggestions and writing help. Markup only; editor.js binds them. */
-import {talkAvailable,state,ctx,escapeHtml,icon,localDateInputValue,fmtDate,fmtLong,kindOptions,kindLabels,capitalizeRu,featureOn,activeEntries,entryById} from "./core.js?v=4.7.0";
+import {talkAvailable,state,ctx,escapeHtml,icon,localDateInputValue,fmtDate,fmtLong,fmtTime,kindOptions,kindLabels,capitalizeRu,featureOn,activeEntries,entryById} from "./core.js?v=4.7.0";
 import {parseRussianDateHint,extractHashtags,suggestEntryKindRu} from "./domain.mjs?v=4.7.0";
 import {entryText} from "./text.mjs?v=4.7.0";
 import {suggestKnownEntities,chapterOf,sortChapters,NO_CHAPTER} from "./entities.mjs?v=4.7.0";
@@ -129,7 +129,7 @@ export function assistResult(kind,entry){
 /* ---------- reading mode: the same facts as the details panel, as plain text and chips ---------- */
 export function viewMetaMarkup(entry){
   const chip=(label,cls="")=>`<span class="view-chip ${cls}">${escapeHtml(label)}</span>`;
-  const when=[fmtLong(entry.happenedAt)];
+  const when=[`${fmtLong(entry.happenedAt)}, ${fmtTime(entry.happenedAt)}`];
   if(entry.happenedEnd)when[0]+=` — ${fmtLong(entry.happenedEnd)}`;
   const line=[capitalizeRu(kindLabels[entry.kind]||"мысль"),...when,entry.location?`${entry.location}`:""].filter(Boolean);
   const chap=featureOn("featChapters")?chapterOf(entry,state.chapters):null;

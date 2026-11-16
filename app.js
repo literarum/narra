@@ -188,6 +188,13 @@ function render({enter=false}={}){
   for(const m of MODULES)m.afterRender?.(state.route,view);
   media.hydrate(view);
   renderBanner();
+  for(const t of view.querySelectorAll(".tabs"))fadeTabs(t);
+}
+/* Scrollable tab rows fade at the edge that has more tabs behind it, so it is clear the row continues. */
+function fadeTabs(t){
+  const update=()=>{const more=t.scrollWidth-t.clientWidth>2;t.classList.toggle("fade-end",more&&t.scrollLeft<t.scrollWidth-t.clientWidth-2);t.classList.toggle("fade-start",more&&t.scrollLeft>2);};
+  update();
+  if(!t.dataset.fadeBound){t.dataset.fadeBound="1";t.addEventListener("scroll",update,{passive:true});}
 }
 /** A single quiet strip under the header: demo mode, or changes made in another tab. */
 function renderBanner(){
@@ -196,6 +203,8 @@ function renderBanner(){
   if(!demo&&!remote&&!damaged){bar?.remove();return;}
   if(!bar){bar=document.createElement("div");bar.id="app-banner";bar.className="app-banner";bar.setAttribute("role","status");$("#main").prepend(bar);}
   bar.classList.toggle("is-warning",damaged&&!demo&&!remote);
+  // on a phone the demo strip is one short line, not a fifth of the screen
+  if(demo){bar.innerHTML=`<span>${icon("info")}<span class="banner-long">Демонстрация: вымышленные данные в отдельном хранилище. Ваши записи не затронуты.</span><span class="banner-short">Демо: вымышленные данные</span></span><button class="link-button" data-action="exit-demo">Выйти<span class="banner-long"> из демонстрации</span></button>`;return;}
   bar.innerHTML=damaged&&!demo&&!remote?`<span>${icon("shield")}<span>Не удалось прочитать ${state.damaged} ${pluralRu(state.damaged,"элемент","элемента","элементов")} дневника. ${state.damaged===1?"Он остался":"Они остались"} в хранилище нетронутым${state.damaged===1?"":"и"}, остальное работает. Восстановить можно из резервной копии.</span></span><button class="link-button" data-action="run-diagnostics">Подробнее</button>`
     :demo?`<span>${icon("info")}<span>Демонстрация: вымышленные данные в отдельном хранилище. Ваши записи не затронуты.</span></span><button class="link-button" data-action="exit-demo">Выйти из демонстрации</button>`
     :`<span>${icon("refresh")}<span>Дневник изменился в другой вкладке.</span></span><button class="link-button" data-action="reload-data">Обновить</button>`;
