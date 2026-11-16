@@ -37,13 +37,20 @@ export function entryFromMarkdown(name,text,{id,now=new Date()}={}){
   if(typeof text!=="string"||text.length>MAX_MD_FILE) return null;
   const {meta,body:rawBody}=frontMatter(text);
   let body=rawBody.replace(/\r\n?/g,"\n").trim(),title=typeof meta.title==="string"?meta.title:"";
-  if(!title){const h=body.match(/^#\s+(.+)\n?/);if(h){title=strip(h[1]);body=body.slice(h[0].length).trim();}}
+  const h=body.match(/^#\s+(.+)\n?/);
+  // Narra's own export repeats the title as a heading under the front matter: take it once, not twice
+  if(h&&(!title||strip(h[1])===strip(title))){title=title||strip(h[1]);body=body.slice(h[0].length).trim();}
   if(!body) return null;
-  const day=dayFrom(meta.date||meta.happened||meta.дата)||dayFrom(name);
-  const at=day?new Date(`${day}T12:00:00`):now;
+  const rawDate=String(meta.date||meta.happened||meta.дата||"");
+  // a full timestamp (as Narra writes it) keeps the exact moment; a bare day becomes midday of that day
+  const exact=/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(rawDate)&&!Number.isNaN(Date.parse(rawDate))?new Date(rawDate):null;
+  const day=dayFrom(rawDate)||dayFrom(name);
+  const at=exact||(day?new Date(`${day}T12:00:00`):now);
+  if(Number.isNaN(at.getTime())) return null;
   const iso=at.toISOString();
+  const end=String(meta.end||"");const endIso=/^\d{4}-\d{2}-\d{2}/.test(end)&&!Number.isNaN(Date.parse(end))?new Date(end).toISOString():"";
   return cleanEntry({id:id||`md-${Math.abs([...name].reduce((h,c)=>(h*31+c.charCodeAt(0))|0,7))}`,title,body,happenedAt:iso,createdAt:iso,updatedAt:iso,revision:1,favorite:/^(true|да|1)$/i.test(String(meta.favorite||"")),
-    completedAt:iso,kind:KINDS.includes(meta.kind)?meta.kind:"thought",themes:list(meta.tags||meta.themes||meta.темы).map(t=>t.toLocaleLowerCase("ru-RU")),people:list(meta.people||meta.люди),location:typeof meta.location==="string"?meta.location:typeof meta.место==="string"?meta.место:""});
+    completedAt:iso,kind:KINDS.includes(meta.kind)?meta.kind:"thought",themes:list(meta.tags||meta.themes||meta.темы).map(t=>t.toLocaleLowerCase("ru-RU")),people:list(meta.people||meta.люди),projects:list(meta.projects||meta.проекты),...(endIso&&endIso>iso?{happenedEnd:endIso}:{}),location:typeof meta.location==="string"?meta.location:typeof meta.место==="string"?meta.место:""});
 }
 export function entriesFromMarkdownFiles(files,{makeId,now}={}){
   const entries=[];let skipped=0;
@@ -55,10 +62,11 @@ export function entriesFromMarkdownFiles(files,{makeId,now}={}){
 }
 /** Markdown for one entry with a small front matter block, so a folder export can be imported back losslessly. */
 export function entryToMarkdown(e,{mediaPrefix="../media/"}={}){
-  const q=s=>`"${String(s).replace(/"/g,'\\"')}"`;
+  const q=s=>`"${String(s).replace(/\s*[\r\n]+\s*/g," ").replace(/"/g,'\\"')}"`;
   const fm=["---",`id: ${q(e.id)}`,e.title?`title: ${q(e.title)}`:null,`date: ${e.happenedAt}`,e.happenedEnd?`end: ${e.happenedEnd}`:null,`kind: ${e.kind||"thought"}`,
     (e.themes||[]).length?`tags: [${e.themes.map(q).join(", ")}]`:null,(e.people||[]).length?`people: [${e.people.map(q).join(", ")}]`:null,(e.projects||[]).length?`projects: [${e.projects.map(q).join(", ")}]`:null,
     e.location?`location: ${q(e.location)}`:null,e.favorite?"favorite: true":null,"---",""].filter(x=>x!==null).join("\n");
   const body=String(e.body||"").replace(/\]\(narra-media:([A-Za-z0-9-]+)\)/g,(m,id)=>`](${mediaPrefix}${id})`);
-  return `${fm}\n${e.title?`# ${e.title}\n\n`:""}${body}\n`;
+  const heading=String(e.title||"").replace(/\s*[\r\n]+\s*/g," ").trim();
+  return `${fm}\n${heading?`# ${heading}\n\n`:""}${body}\n`;
 }

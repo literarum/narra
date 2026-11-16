@@ -2,7 +2,7 @@
    writing help and safe saving. Saving is atomic, versioned, and refuses to overwrite an entry edited elsewhere. */
 import {validateCanonicalEntry,nextRevision,searchEntries,parseRussianDateHint} from "./domain.mjs?v=4.6.0";
 import {applyFormat,activeFormats,continueList,shiftIndent,diffRange,renderMarkdown} from "./md.mjs?v=4.6.0";
-import {state,ctx,$,$$,escapeHtml,icon,uid,nowIso,fmtLong,fmtTime,fmtDate,localDateInputValue,dateInputToIso,splitCsv,words,chars,wordLabel,pluralRu,featureOn,activeEntries,entryById,mediaOf,kindLabels,capitalizeRu} from "./core.js?v=4.6.0";
+import {state,ctx,$,$$,escapeHtml,icon,uid,nowIso,fmtLong,fmtTime,fmtDate,localDateInputValue,dateInputToIso,splitCsv,words,chars,wordLabel,pluralRu,featureOn,activeEntries,entryById,mediaOf,kindLabels,capitalizeRu,downloadBlob} from "./core.js?v=4.6.0";
 import {entryText,excerpt} from "./text.mjs?v=4.6.0";
 import {cleanDecision,cleanLinks} from "./domain.mjs?v=4.6.0";
 import {modalHeader,statusPill} from "./kit.js?v=4.6.0";
@@ -10,6 +10,7 @@ import {enhance} from "./ui.mjs?v=4.6.0";
 import {STRUCTURE_TEMPLATE} from "./writing.mjs?v=4.6.0";
 import {contextMarkup,assistMarkup,assistResult,suggestionsMarkup,contextSummaryText,decisionMarkup,linksMarkup,smartSuggestions,viewMetaMarkup} from "./editor-panels.js?v=4.6.0";
 import {TextHistory} from "./history.mjs?v=4.6.0";
+import {entryToMarkdown} from "./importers.mjs?v=4.6.0";
 import * as media from "./media.js?v=4.6.0";
 import * as store from "./store.js?v=4.6.0";
 import {TOOLS,SEP,normalizeLayout,toolInfo,applyCustomTool} from "./tools.mjs?v=4.6.0";
@@ -840,11 +841,10 @@ async function copyEntryText(){
 }
 function exportEntryMarkdown(){
   const ed=state.editing;if(!ed)return;
-  const front=`---\ndate: ${localDateInputValue(ed.happenedAt)}\nkind: ${ed.kind}\n${ed.themes?.length?`tags: [${ed.themes.join(", ")}]\n`:""}---\n\n`;
-  const md=`${front}${ed.title?`# ${ed.title}\n\n`:""}${ed.body}\n`;
-  const name=(ed.title||localDateInputValue(ed.happenedAt)).replace(/[\\/:*?"<>|\n]/g," ").trim().slice(0,60)||"запись";
-  const url=URL.createObjectURL(new Blob([md],{type:"text/markdown;charset=utf-8"}));
-  const a=document.createElement("a");a.href=url;a.download=`${name}.md`;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),4000);
+  // the same front matter as the folder export, so the file can be imported back with its date, tags, people and places
+  const md=entryToMarkdown(ed,{mediaPrefix:"narra-media:"});
+  const name=(ed.title||localDateInputValue(ed.happenedAt)).replace(/[\\/:*?"<>|\r\n\t]/g," ").replace(/\s+/g," ").trim().slice(0,60)||"запись";
+  downloadBlob(md,"text/markdown;charset=utf-8",`${name}.md`);
   ctx.toast("Файл сохранён.");
 }
 async function runEditorAction(run){

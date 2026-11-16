@@ -1557,7 +1557,11 @@ html.boot-locked body { background: var(--bg); }
 .quick-card { min-height: 0; }
 .quick-capture { flex: 0 0 auto; min-height: 96px; max-height: 220px; overflow-y: auto; overscroll-behavior: contain; transition: height .242s var(--ease), min-height var(--t) var(--ease); scrollbar-width: thin; }
 .quick-capture.is-capped { mask-image: linear-gradient(to bottom, #000 calc(100% - 18px), transparent); -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 18px), transparent); }
-.quick-card .quick-footer { margin-top: 10px; }
+/* next to a tall check-in card the free space belongs to the writing area, with the actions at the bottom (not under the first line) */
+.quick-card .quick-capture { margin-bottom: 10px; }
+.quick-card .quick-footer { margin-top: auto; }
+.quick-card:has(.quick-footer) { cursor: text; }
+.quick-card .quick-footer, .quick-card button { cursor: auto; }
 
 /* check-in: one row that reflows by the card's own width, never by the screen's */
 .checkin-card, .quick-card { container-type: inline-size; }

@@ -150,8 +150,8 @@ async function readZipSource(bytes,name){
     }
     const mdItems=items.filter(i=>/\.(md|markdown)$/i.test(i.name)&&!/(^|\/)README/i.test(i.name));
     if(mdItems.length){
-      const files=[];for(const i of mdItems){if(i.size>MAX_MD_FILE)continue;files.push({name:i.name.split("/").pop(),text:utf8(await i.read()),path:i.name});}
-      return {source:"markdown-zip",files,zipItems:byName,name};
+      const files=[];let tooBig=0;for(const i of mdItems){if(i.size>MAX_MD_FILE){tooBig++;continue;}files.push({name:i.name.split("/").pop(),text:utf8(await i.read()),path:i.name});}
+      return {source:"markdown-zip",files,tooBig,zipItems:byName,name};
     }
     throw new Error("В архиве нет ни narra.json, ни файлов Markdown.");
 }
@@ -175,8 +175,8 @@ async function readAny(files){
     return {source:"json",payload,name:jsons[0].name};
   }
   if(mds.length){
-    const files=[];for(const f of mds){if(f.size>MAX_MD_FILE)continue;files.push({name:f.name,text:await readText(f),path:f.name});}
-    return {source:"markdown",files,name:mds.length===1?mds[0].name:`${mds.length} файлов`};
+    const files=[];let tooBig=0;for(const f of mds){if(f.size>MAX_MD_FILE){tooBig++;continue;}files.push({name:f.name,text:await readText(f),path:f.name});}
+    return {source:"markdown",files,tooBig,name:mds.length===1?mds[0].name:`${mds.length} файлов`};
   }
   throw new Error("Поддерживаются файлы .zip, .narra, .json и .md.");
 }
@@ -186,7 +186,7 @@ function planMarkdown(src){
   const {entries,skipped}=entriesFromMarkdownFiles(src.files.map(f=>({name:f.name,text:f.text})),{makeId:uid});
   const fresh=entries.filter(e=>!have.has(sameKey(e)));
   return {ok:true,markdown:true,entries:fresh,checkins:[],versions:[],chapters:[],reviews:[],entities:[],config:null,fromSchema:"markdown",
-    stats:{newEntries:fresh.length,updatedEntries:0,skippedEntries:entries.length-fresh.length,invalidEntries:skipped,conflictEntries:0,newCheckins:0,newVersions:0,newChapters:0,newReviews:0},nothingToDo:!fresh.length};
+    stats:{newEntries:fresh.length,updatedEntries:0,skippedEntries:entries.length-fresh.length,invalidEntries:skipped+(src.tooBig||0),conflictEntries:0,newCheckins:0,newVersions:0,newChapters:0,newReviews:0},nothingToDo:!fresh.length};
 }
 function previewMarkup(plan,src){
   const s=plan.stats,row=(n,text)=>n?`<li><strong>${n}</strong> ${text}</li>`:"";
@@ -195,7 +195,7 @@ function previewMarkup(plan,src){
     ${plan.nothingToDo?(s.skippedEntries?`<p><strong>В этом файле нет ничего нового.</strong> Все записи уже есть в дневнике.</p>`:`<p><strong>В файле нет записей, которые можно восстановить.</strong> Он пуст или повреждён; дневник не изменится.</p>`):`<p>Вот что произойдёт. Существующие записи не будут перезаписаны.</p><ul class="preview-list">
     ${row(s.newEntries,`${entryLabel(s.newEntries)} будет добавлено`)}${row(s.updatedEntries,"записей в файле новее — они обновятся, старый текст останется в истории")}${row(s.conflictEntries,"записей отличаются от ваших — они добавятся отдельными копиями")}
     ${row(s.newCheckins,"отметок состояния")}${row(s.newVersions,"версий из истории")}${row(s.newChapters,"глав жизни")}${row(s.newReviews,"обзоров")}${mediaCount?row(mediaCount,"вложений (если записи будут добавлены)"):""}</ul>`}
-    ${s.skippedEntries?`<p class="subtle text-small">Пропущено как уже имеющиеся: ${s.skippedEntries}.</p>`:""}${s.invalidEntries?`<p class="subtle text-small">Не удалось прочитать: ${s.invalidEntries}.</p>`:""}
+    ${s.skippedEntries?`<p class="subtle text-small">Пропущено как уже имеющиеся: ${s.skippedEntries}.</p>`:""}${s.invalidEntries?`<p class="subtle text-small">Не удалось прочитать: ${s.invalidEntries}${src.tooBig?` (из них слишком больших файлов, больше 2 МБ: ${src.tooBig})`:""}.</p>`:""}
     ${plan.fromSchema&&plan.fromSchema!==SCHEMA&&plan.fromSchema!=="markdown"?`<p class="subtle text-small">Файл создан в другой версии Narra. Он будет приведён к текущей автоматически.</p>`:""}
   </div><footer class="modal-footer"><button class="secondary" data-action="close-overlay">Отмена</button><button class="primary" data-action="import-apply" ${plan.nothingToDo?"disabled":""}>Восстановить</button></footer>`;
 }

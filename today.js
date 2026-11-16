@@ -118,6 +118,7 @@ async function quickToEntry(expand=false){
   }catch(error){console.error("Ошибка быстрой записи",error);ctx.toast("Запись не сохранена. Текст остался на экране.");}
   finally{state.quickSaving=false;}
 }
+let resizeBound=false;
 export function beforeRender(){const q=$("#quick-capture");if(q)state.quickDraft=q.value;}
 export function afterRender(route){
   if(route!=="today")return;
@@ -128,7 +129,8 @@ export function afterRender(route){
     autosizeQuick(quick);
     quick.addEventListener("input",()=>{state.quickDraft=quick.value;updateQuickState();autosizeQuick(quick);});
     quick.addEventListener("scroll",()=>autosizeQuick(quick),{passive:true});
-    window.addEventListener("resize",()=>autosizeQuick($("#quick-capture")),{passive:true});
+    if(!resizeBound){resizeBound=true;window.addEventListener("resize",()=>{const q=$("#quick-capture");if(q)autosizeQuick(q);},{passive:true});} // once, not on every render
+    quick.closest(".quick-card")?.addEventListener("click",e=>{if(!e.target.closest("button,a,input,textarea,select,label"))quick.focus();});
     quick.addEventListener("keydown",e=>{if((e.metaKey||e.ctrlKey)&&e.key==="Enter"){e.preventDefault();quickToEntry(false);}});
   }
 }
