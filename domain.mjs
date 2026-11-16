@@ -35,7 +35,9 @@ export function pluralRu(number, one, few, many){
 }
 export function capitalizeRu(text=""){ return text? text.charAt(0).toLocaleUpperCase("ru-RU")+text.slice(1):text; }
 export function wordCount(text=""){
-  return (String(text).match(/[\p{L}\p{N}]+(?:[’'-][\p{L}\p{N}]+)*/gu)||[]).length;
+  // link targets, attached media ids and bare web addresses are not words the person wrote
+  const t=String(text).replace(/!\[[^\]]*\]\([^)]*\)/g," ").replace(/\]\([^)\s]*\)/g,"] ").replace(/\bhttps?:\/\/\S+/g," ");
+  return (t.match(/[\p{L}\p{N}]+(?:[’'-][\p{L}\p{N}]+)*/gu)||[]).length;
 }
 /** Signed number with a typographic minus and Russian decimal comma: -0.5 -> "−0,5", 1 -> "+1". */
 export function formatSigned(n){
@@ -43,7 +45,12 @@ export function formatSigned(n){
   const body=String(Math.abs(v)).replace(".",",");
   return v>0?`+${body}`:v<0?`−${body}`:"0";
 }
-export function formatNumberRu(n){ return String(Number(n)).replace(".",","); }
+/** Russian number style: decimal comma, and from 10 000 on digits are grouped with a narrow space (12 345,6). */
+export function formatNumberRu(n){
+  const [int,frac]=String(Number(n)).split(".");
+  const grouped=/^-?\d{5,}$/.test(int)?int.replace(/\B(?=(\d{3})+(?!\d))/g,"\u202f"):int;
+  return frac?`${grouped},${frac}`:grouped;
+}
 
 const SCALES={
   mood:["очень низкое","низкое","нейтральное","хорошее","очень хорошее"],

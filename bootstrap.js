@@ -59,6 +59,8 @@
     const theme = localStorage.getItem("narra-theme");
     if (theme === "dark" || theme === "light") root.dataset.theme = theme;
     else if (window.matchMedia && matchMedia("(prefers-color-scheme: dark)").matches) root.dataset.theme = "dark";
+    // a theme chosen in the app (not the system one) also colours the status bar from the very first frame
+    if (theme === "dark" || theme === "light") document.querySelectorAll('meta[name="theme-color"]').forEach(m => { m.content = theme === "dark" ? "#1d1c19" : "#f4f0e7"; m.removeAttribute("media"); });
     if (localStorage.getItem("narra-lock-hint") === "1") root.classList.add("boot-locked");
   } catch {}
 

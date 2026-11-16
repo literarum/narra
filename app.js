@@ -69,7 +69,8 @@ function resolveTheme(){return state.theme==="system"?(matchMedia("(prefers-colo
 function applyTheme(){
   const theme=resolveTheme();
   document.documentElement.dataset.theme=theme;
-  document.querySelector('meta[name="theme-color"]').content=theme==="dark"?"#1d1c19":"#f4f0e7";
+  // the system bar follows the chosen theme, not only the system one: both tags get the same colour
+  for(const m of document.querySelectorAll('meta[name="theme-color"]')){m.content=theme==="dark"?"#1d1c19":"#f4f0e7";m.removeAttribute("media");}
   const use=$("[data-theme-icon]");if(use)use.setAttribute("href",theme==="dark"?"#icon-sun":"#icon-theme");
 }
 function reducedMotion(){return state.prefs.motion==="off"||matchMedia("(prefers-reduced-motion: reduce)").matches;}
