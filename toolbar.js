@@ -1,8 +1,8 @@
 /* Arranging the formatting toolbar: press-and-hold a button in the editor and drag it; or use
    Settings → Editor → «Панель форматирования» (drag handles, arrow keys, add/remove, own tools). */
-import {state,ctx,$,$$,escapeHtml,icon,uid} from "./core.js?v=4.6.0";
-import {modalHeader} from "./kit.js?v=4.6.0";
-import {TOOLS,SEP,DEFAULT_LAYOUT,PRESETS,CUSTOM_ICONS,MAX_CUSTOM,normalizeLayout,cleanCustomTools,toolInfo,unusedTools,moveTool,removeTool,addTool,customKey,reorderVisible} from "./tools.mjs?v=4.6.0";
+import {state,ctx,$,$$,escapeHtml,icon,uid} from "./core.js?v=4.7.0";
+import {modalHeader} from "./kit.js?v=4.7.0";
+import {TOOLS,SEP,DEFAULT_LAYOUT,PRESETS,CUSTOM_ICONS,MAX_CUSTOM,normalizeLayout,cleanCustomTools,toolInfo,unusedTools,moveTool,removeTool,addTool,customKey,reorderVisible} from "./tools.mjs?v=4.7.0";
 
 const vibe=ms=>{if(state.prefs.haptics&&navigator.vibrate)try{navigator.vibrate(ms);}catch{}};
 

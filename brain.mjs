@@ -2,11 +2,11 @@
    Principle: the device does the thinking it can do for free (counting, ranking, compressing, remembering), and the paid model
    only sees what it needs — a compact portrait of the diary, a few relevant passages, and the question.
    Pure, deterministic and dependency-light: no network, no DOM, no storage. The clock is always passed in. */
-import {foldRu,stemRu,wordCount} from "./domain.mjs?v=4.6.0";
-import {mdToPlain,strip,openChecklistItems} from "./text.mjs?v=4.6.0";
-import {dayKey,addDays,median,round1} from "./stats.mjs?v=4.6.0";
-import {dimValue,knownDimensions,dimLabel,DEFAULT_CONFIG} from "./checkin.mjs?v=4.6.0";
-import {similar,parseTimeHints} from "./semantic.mjs?v=4.6.0";
+import {foldRu,stemRu,wordCount} from "./domain.mjs?v=4.7.0";
+import {mdToPlain,strip,openChecklistItems} from "./text.mjs?v=4.7.0";
+import {dayKey,addDays,median,round1} from "./stats.mjs?v=4.7.0";
+import {dimValue,knownDimensions,dimLabel,DEFAULT_CONFIG} from "./checkin.mjs?v=4.7.0";
+import {similar,parseTimeHints} from "./semantic.mjs?v=4.7.0";
 
 /* ---------- 1. counting ---------- */
 /** A deliberately cautious estimate (real tokenizers differ by model): Russian text costs about 2.5 characters per token. */

@@ -21,7 +21,7 @@ test("service worker caches every module, font and icon of the app",()=>{
 });
 
 test("every versioned address uses the current version",()=>{
-  for(const f of [...code,"index.html","sw.js","manifest.webmanifest","README.md"]){
+  for(const f of [...code,"index.html","styles.css","sw.js","manifest.webmanifest","README.md"]){
     for(const m of read(f).matchAll(/(?:\?v=|BUILD = "|VERSION=")(\d+\.\d+\.\d+)/g))assert.equal(m[1],VERSION,`${f} refers to version ${m[1]}`);
   }
   assert.match(read("README.md"),new RegExp(VERSION.replace(/\./g,"\\.")));

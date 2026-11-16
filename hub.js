@@ -2,11 +2,11 @@
    It does what the paid model should not have to: checks consent and limits, builds a lean context from the diary on this device,
    reuses answers it already has, routes cheap tasks to the cheap model, counts real tokens, and remembers what the person can inspect.
    Nothing here decides anything about the diary — it only prepares, sends and accounts. */
-import {state,ctx,activeEntries} from "./core.js?v=4.6.0";
-import * as store from "./store.js?v=4.6.0";
-import {cleanAiState,createProvider,canRun,featureById,REASON_TEXT,providerById} from "./ai.mjs?v=4.6.0";
-import {tierById,outputBudget,estimateTokens,checkLimit,recordUsage,cleanUsage,emptyUsage,AnswerCache,cacheKey,buildProfile,retrieve,naiveTokens,usageWindow,fmtTok} from "./brain.mjs?v=4.6.0";
-import {semanticIndex,hasMutedTopic} from "./derived.js?v=4.6.0";
+import {state,ctx,activeEntries} from "./core.js?v=4.7.0";
+import * as store from "./store.js?v=4.7.0";
+import {cleanAiState,createProvider,canRun,featureById,REASON_TEXT,providerById} from "./ai.mjs?v=4.7.0";
+import {tierById,outputBudget,estimateTokens,checkLimit,recordUsage,cleanUsage,emptyUsage,AnswerCache,cacheKey,buildProfile,retrieve,naiveTokens,usageWindow,fmtTok} from "./brain.mjs?v=4.7.0";
+import {semanticIndex,hasMutedTopic} from "./derived.js?v=4.7.0";
 
 let usage=emptyUsage(),cache=new AnswerCache(),loadedFor=null,loading=null,last=null,saveTimer=0;
 const friendly=message=>Object.assign(new Error(message),{friendly:true});

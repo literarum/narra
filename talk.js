@@ -1,13 +1,13 @@
 /* «Собеседник» and «Спросить дневник»: the conversation screen (loads on first use).
    The thinking about what to send lives in brain.mjs / therapy.mjs / hub.js; this file is the conversation: screens, turns, summary, steps and memory. */
-import {state,ctx,$,$$,escapeHtml,icon,uid,nowIso,activeEntries,talkAvailable} from "./core.js?v=4.6.0";
-import {pageHeader,modalHeader,statusPill} from "./kit.js?v=4.6.0";
-import * as store from "./store.js?v=4.6.0";
-import * as hub from "./hub.js?v=4.6.0";
-import {newEntry} from "./editor.js?v=4.6.0";
-import {cleanAiState} from "./ai-state.mjs?v=4.6.0";
-import {MODES,modeById,systemBlocks,CRISIS_ADDENDUM,screenRisk,detectDistortions,distortionStats,DISTORTIONS,parseReply,newSession,addTurn,trajectory,trajectoryWords,nextStepHint,HINT_TEXT,summaryPrompt,parseSummary,SUMMARY_SYSTEM,sessionToEntryBody,cleanMemory,rememberSession,memoryDigest,openHomework,startersFrom,emptyMemory,SUPPORT_CARD as SUPPORT} from "./therapy.mjs?v=4.6.0";
-import {compactHistory,tierById,fmtTok} from "./brain.mjs?v=4.6.0";
+import {state,ctx,$,$$,escapeHtml,icon,uid,nowIso,activeEntries,talkAvailable} from "./core.js?v=4.7.0";
+import {pageHeader,modalHeader,statusPill} from "./kit.js?v=4.7.0";
+import * as store from "./store.js?v=4.7.0";
+import * as hub from "./hub.js?v=4.7.0";
+import {newEntry} from "./editor.js?v=4.7.0";
+import {cleanAiState} from "./ai-state.mjs?v=4.7.0";
+import {MODES,modeById,systemBlocks,CRISIS_ADDENDUM,screenRisk,detectDistortions,distortionStats,DISTORTIONS,parseReply,newSession,addTurn,trajectory,trajectoryWords,nextStepHint,HINT_TEXT,summaryPrompt,parseSummary,SUMMARY_SYSTEM,sessionToEntryBody,cleanMemory,rememberSession,memoryDigest,openHomework,startersFrom,emptyMemory,SUPPORT_CARD as SUPPORT} from "./therapy.mjs?v=4.7.0";
+import {compactHistory,tierById,fmtTok} from "./brain.mjs?v=4.7.0";
 
 const T={loaded:null,mode:null,memory:emptyMemory(),session:null,busy:false,controller:null,parts:null,draft:"",sessionTokens:{inTok:0,outTok:0,cached:0,calls:0}};
 const ASK_IDEAS=["Что меня радовало этим летом?","Как я справлялась с тревогой раньше?","О чём я чаще всего пишу в последнее время?","Что я решила в прошлом месяце и чем это кончилось?","Когда мне было лучше всего — и что тогда происходило?"];

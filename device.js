@@ -1,10 +1,10 @@
 /* Working with the device the app runs on: install, keep the screen awake while writing, haptics, share sheet,
    dictation, automatic copies into a folder, opening backup files from the file manager.
    Every feature checks that the browser has it and quietly does nothing otherwise. */
-import {state,$,escapeHtml,icon,nowIso,isoStamp,safeStorageGet,safeStorageSet,featureOn} from "./core.js?v=4.6.0";
-import {modalHeader} from "./kit.js?v=4.6.0";
-import {kvGet,kvSet} from "./reminders.js?v=4.6.0";
-import * as privacy from "./privacy.js?v=4.6.0";
+import {state,$,escapeHtml,icon,nowIso,isoStamp,safeStorageGet,safeStorageSet,featureOn} from "./core.js?v=4.7.0";
+import {modalHeader} from "./kit.js?v=4.7.0";
+import {kvGet,kvSet} from "./reminders.js?v=4.7.0";
+import * as privacy from "./privacy.js?v=4.7.0";
 let ctx=null,wake=null,rec=null,recWanted=false;
 
 /* ---------- install ---------- */
@@ -81,7 +81,7 @@ export async function folderStatus(){
   return {state:perm==="granted"?"ready":"needs-permission",name:h.name,last};
 }
 async function writeBackup(h){
-  const {buildFullZip}=await import("./backup.js?v=4.6.0");
+  const {buildFullZip}=await import("./backup.js?v=4.7.0");
   const {zip,manifest}=await buildFullZip();
   const name=`narra-auto-${isoStamp()}.zip`;
   const f=await h.getFileHandle(name,{create:true}),w=await f.createWritable();
@@ -128,7 +128,7 @@ function watchLaunch(){
     try{
       const files=await Promise.all(params.files.map(h=>h.getFile()));
       if(state.locked){ctx.toast("Сначала откройте дневник, затем откройте файл ещё раз.");return;}
-      (await import("./backup.js?v=4.6.0")).beginImport(files);
+      (await import("./backup.js?v=4.7.0")).beginImport(files);
     }catch(e){console.error(e);}
   });
 }

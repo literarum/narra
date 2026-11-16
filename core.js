@@ -1,11 +1,11 @@
 /* Narra core: shared state, preferences, formatting helpers and the `ctx` object that feature modules use.
    No storage, no rendering. Modules import from here; app.js fills `ctx` with the functions it owns. */
-import {cleanCustomTools} from "./tools.mjs?v=4.6.0";
-import {pluralRu,capitalizeRu,wordCount} from "./domain.mjs?v=4.6.0";
-import {plural,strip} from "./text.mjs?v=4.6.0";
-import {providerById} from "./ai-state.mjs?v=4.6.0";
+import {cleanCustomTools} from "./tools.mjs?v=4.7.0";
+import {pluralRu,capitalizeRu,wordCount} from "./domain.mjs?v=4.7.0";
+import {plural,strip} from "./text.mjs?v=4.7.0";
+import {providerById} from "./ai-state.mjs?v=4.7.0";
 
-export const APP_VERSION="4.6.0";
+export const APP_VERSION="4.7.0";
 export const DB_NAME_MAIN="narra-prototype-v1",DB_NAME_DEMO="narra-demo-v1";
 export const ROUTES=["today","journal","insights","lifemap","search","memories","reviews","talk","settings"];
 export const VALID_ROUTES=new Set(ROUTES);

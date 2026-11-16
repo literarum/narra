@@ -1,8 +1,8 @@
 /* Entry rows and lists shared by the today screen, the journal, search and the life map. */
-import {state,ctx,escapeHtml,icon,relDay,fmtTime,fmtMonthYear,kindLabels,words,wordLabel,mediaOf,activeEntries} from "./core.js?v=4.6.0";
-import {entryText,strip} from "./text.mjs?v=4.6.0";
-import {highlightRanges} from "./domain.mjs?v=4.6.0";
-import {highlightHtml,emptyState} from "./kit.js?v=4.6.0";
+import {state,ctx,escapeHtml,icon,relDay,fmtTime,fmtMonthYear,kindLabels,words,wordLabel,mediaOf,activeEntries} from "./core.js?v=4.7.0";
+import {entryText,strip,mdToPlain} from "./text.mjs?v=4.7.0";
+import {highlightRanges} from "./domain.mjs?v=4.7.0";
+import {highlightHtml,emptyState} from "./kit.js?v=4.7.0";
 
 export function entryMetaMarkup(e){
   const themes=(e.themes||[]).slice(0,2).map(x=>"#"+x).join(" ");
@@ -13,9 +13,12 @@ export function entryRow(e,{parsed=null,fuzzy=false,showReason=false,reason="",s
   const t=entryText(e,260);
   let titleHtml=escapeHtml(t.title),restHtml=escapeHtml(t.rest),why=reason?`<div class="match-reason">${escapeHtml(reason)}</div>`:"";
   if(parsed&&!parsed.empty){
-    const tr=highlightRanges(e.title?.trim()?t.title:"",parsed,{fuzzy});
-    if(e.title?.trim())titleHtml=highlightHtml(t.title,tr);
-    const raw=strip(e.body||""),br=highlightRanges(raw,parsed,{fuzzy});
+    // an untitled entry borrows its first sentence as the title: highlight it there and do not repeat it in the excerpt
+    const tr=highlightRanges(t.title,parsed,{fuzzy});
+    titleHtml=highlightHtml(t.title,tr);
+    let raw=strip(mdToPlain(e.body||""));
+    if(t.derived){const head=t.title.replace(/…$/,"");if(head&&raw.startsWith(head))raw=raw.slice(head.length).replace(/^[\s.!?…,;:—-]+/,"");}
+    const br=highlightRanges(raw,parsed,{fuzzy});
     if(br.length){
       const first=br[0][0],start=first>90?Math.max(0,raw.lastIndexOf(" ",first-70)):0,slice=raw.slice(start,start+260);
       const shifted=br.filter(([a,b])=>a>=start&&b<=start+260).map(([a,b])=>[a-start,b-start]);

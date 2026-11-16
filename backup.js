@@ -1,20 +1,20 @@
 /* Backup, export, import, demo data and the self-check.
    Formats (schema-versioned): a full ZIP with manifest + JSON + media, a JSON file without media, a Markdown folder (ZIP), CSV.
    Nothing here talks to a network. Files are plain unless the person picks the password-protected copy (seal.mjs); the interface says which. */
-import {state,ctx,$,$$,escapeHtml,icon,uid,nowIso,downloadBlob,isoStamp,safeStorageSet,safeStorageRemove,APP_VERSION,entryLabel,plural} from "./core.js?v=4.6.0";
-import {SCHEMA,planImport,cleanEntry} from "./domain.mjs?v=4.6.0";
-import {seal,unseal,isSealed} from "./seal.mjs?v=4.6.0";
-import {createZip,readZip,utf8,toBytes,safeSegment} from "./zip.mjs?v=4.6.0";
-import {entryToMarkdown,entriesFromMarkdownFiles,MAX_MD_FILE} from "./importers.mjs?v=4.6.0";
-import {knownDimensions,dimValue} from "./checkin.mjs?v=4.6.0";
-import {chapterOf} from "./entities.mjs?v=4.6.0";
-import {wordCount} from "./domain.mjs?v=4.6.0";
-import {makeDemo} from "./demo.mjs?v=4.6.0";
-import {modalHeader} from "./kit.js?v=4.6.0";
-import {dayKey} from "./stats.mjs?v=4.6.0";
-import * as store from "./store.js?v=4.6.0";
-import * as media from "./media.js?v=4.6.0";
-import * as privacy from "./privacy.js?v=4.6.0";
+import {state,ctx,$,$$,escapeHtml,icon,uid,nowIso,downloadBlob,isoStamp,safeStorageSet,safeStorageRemove,APP_VERSION,entryLabel,plural} from "./core.js?v=4.7.0";
+import {SCHEMA,planImport,cleanEntry} from "./domain.mjs?v=4.7.0";
+import {seal,unseal,isSealed} from "./seal.mjs?v=4.7.0";
+import {createZip,readZip,utf8,toBytes,safeSegment} from "./zip.mjs?v=4.7.0";
+import {entryToMarkdown,entriesFromMarkdownFiles,MAX_MD_FILE} from "./importers.mjs?v=4.7.0";
+import {knownDimensions,dimValue} from "./checkin.mjs?v=4.7.0";
+import {chapterOf} from "./entities.mjs?v=4.7.0";
+import {wordCount} from "./domain.mjs?v=4.7.0";
+import {makeDemo} from "./demo.mjs?v=4.7.0";
+import {modalHeader} from "./kit.js?v=4.7.0";
+import {dayKey} from "./stats.mjs?v=4.7.0";
+import * as store from "./store.js?v=4.7.0";
+import * as media from "./media.js?v=4.7.0";
+import * as privacy from "./privacy.js?v=4.7.0";
 
 const EXT={"image/jpeg":"jpg","image/png":"png","image/webp":"webp","audio/webm":"webm","audio/mp4":"m4a","audio/mpeg":"mp3","audio/ogg":"ogg","audio/wav":"wav","audio/x-m4a":"m4a"};
 const extOf=mime=>EXT[String(mime||"").split(";")[0]]||"bin";
@@ -193,7 +193,7 @@ function previewMarkup(plan,src){
   const mediaCount=src.payload?.attachments?.length||0;
   return `${modalHeader("Восстановление из файла",`Файл: ${src.name}`,"upload")}<div class="modal-body">
     ${plan.nothingToDo?(s.skippedEntries?`<p><strong>В этом файле нет ничего нового.</strong> Все записи уже есть в дневнике.</p>`:`<p><strong>В файле нет записей, которые можно восстановить.</strong> Он пуст или повреждён; дневник не изменится.</p>`):`<p>Вот что произойдёт. Существующие записи не будут перезаписаны.</p><ul class="preview-list">
-    ${row(s.newEntries,`${entryLabel(s.newEntries)} будет добавлено`)}${row(s.updatedEntries,"записей в файле новее — они обновятся, старый текст останется в истории")}${row(s.conflictEntries,"записей отличаются от ваших — они добавятся отдельными копиями")}
+    ${row(s.newEntries,`${entryLabel(s.newEntries)} ${entryLabel(s.newEntries)==="запись"?"будет добавлена":"будут добавлены"}`)}${row(s.updatedEntries,"записей в файле новее — они обновятся, старый текст останется в истории")}${row(s.conflictEntries,"записей отличаются от ваших — они добавятся отдельными копиями")}
     ${row(s.newCheckins,"отметок состояния")}${row(s.newVersions,"версий из истории")}${row(s.newChapters,"глав жизни")}${row(s.newReviews,"обзоров")}${mediaCount?row(mediaCount,"вложений (если записи будут добавлены)"):""}</ul>`}
     ${s.skippedEntries?`<p class="subtle text-small">Пропущено как уже имеющиеся: ${s.skippedEntries}.</p>`:""}${s.invalidEntries?`<p class="subtle text-small">Не удалось прочитать: ${s.invalidEntries}${src.tooBig?` (из них слишком больших файлов, больше 2 МБ: ${src.tooBig})`:""}.</p>`:""}
     ${plan.fromSchema&&plan.fromSchema!==SCHEMA&&plan.fromSchema!=="markdown"?`<p class="subtle text-small">Файл создан в другой версии Narra. Он будет приведён к текущей автоматически.</p>`:""}

@@ -5,9 +5,9 @@
    ========================================================================== */
 
 /* Bundled fonts (SIL OFL, see OFL-fonts.txt): the same letterforms on every device, Cyrillic included. */
-@font-face { font-family: "Narra Sans"; src: url("./inter.woff?v=4.3.0") format("woff"); font-weight: 400 700; font-style: normal; font-display: swap; }
-@font-face { font-family: "Narra Serif"; src: url("./literata.woff?v=4.3.0") format("woff"); font-weight: 400 700; font-style: normal; font-display: swap; }
-@font-face { font-family: "Narra Serif"; src: url("./literata-italic.woff?v=4.3.0") format("woff"); font-weight: 400 600; font-style: italic; font-display: swap; }
+@font-face { font-family: "Narra Sans"; src: url("./inter.woff?v=4.7.0") format("woff"); font-weight: 400 700; font-style: normal; font-display: swap; }
+@font-face { font-family: "Narra Serif"; src: url("./literata.woff?v=4.7.0") format("woff"); font-weight: 400 700; font-style: normal; font-display: swap; }
+@font-face { font-family: "Narra Serif"; src: url("./literata-italic.woff?v=4.7.0") format("woff"); font-weight: 400 600; font-style: italic; font-display: swap; }
 
 :root {
   --bg: #f4f0e7;
@@ -2057,3 +2057,13 @@ ul.card.talk-steps { padding: 8px 12px; }
 
 /* calendar: days that have not come yet are quieter than empty days in the past */
 .day.is-future:not(.is-selected) { opacity: .5; }
+
+/* people who ask the system for more contrast get firmer lines and darker secondary text */
+@media (prefers-contrast: more) {
+  :root:not([data-theme="dark"]) { --muted: #47433c; --faint: #514c44; --line: #b3aa9b; --line-strong: #8f8676; }
+  :root[data-theme="dark"] { --muted: #d0cabf; --faint: #c2bbaf; --line: #5d584f; --line-strong: #7a7468; }
+  .card, .modal, .sheet, .input, .chip, button.secondary { border-color: var(--line-strong); }
+}
+
+/* any password field: a quiet Caps Lock notice under it (set from app.js) */
+.field.caps-on::after { content: "Включён Caps Lock"; display: block; margin-top: 6px; font-size: 13px; color: var(--warning); }

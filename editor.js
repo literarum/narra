@@ -1,19 +1,19 @@
 /* Editor: a full-screen writing surface with Markdown tools, find, slash menu, focus mode, media, details, decisions,
    writing help and safe saving. Saving is atomic, versioned, and refuses to overwrite an entry edited elsewhere. */
-import {validateCanonicalEntry,nextRevision,searchEntries,parseRussianDateHint} from "./domain.mjs?v=4.6.0";
-import {applyFormat,activeFormats,continueList,shiftIndent,diffRange,renderMarkdown} from "./md.mjs?v=4.6.0";
-import {state,ctx,$,$$,escapeHtml,icon,uid,nowIso,fmtLong,fmtTime,fmtDate,localDateInputValue,dateInputToIso,splitCsv,words,chars,wordLabel,pluralRu,featureOn,activeEntries,entryById,mediaOf,kindLabels,capitalizeRu,downloadBlob,kbdLabel} from "./core.js?v=4.6.0";
-import {entryText,excerpt} from "./text.mjs?v=4.6.0";
-import {cleanDecision,cleanLinks} from "./domain.mjs?v=4.6.0";
-import {modalHeader,statusPill} from "./kit.js?v=4.6.0";
-import {enhance} from "./ui.mjs?v=4.6.0";
-import {STRUCTURE_TEMPLATE} from "./writing.mjs?v=4.6.0";
-import {contextMarkup,assistMarkup,assistResult,suggestionsMarkup,contextSummaryText,decisionMarkup,linksMarkup,smartSuggestions,viewMetaMarkup} from "./editor-panels.js?v=4.6.0";
-import {TextHistory} from "./history.mjs?v=4.6.0";
-import {entryToMarkdown} from "./importers.mjs?v=4.6.0";
-import * as media from "./media.js?v=4.6.0";
-import * as store from "./store.js?v=4.6.0";
-import {TOOLS,SEP,normalizeLayout,toolInfo,applyCustomTool} from "./tools.mjs?v=4.6.0";
+import {validateCanonicalEntry,nextRevision,searchEntries,parseRussianDateHint} from "./domain.mjs?v=4.7.0";
+import {applyFormat,activeFormats,continueList,shiftIndent,diffRange,renderMarkdown} from "./md.mjs?v=4.7.0";
+import {state,ctx,$,$$,escapeHtml,icon,uid,nowIso,fmtLong,fmtTime,fmtDate,localDateInputValue,dateInputToIso,splitCsv,words,chars,wordLabel,pluralRu,featureOn,activeEntries,entryById,mediaOf,kindLabels,capitalizeRu,downloadBlob,kbdLabel} from "./core.js?v=4.7.0";
+import {entryText,excerpt} from "./text.mjs?v=4.7.0";
+import {cleanDecision,cleanLinks} from "./domain.mjs?v=4.7.0";
+import {modalHeader,statusPill} from "./kit.js?v=4.7.0";
+import {enhance} from "./ui.mjs?v=4.7.0";
+import {STRUCTURE_TEMPLATE} from "./writing.mjs?v=4.7.0";
+import {contextMarkup,assistMarkup,assistResult,suggestionsMarkup,contextSummaryText,decisionMarkup,linksMarkup,smartSuggestions,viewMetaMarkup} from "./editor-panels.js?v=4.7.0";
+import {TextHistory} from "./history.mjs?v=4.7.0";
+import {entryToMarkdown} from "./importers.mjs?v=4.7.0";
+import * as media from "./media.js?v=4.7.0";
+import * as store from "./store.js?v=4.7.0";
+import {TOOLS,SEP,normalizeLayout,toolInfo,applyCustomTool} from "./tools.mjs?v=4.7.0";
 
 const SLASH_ITEMS=[
   {format:"h1",icon:"heading",label:"Заголовок 1",kw:"заголовок h1 title"},{format:"h2",icon:"heading2",label:"Заголовок 2",kw:"подзаголовок h2"},{format:"h3",icon:"heading3",label:"Заголовок 3",kw:"h3 мелкий"},

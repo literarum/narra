@@ -1,6 +1,6 @@
 /* Motion that needs a little script: a tab indicator that slides, a pill that glides between bottom-bar items, and sheets that follow the finger.
    Everything here is skipped when animations are off or the system asks for reduced motion; the static styles then do the same job without movement. */
-import {state,ctx,$,$$} from "./core.js?v=4.6.0";
+import {state,ctx,$,$$} from "./core.js?v=4.7.0";
 
 const SPRING="cubic-bezier(.3,1.15,.5,1)";
 const off=()=>ctx.reducedMotion?.()??false;

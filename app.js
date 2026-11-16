@@ -1,20 +1,20 @@
-/* Narra 4.3 — application shell: routing, overlays, dialogs, command palette, global listeners, start-up.
+/* Narra — application shell: routing, overlays, dialogs, command palette, global listeners, start-up.
    Everything a section does lives in its own module (today, journal, editor, insights, …); this file wires them together. */
-import {fuzzyScore,searchEntries,pluralRu,warmSearchIndex} from "./domain.mjs?v=4.6.0";
-import {enhance,closePopovers,popoverOpen,setDateOptions} from "./ui.mjs?v=4.6.0";
-import {entryText} from "./text.mjs?v=4.6.0";
-import {talkAvailable,secretAttrs,state,ctx,$,$$,escapeHtml,icon,relDay,kindLabels,activeEntries,isTyping,safeStorageGet,safeStorageSet,PREF_KEY,PREF_DEFAULTS,VALID_ROUTES,ROUTE_TITLES,ROUTE_FEATURE,SECONDARY_ROUTES,routeAllowed,featureOn,APP_VERSION,nowIso,shortcutList,MOD_KEY} from "./core.js?v=4.6.0";
-import {modalHeader,pageHeader,emptyState} from "./kit.js?v=4.6.0";
-import * as store from "./store.js?v=4.6.0";
-import * as today from "./today.js?v=4.6.0";
-import * as journal from "./journal.js?v=4.6.0";
-import * as search from "./search.js?v=4.6.0";
-import * as memories from "./memories.js?v=4.6.0";
-import * as editor from "./editor.js?v=4.6.0";
-import * as privacy from "./privacy.js?v=4.6.0";
-import * as motion from "./motion.js?v=4.6.0";
-import * as media from "./media.js?v=4.6.0";
-import * as checkinUi from "./checkin-ui.js?v=4.6.0";
+import {fuzzyScore,searchEntries,pluralRu,warmSearchIndex} from "./domain.mjs?v=4.7.0";
+import {enhance,closePopovers,popoverOpen,setDateOptions} from "./ui.mjs?v=4.7.0";
+import {entryText} from "./text.mjs?v=4.7.0";
+import {talkAvailable,secretAttrs,state,ctx,$,$$,escapeHtml,icon,relDay,kindLabels,activeEntries,isTyping,safeStorageGet,safeStorageSet,PREF_KEY,PREF_DEFAULTS,VALID_ROUTES,ROUTE_TITLES,ROUTE_FEATURE,SECONDARY_ROUTES,routeAllowed,featureOn,APP_VERSION,nowIso,shortcutList,MOD_KEY} from "./core.js?v=4.7.0";
+import {modalHeader,pageHeader,emptyState} from "./kit.js?v=4.7.0";
+import * as store from "./store.js?v=4.7.0";
+import * as today from "./today.js?v=4.7.0";
+import * as journal from "./journal.js?v=4.7.0";
+import * as search from "./search.js?v=4.7.0";
+import * as memories from "./memories.js?v=4.7.0";
+import * as editor from "./editor.js?v=4.7.0";
+import * as privacy from "./privacy.js?v=4.7.0";
+import * as motion from "./motion.js?v=4.7.0";
+import * as media from "./media.js?v=4.7.0";
+import * as checkinUi from "./checkin-ui.js?v=4.7.0";
 
 const MODULES=[today,journal,search,memories,editor,privacy,media,checkinUi];
 const VIEWS={},ACTIONS={};
@@ -551,6 +551,19 @@ window.addEventListener("hashchange",async()=>{
   }
   if(next!==state.route){closePopovers();state.route=next;document.title=`${ROUTE_TITLES[next]} — Narra`;render({enter:true});window.scrollTo({top:0,left:0,behavior:"instant"});}
 });
+/* Caps Lock is the usual reason a right password «does not fit»: say so under every password field while typing */
+const capsWatch=e=>{const t=e.target;if(!(t instanceof HTMLInputElement)||!(t.type==="password"||t.dataset.secret==="1")||!e.getModifierState)return;t.closest(".field")?.classList.toggle("caps-on",e.getModifierState("CapsLock"));};
+document.addEventListener("keydown",capsWatch,true);document.addEventListener("keyup",capsWatch,true);
+/* A backup or Markdown files dropped onto the window (outside an open entry) start the usual restore preview. */
+const droppable=e=>!state.editing&&!state.locked&&!overlayOpen()&&!dialogOpen()&&e.dataTransfer?.types?.includes("Files");
+window.addEventListener("dragover",e=>{if(droppable(e)){e.preventDefault();e.dataTransfer.dropEffect="copy";}});
+window.addEventListener("drop",async e=>{
+  if(!droppable(e))return;
+  e.preventDefault();
+  const files=[...(e.dataTransfer.files||[])].filter(f=>/\.(narra|zip|json|md|markdown|txt)$/i.test(f.name));
+  if(!files.length){toast("Сюда можно перетащить резервную копию (.narra, .zip, .json) или файлы Markdown.");return;}
+  try{(await loadLazy("backup")).beginImport(files);}catch(error){console.error(error);toast("Не удалось открыть файл.");}
+});
 window.addEventListener("online",()=>toast("Сеть снова доступна. Дневник по-прежнему хранится только на этом устройстве."));
 window.addEventListener("offline",()=>toast("Сети нет. Можно продолжать писать — сохранение локальное."));
 document.addEventListener("visibilitychange",()=>{if(document.hidden&&state.dirty&&state.editing)editor.saveEditing("visibility");});
@@ -609,6 +622,9 @@ async function init(){
   else{store.syncLockHint();document.documentElement.classList.remove("boot-locked");render({enter:true});}
   privacy.startIdleWatch?.();
   warmSearch();
+  // once after an update: say that the app changed (never on the very first start, never in the demo)
+  const seen=safeStorageGet("narra-seen-version");
+  if(seen!==APP_VERSION){safeStorageSet("narra-seen-version",APP_VERSION);if(seen&&state.mode!=="demo")setTimeout(()=>toast(`Narra обновлена до версии ${APP_VERSION}. Записи на месте.${matchMedia("(hover: hover) and (pointer: fine)").matches?" Подсказка по клавишам — «?»":""}`,null,{duration:7000}),1200);}
   if("serviceWorker" in navigator&&window.isSecureContext){
     try{
       const registration=await navigator.serviceWorker.register(`./sw.js?v=${APP_VERSION}`,{updateViaCache:"none"});

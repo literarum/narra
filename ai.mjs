@@ -1,5 +1,5 @@
-import {AI_FEATURES,featureById,providerById,AiUnavailable,NullProvider,canRun,REASON_TEXT} from "./ai-state.mjs?v=4.6.0";
-export * from "./ai-state.mjs?v=4.6.0";
+import {AI_FEATURES,featureById,providerById,AiUnavailable,NullProvider,canRun,REASON_TEXT} from "./ai-state.mjs?v=4.7.0";
+export * from "./ai-state.mjs?v=4.7.0";
 /** Exactly what would leave the device — shown before anything is sent. */
 export function payloadPreview(featureId,items){
   const f=AI_FEATURES.find(x=>x.id===featureId);
