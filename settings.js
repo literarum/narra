@@ -87,6 +87,12 @@ function featuresTab(){
 }
 
 /* ---------- editor ---------- */
+function templatesGroup(){
+  const own=state.templates||[];
+  const rows=own.length?own.map(t=>`<div class="setting-row"><div class="setting-row-text"><strong>${escapeHtml(t.name)}</strong><span>${escapeHtml(String(t.body).replace(/[*_#>`-]/g,"").replace(/\s+/g," ").trim().slice(0,90))}</span></div><div class="setting-row-control"><button class="ghost" data-action="template-delete" data-id="${escapeHtml(t.id)}">Удалить</button></div></div>`).join("")
+    :`<div class="setting-row"><div class="setting-row-text"><strong>Своих шаблонов пока нет</strong><span>Откройте запись с удачной структурой → «…» → «Сохранить как шаблон». Встроенные шаблоны есть всегда.</span></div></div>`;
+  return settingsGroup("layout","Шаблоны записей",rows,"Шаблоны предлагаются в пустой новой записи. Хранятся зашифрованными, как записи.");
+}
 function editorTab(){
   return `${settingsGroup("type","Шрифт и ширина",
     segmentedRow("editorFont","Шрифт письма","Для текста записи.",[["serif","С засечками"],["sans","Без засечек"]])
@@ -99,7 +105,7 @@ function editorTab(){
       +sw('data-pref="spellcheck"',"Проверка орфографии браузера","Подчёркивание слов с ошибками. Проверку делает сам браузер.",state.prefs.spellcheck)
       +sw('data-pref="featWritingAssist"',"Помощь при письме","Вопросы и шаблон структуры — только по нажатию.",featureOn("featWritingAssist"))
       +sw('data-pref="featEntitySuggest"',"Подсказки людей и мест","Предлагает добавить тех, кого вы уже упоминали.",featureOn("featEntitySuggest")),
-      "Сохранение автоматическое: текст записывается на устройство несколько секунд спустя после последнего нажатия.")}`;
+      "Сохранение автоматическое: текст записывается на устройство несколько секунд спустя после последнего нажатия.")}${templatesGroup()}`;
 }
 
 /* ---------- check-in fields ---------- */
@@ -242,6 +248,8 @@ async function updateConfig(mutate){
 const ownTitles={emotions:"Свои эмоции",needs:"Что сейчас нужно",triggers:"Что повлияло",activities:"Чем занимались",social:"С кем"};
 export const views={settings:settingsView};
 export const actions={
+  "template-delete":el=>{const t=(state.templates||[]).find(x=>x.id===el.dataset.id);if(!t)return;
+    ctx.confirmDialog({title:`Удалить шаблон «${t.name}»?`,text:"Записи, начатые с него, не изменятся.",confirmLabel:"Удалить",danger:true},async()=>{try{await store.saveTemplates(state.templates.filter(x=>x.id!==t.id));ctx.render();ctx.toast("Шаблон удалён.");}catch(error){console.error(error);ctx.toast("Не удалось удалить шаблон.");}});},
   "open-privacy":()=>{state.settingsTab="privacy";ctx.render();},
   "open-ai-settings":()=>{state.settingsTab="ai";if(state.route==="settings")ctx.render();else ctx.goTo("settings");},
   "features-minimal":()=>{for(const f of FEATURES)ctx.setPref(f.key,false);ctx.render();ctx.toast("Осталась только основа: дневник, запись, поиск. Данные не тронуты.");},

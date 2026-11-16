@@ -2164,3 +2164,12 @@ ul.card.talk-steps { padding: 8px 12px; }
 .capsule-body p { margin: 0; }
 .capsule-actions { display: flex; gap: 10px; flex-wrap: wrap; width: 100%; justify-content: flex-end; }
 @media (max-width: 720px) { .capsule-card { padding: 18px; } .capsule-card .notice-actions > button { flex: 1; } .capsule-actions > button { flex: 1 1 140px; } }
+
+/* ===== 4.7 — entry templates ===== */
+.template-strip { display: grid; gap: 8px; margin: 2px 0 14px; }
+.template-strip-label { font: 600 11.5px/1.3 var(--sans); letter-spacing: .06em; text-transform: uppercase; color: var(--faint); }
+.template-chips { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; padding-bottom: 2px; -webkit-overflow-scrolling: touch; }
+.template-chips::-webkit-scrollbar { display: none; }
+.template-chip { flex: 0 0 auto; display: inline-flex; align-items: center; gap: 7px; white-space: nowrap; }
+.template-chip .icon { width: 16px; height: 16px; color: var(--accent-strong); }
+@media (min-width: 721px) { .template-chips { flex-wrap: wrap; overflow: visible; } }

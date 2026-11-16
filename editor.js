@@ -11,6 +11,7 @@ import {STRUCTURE_TEMPLATE} from "./writing.mjs?v=4.7.0";
 import {contextMarkup,assistMarkup,assistResult,suggestionsMarkup,contextSummaryText,decisionMarkup,linksMarkup,smartSuggestions,viewMetaMarkup} from "./editor-panels.js?v=4.7.0";
 import {TextHistory} from "./history.mjs?v=4.7.0";
 import {entryToMarkdown} from "./importers.mjs?v=4.7.0";
+import {allTemplates,templateFields,templateFromEntry,MAX_TEMPLATES} from "./templates.mjs?v=4.7.0";
 import * as media from "./media.js?v=4.7.0";
 import * as store from "./store.js?v=4.7.0";
 import {TOOLS,SEP,normalizeLayout,toolInfo,applyCustomTool} from "./tools.mjs?v=4.7.0";
@@ -59,6 +60,12 @@ export function refreshToolbar(){
 function mediaInputs(){
   return featureOn("featMedia")?`<input type="file" id="attach-file-photo" accept="image/*" multiple hidden><input type="file" id="attach-file-audio" accept="audio/*" hidden>`:"";
 }
+/* An empty new entry offers templates as one quiet row; typing anything hides it. */
+function templateStrip(entry,mode){
+  if(mode!=="edit"||entry.revision||String(entry.body||"").trim())return "";
+  const list=allTemplates(state.templates);
+  return `<div class="template-strip edit-only" id="template-strip" role="group" aria-label="Начать с шаблона"><span class="template-strip-label">Начать с шаблона</span><div class="template-chips">${list.map(t=>`<button type="button" class="chip template-chip" data-action="apply-template" data-id="${escapeHtml(t.id)}">${icon(t.icon||"pen")}<span>${escapeHtml(t.name)}</span></button>`).join("")}</div></div>`;
+}
 function editorMarkup(entry,mode="edit"){
   const [wc,cc]=statsText(entry.body),p=state.prefs;
   return `<div class="editor-top"><div class="editor-top-left"><button type="button" class="icon-button icon-button-quiet" data-action="close-editor" aria-label="Закрыть редактор" title="Закрыть (Esc)">${icon("arrow-left")}</button><span class="save-state edit-only" id="editor-save" role="status"><i class="save-dot"></i><span>${escapeHtml(state.saveStatus)}</span></span></div>
@@ -88,6 +95,7 @@ function editorMarkup(entry,mode="edit"){
       <textarea class="entry-title" id="entry-title" rows="1" maxlength="300" autocomplete="off" spellcheck="${p.spellcheck}" placeholder="Заголовок" aria-label="Заголовок записи"${mode==="view"?" readonly tabindex=\"-1\"":""}>${escapeHtml(entry.title||"")}</textarea>
       <div class="view-meta view-only" id="view-meta">${mode==="view"?viewMetaMarkup(entry):""}</div>
       ${contextMarkup(entry)}
+      ${templateStrip(entry,mode)}
       <div class="body-wrap"><div class="body-mirror" id="body-mirror" aria-hidden="true"></div><textarea class="entry-body" id="entry-body" autocomplete="off" spellcheck="${p.spellcheck}" placeholder="Начните с любого места…" aria-label="Текст записи">${escapeHtml(entry.body||"")}</textarea><div class="slash-menu card" id="editor-slash-menu" role="listbox" aria-label="Команды форматирования" hidden></div></div>
       <div class="md-preview" id="entry-preview" hidden></div>
       <div id="attach-strip" class="edit-only">${featureOn("featMedia")&&mode==="edit"?media.stripMarkup(entry.id):""}</div>
@@ -436,6 +444,7 @@ function bindEditor(box,mode="edit"){
   const title=$("#entry-title",box),body=$("#entry-body",box),surface=$("#editor-surface",box);
   hist=new TextHistory(body.value);histApplying=false;
   const onInput=ev=>{
+    if(body.value.trim())$("#template-strip",box)?.remove();
     const ed=state.editing;if(!ed)return;
     ed.title=title.value.replace(/\s*\n\s*/g," ");ed.body=body.value;
     if(ev?.target===body&&!histApplying){hist.record(body.value,[body.selectionStart,body.selectionEnd]);syncHistoryButtons();}
@@ -846,6 +855,7 @@ function showEditorMore(){
     ${item("history","История версий","versions")}
     ${item("star",ed.favorite?"Убрать из избранного":"Добавить в избранное","favorite")}
     ${item("copy","Скопировать текст","copy")}
+    ${view?"":item("layout","Сохранить как шаблон","template","Структура записи без вашего текста")}
     ${navigator.share?item("share","Поделиться…","share"):""}
     ${item("download","Сохранить как файл Markdown","export-md")}
     ${view?"":item("focus","Режим фокуса","focus")}
@@ -868,6 +878,33 @@ function exportEntryMarkdown(){
   downloadBlob(md,"text/markdown;charset=utf-8",`${name}.md`);
   ctx.toast("Файл сохранён.");
 }
+function saveAsTemplate(){
+  const ed=state.editing;if(!ed)return;
+  if((state.templates||[]).length>=MAX_TEMPLATES){ctx.toast(`Можно хранить до ${MAX_TEMPLATES} своих шаблонов. Лишние удаляются в Настройки → Редактор.`);return;}
+  const body=templateFromEntry(ed);
+  ctx.formDialog({title:"Новый шаблон",text:"Сохранится структура: заголовки, выделенные строки и пункты списков — без ваших предложений. Если структуры нет, сохранится текст целиком.",iconName:"layout",confirmLabel:"Сохранить",
+    fields:[{id:"name",label:"Название шаблона",value:ed.title||"",max:60}]},async v=>{
+    const name=String(v.name||"").trim();if(!name)return "Дайте шаблону название.";
+    try{await store.saveTemplates([...(state.templates||[]),{id:uid(),name,body,kind:ed.kind}]);ctx.toast(`Шаблон «${name}» появится в новых записях.`);return "";}
+    catch(error){console.error(error);return "Не удалось сохранить шаблон.";}
+  });
+}
+function applyTemplate(id){
+  const ed=state.editing;if(!ed)return;
+  const t=allTemplates(state.templates).find(x=>x.id===id);if(!t)return;
+  if(String(ed.body||"").trim()){ctx.toast("Шаблон подставляется только в пустую запись.");return;}
+  const f=templateFields(t);Object.assign(ed,f);
+  const body=$("#entry-body"),title=$("#entry-title"),kind=$("#entry-kind"),open=$("#entry-open-on");
+  if(body){body.value=ed.body;autosize(body);}
+  if(title&&f.title){title.value=f.title;autosize(title);}
+  if(kind){kind.value=ed.kind;kind.dispatchEvent(new Event("change",{bubbles:true}));}
+  if(open&&f.openOn){open.value=f.openOn;open.dispatchEvent(new Event("input",{bubbles:true}));}
+  $("#template-strip")?.remove();
+  refreshEditorMeta();markEditorDirty("template");
+  // the caret goes to the first empty line after a heading, ready to write
+  if(body){const i=ed.body.search(/\n\n|\. $/);const at=i>=0?Math.min(ed.body.length,i+1):ed.body.length;body.focus({preventScroll:true});body.setSelectionRange(at,at);}
+  if(f.openOn)ctx.toast(`Письмо будет запечатано до ${fmtDate(`${f.openOn}T12:00:00`,{year:"numeric"})} — дату можно поменять в «Деталях записи».`,null,{duration:6000});
+}
 async function runEditorAction(run){
   ctx.closeDialog({restoreFocus:false});
   if(run==="find")showEditorFind();
@@ -879,6 +916,7 @@ async function runEditorAction(run){
   else if(run==="copy")await copyEntryText();
   else if(run==="share")await ctx.handleAction("share-entry",null);
   else if(run==="export-md")exportEntryMarkdown();
+  else if(run==="template")saveAsTemplate();
 }
 
 /* ----- link picker ----- */
@@ -963,6 +1001,7 @@ export const actions={
   "dismiss-suggestion":el=>dismissSuggestion(el),
   "editor-more":()=>showEditorMore(),
   "editor-run":el=>runEditorAction(el.dataset.run),
+  "apply-template":el=>applyTemplate(el.dataset.id),
   "restore-trash":el=>restoreTrashedEntry(el.dataset.id),
   "undo-trash":el=>restoreTrashedEntry(el.dataset.id),
   "conflict-both":()=>resolveConflict("both"),

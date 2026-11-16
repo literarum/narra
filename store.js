@@ -6,6 +6,7 @@ import {state,uid,nowIso,DB_NAME_MAIN,DB_NAME_DEMO} from "./core.js?v=4.7.0";
 import {staleVersions,pickEntryMeta,cleanMeta,cleanChapter,cleanReview,cleanEntityNote,ENTRY_META_DEFAULTS} from "./domain.mjs?v=4.7.0";
 import {cleanConfig,DEFAULT_CONFIG} from "./checkin.mjs?v=4.7.0";
 import {cleanAiState} from "./ai-state.mjs?v=4.7.0";
+import {cleanTemplates} from "./templates.mjs?v=4.7.0";
 
 export const DB_VERSION=2;
 export const STORES={entries:"entries",versions:"versions",checkins:"checkins",meta:"meta",attachments:"attachments",blobs:"blobs",reviews:"reviews",chapters:"chapters",entities:"entities"};
@@ -176,6 +177,7 @@ export const saveAiSecret=async key=>{if(key){await metaSet("ai-secret",await en
 export const saveAiState=async s=>{state.ai=cleanAiState(s);await metaSet("ai-state",state.ai);};
 export const syncLockHint=()=>{try{if(state.lock&&state.lock.enabled!==false)localStorage.setItem("narra-lock-hint","1");else localStorage.removeItem("narra-lock-hint");}catch{}};
 export const saveLock=async lock=>{if(lock)await metaSet("lock",lock);else await del(STORES.meta,"lock");state.lock=lock||null;syncLockHint();}; // memory follows the disk, never the other way round
+export const saveTemplates=async list=>{state.templates=cleanTemplates(list);await metaSetSecure("templates",state.templates);};
 export const saveMutedTopics=async list=>{state.mutedTopics=[...new Set(list)];await metaSet("muted-topics",state.mutedTopics);};
 
 /** Records that could not be decrypted on the last load. They stay in the database untouched (never overwritten or deleted);
@@ -206,6 +208,7 @@ export async function loadData(){
   try{state.aiKey=(await decryptText(await metaGet("ai-secret",null)))||"";}catch{state.aiKey="";}
   state.lock=await metaGet("lock",null);syncLockHint();
   state.lastBackup=await metaGet("last-backup",null);
+  try{state.templates=cleanTemplates(await metaGetSecure("templates",[]));}catch{state.templates=[];}
   const list=v=>Array.isArray(v)?v.filter(x=>typeof x==="string"):[];
   state.mutedMemoryIds=list(await metaGet("muted-memory-ids",[]));
   state.mutedTopics=list(await metaGet("muted-topics",[]));
