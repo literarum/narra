@@ -1,7 +1,7 @@
 /* Life map («Карта жизни»): people, places, themes, projects and life chapters — only what the user wrote on their entries.
    Each page shows the entries, the months they cluster in (empty months stay visible), neighbours, and state associations
    with the days behind them. Names can be renamed, merged and annotated without touching the entries themselves. */
-import {talkAvailable,state,ctx,$,escapeHtml,icon,fmtDate,relDay,activeEntries,entryLabel,dayLabel,featureOn} from "./core.js?v=4.7.0";
+import {sealedCapsules,talkAvailable,state,ctx,$,escapeHtml,icon,fmtDate,relDay,activeEntries,entryLabel,dayLabel,featureOn} from "./core.js?v=4.7.0";
 import {pageHeader,emptyState,tabs,chip,modalHeader} from "./kit.js?v=4.7.0";
 import {ENTITY_TYPES,collectEntities,listByType,entityPage,norm,entityKey,sortChapters,chapterEntries,chapterOf} from "./entities.mjs?v=4.7.0";
 import {entityMap} from "./derived.js?v=4.7.0";
@@ -71,7 +71,7 @@ function associationBlock(page){
   }).join("");
 }
 function entityView(key){
-  const page=entityPage(key,state.entries,state.checkins,state.entityNotes);
+  const page=entityPage(key,state.entries.filter(e=>!e.openOn||!sealedCapsules().includes(e)),state.checkins,state.entityNotes);
   if(!page){state.lifemapKey=null;return `${pageHeader("Карта жизни","Карта жизни")}${emptyState("Такого элемента больше нет","Возможно, все записи с ним удалены или он объединён с другим.",`<button class="secondary" data-action="lifemap-back">Назад к списку</button>`,"map")}`;}
   const e=page.entity,t=typeOf(key),muted=state.mutedTopics.includes(key);
   const neigh=[{type:"person",items:page.people},{type:"place",items:page.places},{type:"theme",items:page.themes},{type:"project",items:page.projects}].filter(g=>g.items.length);

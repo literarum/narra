@@ -148,7 +148,10 @@ export function backupDue(){
   const days=Math.floor((Date.now()-Date.parse(b.at))/86400000);
   return days>=30&&b.fingerprint!==diaryFingerprint()?{never:false,days}:null;
 }
-export const activeEntries=()=>state.entries.filter(e=>!e.deletedAt);
+/** Entries that may be shown and analysed: not in the trash and not a time capsule that is still sealed. */
+export const activeEntries=()=>{const t=todayKey();return state.entries.filter(e=>!e.deletedAt&&!(e.openOn&&e.openOn>t));};
+/** Still-sealed time capsules (shown only as a closed envelope). */
+export const sealedCapsules=()=>{const t=todayKey();return state.entries.filter(e=>!e.deletedAt&&e.openOn&&e.openOn>t);};
 export const trashedEntries=()=>state.entries.filter(e=>Boolean(e.deletedAt));
 export const entryById=id=>state.entries.find(e=>e.id===id);
 export function mediaOf(entryId){return state.attachments.filter(a=>a.entryId===entryId);}

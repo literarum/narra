@@ -2,7 +2,7 @@
    The draft is assembled from the person's own entries and check-ins — no model writes anything. Every factual line can show its sources
    and can be hidden; the person's own words live in separate fields, so rebuilding a draft never destroys them.
    The yearly review can be printed as a small book. */
-import {talkAvailable,state,ctx,$,$$,escapeHtml,icon,uid,nowIso,downloadBlob,isoStamp,localDateKey,entryLabel,fmtDate,featureOn} from "./core.js?v=4.7.0";
+import {talkAvailable,state,ctx,$,$$,escapeHtml,icon,uid,nowIso,downloadBlob,isoStamp,localDateKey,sealedCapsules,entryLabel,fmtDate,featureOn} from "./core.js?v=4.7.0";
 import {pageHeader,emptyState,tabs} from "./kit.js?v=4.7.0";
 import {PERIOD_KINDS,periodRange,shiftPeriod,buildReview,SECTION_TITLES,SECTION_ORDER,reviewToMarkdown,buildBook} from "./review.mjs?v=4.7.0";
 import {entryText,plural} from "./text.mjs?v=4.7.0";
@@ -18,7 +18,8 @@ import * as media from "./media.js?v=4.7.0";
 let showHidden=false,saveTimer=null,saveState="idle";
 const range=()=>periodRange(state.reviewKind,state.reviewCursor);
 const savedFor=id=>state.reviews.find(r=>r.id===id)||{id,sections:{},hidden:[],updatedAt:nowIso()};
-const build=r=>buildReview({range:r,entries:state.entries,checkins:state.checkins,config:state.config,chapters:state.chapters,notes:state.entityNotes,now:new Date()});
+const visible=()=>{const sealed=new Set(sealedCapsules().map(e=>e.id));return state.entries.filter(e=>!sealed.has(e.id));};
+const build=r=>buildReview({range:r,entries:visible(),checkins:state.checkins,config:state.config,chapters:state.chapters,notes:state.entityNotes,now:new Date()});
 const canNext=r=>r.to<localDateKey(new Date());
 /** The newest entry that lies before the shown period, if any: the empty state offers a jump to its period. */
 const latestWithData=r=>{let best="";for(const e of state.entries){if(e.deletedAt)continue;const k=localDateKey(new Date(e.createdAt));if(k<r.from&&k>best)best=k;}return best;};
@@ -118,7 +119,7 @@ function reviewPrintHtml(r){
   return sheetHtml({review,saved,hidden,counts,label:capitalizeRu(r.label)});
 }
 function bookHtml(r){
-  const book=buildBook({range:r,entries:state.entries,checkins:state.checkins,config:state.config,chapters:state.chapters,notes:state.entityNotes,saved:savedFor(r.id),includeAll:false,now:new Date()});
+  const book=buildBook({range:r,entries:visible(),checkins:state.checkins,config:state.config,chapters:state.chapters,notes:state.entityNotes,saved:savedFor(r.id),includeAll:false,now:new Date()});
   const own=SECTION_ORDER.map(k=>({title:SECTION_TITLES[k],text:(book.saved.sections?.[k]||"").trim()})).filter(x=>x.text);
   const months=book.months.map(m=>({...m,entries:m.entries.map(e=>({...e,title:entryText(e,120).title,dateLabel:fmtDate(e.happenedAt,{year:"numeric"})}))}));
   return bookPrint({book:{...book,months},renderBody:e=>renderMarkdown(e.body),ownSections:own});

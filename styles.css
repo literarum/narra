@@ -2152,3 +2152,15 @@ ul.card.talk-steps { padding: 8px 12px; }
 }
 /* menu rows are buttons, but their captions are sentences: balanced wrapping broke them after two words */
 .more-menu-item, .more-menu-item small, .more-menu-item strong, .command-item { text-wrap: pretty; }
+
+/* ===== 4.7 — time capsule ===== */
+.capsule-card { display: grid; grid-template-columns: auto 1fr; gap: 6px 18px; align-items: center; padding: 22px 24px; margin-bottom: 22px; background: linear-gradient(135deg, var(--accent-soft), var(--surface)); border-color: color-mix(in srgb, var(--accent) 30%, var(--line)); }
+.capsule-card h2 { margin: 2px 0 4px; font-size: 21px; }
+.capsule-card .subtle { margin: 0; }
+.capsule-card .notice-actions { grid-column: 1 / -1; justify-content: flex-end; }
+.capsule-envelope { display: grid; place-items: center; width: 52px; height: 52px; border-radius: 16px; background: var(--surface-strong); color: var(--accent-strong); box-shadow: var(--shadow-soft); }
+.capsule-envelope .icon { width: 26px; height: 26px; }
+.capsule-body { display: grid; gap: 12px; justify-items: start; }
+.capsule-body p { margin: 0; }
+.capsule-actions { display: flex; gap: 10px; flex-wrap: wrap; width: 100%; justify-content: flex-end; }
+@media (max-width: 720px) { .capsule-card { padding: 18px; } .capsule-card .notice-actions > button { flex: 1; } .capsule-actions > button { flex: 1 1 140px; } }

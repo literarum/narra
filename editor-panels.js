@@ -87,6 +87,7 @@ export function contextMarkup(entry){
       <label class="field"><span class="label">Темы</span><input class="input" id="entry-themes" autocomplete="off" value="${escapeHtml((entry.themes||[]).join(", "))}" placeholder="Например, работа, поездка"></label>
       <label class="field"><span class="label">Проекты</span><input class="input" id="entry-projects" autocomplete="off" value="${escapeHtml((entry.projects||[]).join(", "))}" placeholder="Через запятую"></label>
       <label class="field"><span class="label">Место</span><input class="input" id="entry-location" autocomplete="off" value="${escapeHtml(entry.location||"")}" placeholder="Где это было"></label>
+      <label class="field context-wide"><span class="label">Капсула времени — открыть не раньше</span><input id="entry-open-on" type="date" data-datepicker data-clearable data-placeholder="Не запечатывать" value="${entry.openOn||""}"><span class="field-hint subtle text-small">До этого дня текст скрыт везде: в дневнике, поиске, воспоминаниях и обзорах. В тот день Narra напомнит о письме.</span></label>
       <label class="check context-wide"><input id="entry-sensitive" type="checkbox" ${entry.sensitive?"checked":""}><span class="check-box"></span><span>Личная запись — не показывать среди воспоминаний</span></label>
     </div>${linksMarkup(entry)}${decisionMarkup(entry)}<div class="smart-suggestions"><div class="context-heading"><strong>Подсказки</strong><span>только по тексту этой записи</span></div><div id="suggestions">${suggestionsMarkup(entry)}</div></div></details>`;
 }

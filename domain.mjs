@@ -338,7 +338,7 @@ export const KINDS=["thought","event","day","memory","dream","decision","milesto
 const KIND_SET=new Set(KINDS);
 export const LINK_TYPES=["related","continuation","decision_followup","custom"];
 /** Fields that live in the encrypted `meta` blob of an entry (and of every version snapshot). */
-export const ENTRY_META_DEFAULTS=Object.freeze({kind:"thought",sensitive:false,people:[],themes:[],projects:[],location:"",dismissedSuggestions:[],happenedEnd:null,chapterId:null,links:[],decision:null});
+export const ENTRY_META_DEFAULTS=Object.freeze({kind:"thought",sensitive:false,people:[],themes:[],projects:[],location:"",dismissedSuggestions:[],happenedEnd:null,chapterId:null,links:[],decision:null,pinned:false,openOn:null});
 export function pickEntryMeta(entry={}){
   const out={};
   for(const [k,d] of Object.entries(ENTRY_META_DEFAULTS)){
@@ -375,7 +375,8 @@ export function cleanMeta(m,happenedAt=null){
   if(end&&happenedAt&&new Date(end)<new Date(happenedAt)) end=null;
   return {kind:KIND_SET.has(m.kind)?m.kind:"thought",sensitive:Boolean(m.sensitive),people:strArray(m.people),themes:strArray(m.themes),projects:strArray(m.projects,12),
     location:text(m.location,200),dismissedSuggestions:strArray(m.dismissedSuggestions,60),happenedEnd:end,
-    chapterId:typeof m.chapterId==="string"&&m.chapterId&&m.chapterId.length<=80?m.chapterId:null,links:cleanLinks(m.links),decision:cleanDecision(m.decision)};
+    chapterId:typeof m.chapterId==="string"&&m.chapterId&&m.chapterId.length<=80?m.chapterId:null,links:cleanLinks(m.links),decision:cleanDecision(m.decision),
+    pinned:Boolean(m.pinned),openOn:typeof m.openOn==="string"&&/^\d{4}-\d{2}-\d{2}$/.test(m.openOn)?m.openOn:null};
 }
 export function cleanEntry(raw){
   if(!raw||typeof raw!=="object") return null;
@@ -475,3 +476,9 @@ export function staleVersions(rows,limit,now=Date.now()){
   const kept=sorted.filter(v=>keep.has(v.id)),overflow=kept.slice(limit*2).map(v=>v.id);
   return sorted.filter(v=>!keep.has(v.id)||overflow.includes(v.id));
 }
+
+/* ---------- time capsule ----------
+   An entry with `openOn` (a local day "YYYY-MM-DD") is a letter to the future: until that day its text is not shown anywhere —
+   not in lists, search, memories, reviews or the life map. It is stored like every entry (encrypted), only kept out of sight. */
+export const isSealedCapsule=(e,todayKey)=>Boolean(e?.openOn)&&e.openOn>todayKey;
+export const isOpenedCapsule=(e,todayKey)=>Boolean(e?.openOn)&&e.openOn<=todayKey;

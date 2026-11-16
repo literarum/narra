@@ -406,7 +406,7 @@ function setSegmentedActive(el){
   const group=el.closest(".segmented");if(!group)return;
   $$("button",group).forEach(b=>{const on=b===el;b.classList.toggle("is-active",on);b.setAttribute("aria-pressed",String(on));});
 }
-const warmSearch=()=>{if(!state.lock||state.entries.length)warmSearchIndex(state.entries.filter(e=>!e.deletedAt),kindLabels).catch(()=>{});};
+const warmSearch=()=>{if(!state.lock||state.entries.length)warmSearchIndex(activeEntries(),kindLabels).catch(()=>{});};
 async function reloadData(){await store.loadData();state.remoteChanged=false;render();warmSearch();}
 
 const CORE_ACTIONS={

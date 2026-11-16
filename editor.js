@@ -1,8 +1,8 @@
 /* Editor: a full-screen writing surface with Markdown tools, find, slash menu, focus mode, media, details, decisions,
    writing help and safe saving. Saving is atomic, versioned, and refuses to overwrite an entry edited elsewhere. */
-import {validateCanonicalEntry,nextRevision,searchEntries,parseRussianDateHint} from "./domain.mjs?v=4.7.0";
+import {validateCanonicalEntry,nextRevision,searchEntries,parseRussianDateHint,isSealedCapsule} from "./domain.mjs?v=4.7.0";
 import {applyFormat,activeFormats,continueList,shiftIndent,diffRange,renderMarkdown} from "./md.mjs?v=4.7.0";
-import {state,ctx,$,$$,escapeHtml,icon,uid,nowIso,fmtLong,fmtTime,fmtDate,localDateInputValue,dateInputToIso,splitCsv,words,chars,wordLabel,pluralRu,featureOn,activeEntries,entryById,mediaOf,kindLabels,capitalizeRu,downloadBlob,kbdLabel,isQuotaError,QUOTA_TEXT} from "./core.js?v=4.7.0";
+import {state,ctx,$,$$,escapeHtml,icon,uid,nowIso,fmtLong,fmtTime,fmtDate,localDateInputValue,dateInputToIso,splitCsv,words,chars,wordLabel,pluralRu,featureOn,activeEntries,entryById,mediaOf,kindLabels,capitalizeRu,downloadBlob,kbdLabel,isQuotaError,QUOTA_TEXT,todayKey} from "./core.js?v=4.7.0";
 import {entryText,excerpt} from "./text.mjs?v=4.7.0";
 import {cleanDecision,cleanLinks} from "./domain.mjs?v=4.7.0";
 import {modalHeader,statusPill} from "./kit.js?v=4.7.0";
@@ -103,6 +103,8 @@ export async function openEditor(id=null,opts={}){
     if(!ok&&state.dirty&&state.editing.body.trim()){ctx.toast("Сначала нужно сохранить текущие изменения.");return null;}
   }
   let entry=id?entryById(id):null;
+  // a sealed time capsule shows its envelope first; it opens early only on purpose
+  if(entry&&!opts.unseal&&isSealedCapsule(entry,todayKey())){showCapsule(entry);return null;}
   if(!entry)entry=newEntry(opts);
   const existing=entry.revision>0;
   /* a finished entry opens for reading; a new one or an unfinished draft opens for writing */
@@ -116,6 +118,14 @@ export async function openEditor(id=null,opts={}){
   const box=ctx.overlay(editorMarkup(state.editing,mode),`modal editor-modal${mode==="view"?" is-viewing":""}`,mode==="view"?"Просмотр записи":"Редактор записи",{kind:"editor",focus:false});
   bindEditor(box,mode);
   return box;
+}
+function showCapsule(e){
+  const days=Math.max(1,Math.round((new Date(`${e.openOn}T12:00:00`)-new Date())/86400000));
+  ctx.sheetDialog(`${modalHeader("Капсула времени",`Откроется ${fmtDate(`${e.openOn}T12:00:00`,{year:"numeric"})}`,"lock","close-dialog")}<div class="modal-body capsule-body">
+    <div class="capsule-envelope" aria-hidden="true">${icon("mail")}</div>
+    <p>Письмо написано ${escapeHtml(fmtDate(e.createdAt||e.happenedAt,{year:"numeric"}))}, до открытия — ${days} ${pluralRu(days,"день","дня","дней")}.</p>
+    <p class="subtle text-small">Текст спрятан, чтобы встреча с ним была настоящей. Открыть раньше можно — но тогда капсула распечатается.</p>
+    <div class="capsule-actions"><button class="secondary" data-action="close-dialog">Подождать</button><button class="ghost" data-action="capsule-open-early" data-id="${escapeHtml(e.id)}">Открыть сейчас</button></div></div>`,"Капсула времени");
 }
 export function markEditorDirty(source="autosave"){
   if(!state.editing)return;
@@ -512,6 +522,13 @@ function bindEditor(box,mode="edit"){
   $("#entry-projects",box)?.addEventListener("input",meta(e=>{ed().projects=splitCsv(e.target.value).slice(0,12);}));
   $("#entry-location",box)?.addEventListener("input",meta(e=>{ed().location=e.target.value.trim();}));
   $("#entry-sensitive",box)?.addEventListener("change",meta(e=>{ed().sensitive=e.target.checked;}));
+  // time capsule: a day in the future seals the text until then; today or earlier makes no sense, so it is refused
+  const openOn=$("#entry-open-on",box);
+  openOn?.addEventListener("change",meta(e=>{
+    const v=e.target.value||null;
+    if(v&&v<=todayKey()){ctx.toast("Выберите день в будущем — до него письмо будет запечатано.");e.target.value=ed().openOn||"";return;}
+    ed().openOn=v;
+  }));
   const ctxBox=$("#entry-context",box);
   const decisionField=e=>{
     const t=e.target,d=ed();if(!d)return;
@@ -721,7 +738,8 @@ export async function closeEditor({finish=false,force=false}={}){
   const ok=await saveEditing(finish?"complete":"close");
   if(!ok){ctx.toast(state.conflict?"Сначала выберите, как сохранить запись.":"Не удалось сохранить запись. Редактор остаётся открытым.");return false;}
   ctx.closeOverlay();ctx.render();
-  if(finish)ctx.toast("Запись сохранена.");
+  if(ed.openOn&&ed.openOn>todayKey())ctx.toast(`Письмо запечатано до ${fmtDate(`${ed.openOn}T12:00:00`,{year:"numeric"})} — до этого дня его текст нигде не будет виден.`,null,{duration:6000});
+  else if(finish)ctx.toast("Запись сохранена.");
   return true;
 }
 function askBeforeLeaving(){
@@ -906,6 +924,14 @@ export const actions={
   "new-entry":()=>openEditor(),
   "new-entry-on-date":el=>openEditor(null,{date:el.dataset.date}),
   "open-entry":el=>openEditor(el.dataset.id),
+  "capsule-open-early":async el=>{
+    const e=entryById(el.dataset.id);if(!e)return;ctx.closeDialog({restoreFocus:false});
+    // opening early unseals for good: the date is cleared and the change is saved like any edit
+    const next={...e,openOn:null,updatedAt:nowIso(),revision:nextRevision(e.revision)};
+    try{await store.commitEntrySnapshot(next,"capsule_open",{expectRevision:e.revision});const i=state.entries.findIndex(x=>x.id===e.id);if(i>=0)state.entries[i]=next;state.entries=[...state.entries];store.notifyChange("entry");}
+    catch(error){console.error(error);ctx.toast("Не удалось открыть капсулу. Ничего не изменилось.");return;}
+    openEditor(e.id,{unseal:true});
+  },
   "open-linked":async el=>{await openEditor(el.dataset.id);},
   "focus-new":async()=>{await openEditor();toggleFocusMode();},
   "close-editor":()=>closeEditor(),

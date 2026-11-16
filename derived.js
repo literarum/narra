@@ -1,5 +1,6 @@
 /* Derived data, computed from the entries in memory and cached until the data is reloaded. Never stored. */
-import {state,activeEntries} from "./core.js?v=4.7.0";
+import {state,activeEntries,todayKey} from "./core.js?v=4.7.0";
+import {isSealedCapsule} from "./domain.mjs?v=4.7.0";
 import {buildAliasMap,collectEntities,entitiesOf} from "./entities.mjs?v=4.7.0";
 import {buildIndex} from "./semantic.mjs?v=4.7.0";
 
@@ -11,7 +12,7 @@ function sync(){
   }
 }
 export const aliasMap=()=>{sync();return cache.alias;};
-export const entityMap=()=>{sync();return cache.entities||(cache.entities=collectEntities(state.entries,state.entityNotes));};
+export const entityMap=()=>{sync();return cache.entities||(cache.entities=collectEntities(state.entries.filter(e=>!isSealedCapsule(e,todayKey())),state.entityNotes));};
 export const entityKeysOf=entry=>entitiesOf(entry,aliasMap()).map(e=>e.key);
 /** The semantic index is built only when the user asks for it (feature switch) and only from entries that are not in the trash. */
 export function semanticIndex(){sync();return cache.index||(cache.index=buildIndex(activeEntries()));}

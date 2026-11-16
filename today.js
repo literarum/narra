@@ -1,5 +1,5 @@
 /* Today: quick capture, a short check-in, one memory, one question, recent entries, first-run welcome. */
-import {talkAvailable,state,ctx,$,$$,escapeHtml,icon,uid,nowIso,fmtLong,fmtTime,relDay,activeEntries,sameDay,todayKey,safeStorageGet,safeStorageSet,featureOn,PREF_KEY,pluralRu,backupDue} from "./core.js?v=4.7.0";
+import {talkAvailable,state,ctx,$,$$,escapeHtml,icon,uid,nowIso,fmtLong,fmtTime,relDay,activeEntries,sameDay,todayKey,safeStorageGet,safeStorageSet,featureOn,PREF_KEY,pluralRu,backupDue,sealedCapsules} from "./core.js?v=4.7.0";
 import {entryText} from "./text.mjs?v=4.7.0";
 import {pageHeader,modalHeader} from "./kit.js?v=4.7.0";
 import {entryRows} from "./entries-ui.js?v=4.7.0";
@@ -59,6 +59,19 @@ function storageNoticeMarkup(){
   if(Date.now()<=Number(safeStorageGet("narra-storage-notice-until")||0))return "";
   return `<aside class="card notice-card" role="note"><p><strong>Дневник хранится только в этом браузере.</strong> Браузер пока не гарантирует, что данные переживут нехватку места. Защитите хранилище и время от времени делайте резервную копию.</p><div class="notice-actions"><button class="ghost" data-action="snooze-storage-notice">Позже</button><button class="secondary" data-action="request-persistence">Защитить</button></div></aside>`;
 }
+/* Time capsules: an opened letter is offered once on the day it opens (and until it is read); sealed ones are only counted. */
+const seenCapsules=()=>{try{const v=JSON.parse(safeStorageGet("narra-capsules-seen")||"[]");return new Set(Array.isArray(v)?v:[]);}catch{return new Set();}};
+export function markCapsuleSeen(id){const s=seenCapsules();s.add(id);safeStorageSet("narra-capsules-seen",JSON.stringify([...s].slice(-200)));}
+function capsuleMarkup(){
+  const t=todayKey(),seen=seenCapsules();
+  const opened=state.entries.filter(e=>!e.deletedAt&&e.openOn&&e.openOn<=t&&!seen.has(e.id)).sort((a,b)=>a.openOn.localeCompare(b.openOn));
+  const sealed=sealedCapsules().length;
+  if(opened.length){
+    const e=opened[0];
+    return `<aside class="card capsule-card" role="note"><div class="capsule-envelope" aria-hidden="true">${icon("mail")}</div><div><p class="eyebrow">Капсула времени открылась</p><h2>Письмо от ${escapeHtml(fmtLong(e.createdAt||e.happenedAt))}</h2><p class="subtle">Вы написали его себе и запечатали до ${escapeHtml(fmtLong(`${e.openOn}T12:00:00`))}.</p></div><div class="notice-actions"><button class="primary" data-action="capsule-read" data-id="${escapeHtml(e.id)}">Прочитать</button></div></aside>`;
+  }
+  return sealed?`<p class="pause-note">${icon("mail")}<span>Запечатано писем в будущее: ${sealed}. Они откроются в свой день.</span></p>`:"";
+}
 /* Only one quiet notice at a time: the storage notice first, then the backup reminder. */
 function backupNoticeMarkup(){
   if(state.storageTight||storageNoticeMarkup())return "";
@@ -84,7 +97,7 @@ export function todayView(){
   const unfinished=p.showContinue?activeEntries().filter(e=>!e.completedAt).sort((a,b)=>new Date(b.updatedAt)-new Date(a.updatedAt))[0]:null;
   const recent=activeEntries().slice(0,4);
   const memory=p.showMemory&&featureOn("featMemories")?memoryCard():"";
-  return `${pageHeader(fmtLong(now),greetingText(now),"Спокойное место для того, что хочется сохранить.")}${welcomeMarkup()}${pauseNote(state.entries)}${spaceNoticeMarkup()}${storageNoticeMarkup()}${backupNoticeMarkup()}${reminderMarkup()}
+  return `${pageHeader(fmtLong(now),greetingText(now),"Спокойное место для того, что хочется сохранить.")}${welcomeMarkup()}${pauseNote(state.entries)}${capsuleMarkup()}${spaceNoticeMarkup()}${storageNoticeMarkup()}${backupNoticeMarkup()}${reminderMarkup()}
     ${unfinished?`<article class="card continue-card"><div><p class="eyebrow">Продолжить</p><h3>${escapeHtml(entryText(unfinished).title)}</h3><p>Последнее изменение: ${escapeHtml(relDay(unfinished.updatedAt))}, ${escapeHtml(fmtTime(unfinished.updatedAt))}</p></div><button class="secondary" data-action="open-entry" data-id="${escapeHtml(unfinished.id)}">Продолжить</button></article>`:""}
     <div class="hero-grid${p.showCheckin?"":" is-single"}">
       <article class="card quick-card"><div><p class="eyebrow">Быстрая запись</p><h2>Что сейчас хочется запомнить?</h2></div>
@@ -177,6 +190,7 @@ const finishOnboarding=()=>{ctx.setPref("onboarded",true);ctx.closeDialog({resto
 export const views={today:todayView};
 export const actions={
   "save-quick":()=>quickToEntry(false),
+  "capsule-read":el=>{markCapsuleSeen(el.dataset.id);ctx.openEditor(el.dataset.id);},
   "expand-quick":()=>quickToEntry(true),
   "quick-focus":()=>{ctx.goTo("today");setTimeout(()=>$("#quick-capture")?.focus(),80);},
   "prompt-ai":async()=>{const m=await ctx.loadLazy("assistant");m.dailyQuestionFlow();},

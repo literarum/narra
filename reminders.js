@@ -35,12 +35,13 @@ export const isIOS=()=>/iP(hone|ad|od)/.test(navigator.userAgent)||(navigator.pl
 /** What the schedule looks like right now, from preferences and the journal. */
 function currentConfig(prev){
   const p=state.prefs,live=!state.locked&&Array.isArray(state.entries)&&state.entries.length>=0&&!state.locked;
-  const days=new Set(),decisions=[],nowD=new Date(),md=`${nowD.getMonth()}-${nowD.getDate()}`;let onThisDay=0;
+  const days=new Set(),decisions=[],capsules=[],nowD=new Date(),md=`${nowD.getMonth()}-${nowD.getDate()}`;let onThisDay=0;
   if(live)for(const e of state.entries){
     if(e.deletedAt)continue;
     days.add(N().dayKey(new Date(e.createdAt||e.happenedAt)));
     const hd=new Date(e.happenedAt);if(`${hd.getMonth()}-${hd.getDate()}`===md&&hd.getFullYear()<nowD.getFullYear())onThisDay++;
     const d=e.decision;if(d&&d.revisitOn&&!d.outcome)decisions.push(d.revisitOn);
+    if(e.openOn&&e.openOn>=N().dayKey(nowD))capsules.push(e.openOn);
   }
   const today=N().dayKey(new Date());
   return N().normalize({
@@ -48,6 +49,7 @@ function currentConfig(prev){
     dailyOn:!!p.notifyDaily,dailyTime:p.reminderTime,weeklyOn:!!p.notifyWeekly,weeklyDay:p.notifyWeeklyDay,weeklyTime:"19:00",decisionsOn:!!p.notifyDecisions,memoryOn:!!p.notifyMemory,onThisDay:live?onThisDay:(prev?.onThisDay||0),memoryDay:live?N().dayKey(nowD):(prev?.memoryDay||""),
     lastEntryDay:live?(days.has(today)?today:""):(prev?.lastEntryDay||""),
     decisionDates:live?decisions.sort():(prev?.decisionDates||[]),
+    capsuleDates:live?[...new Set(capsules)].sort():(prev?.capsuleDates||[]),
     base:new URL("./",location.href).href
   });
 }
