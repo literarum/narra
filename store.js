@@ -64,7 +64,8 @@ export async function ensureCryptoKey(){
 export async function encryptText(value=""){
   const iv=crypto.getRandomValues(new Uint8Array(12));
   const ciphertext=await crypto.subtle.encrypt({name:"AES-GCM",iv},state.cryptoKey,new TextEncoder().encode(value));
-  return {iv:[...iv],data:[...new Uint8Array(ciphertext)]};
+  // typed arrays are stored by IndexedDB as compact binary; older records kept plain number arrays and still decrypt
+  return {iv,data:new Uint8Array(ciphertext)};
 }
 export async function decryptText(payload){
   if(!payload)return "";
@@ -177,8 +178,9 @@ export async function loadData(){
   state.ai=cleanAiState(await metaGet("ai-state",null));
   try{state.aiKey=(await decryptText(await metaGet("ai-secret",null)))||"";}catch{state.aiKey="";}
   state.lock=await metaGet("lock",null);syncLockHint();
-  state.mutedMemoryIds=await metaGet("muted-memory-ids",[]);
-  state.mutedTopics=await metaGet("muted-topics",[]);
+  const list=v=>Array.isArray(v)?v.filter(x=>typeof x==="string"):[];
+  state.mutedMemoryIds=list(await metaGet("muted-memory-ids",[]));
+  state.mutedTopics=list(await metaGet("muted-topics",[]));
 }
 
 /* ---------- attachments ---------- */
@@ -208,8 +210,9 @@ export async function deleteAttachment(id){
   tx.objectStore(STORES.attachments).delete(id);tx.objectStore(STORES.blobs).delete(id);await done;
   notifyChange("media");
 }
+const attachmentsOf=entryId=>reqP(openTx(STORES.attachments).objectStore(STORES.attachments).index("entryId").getAll(entryId));
 export async function deleteAttachmentsFor(entryId){
-  const rows=(await all(STORES.attachments)).filter(a=>a.entryId===entryId);
+  const rows=await attachmentsOf(entryId);
   for(const r of rows)await deleteAttachment(r.id);
 }
 export async function readAttachmentBytes(id){const b=await getRecord(STORES.blobs,id);return b?decryptBytes(b.dataEnc):null;}
@@ -255,7 +258,7 @@ export async function saveCheckinRecord(checkin){await put(STORES.checkins,await
 export async function reloadAttachments(){state.attachments=(await Promise.all((await all(STORES.attachments)).map(unpackAttachmentMeta))).sort((a,b)=>new Date(a.createdAt)-new Date(b.createdAt));}
 /** Copies an entry's attachments for another entry (used when a conflicting edit is kept as a separate entry). Returns old id → new id. */
 export async function cloneAttachments(fromEntryId,toEntryId){
-  const rows=(await all(STORES.attachments)).filter(a=>a.entryId===fromEntryId),map=new Map();
+  const rows=await attachmentsOf(fromEntryId),map=new Map();
   if(!rows.length)return map;
   const tx=openTx([STORES.attachments,STORES.blobs],"readwrite","strict"),done=txDone(tx),blobs=tx.objectStore(STORES.blobs),atts=tx.objectStore(STORES.attachments);
   for(const r of rows){const id=uid(),b=await reqP(blobs.get(r.id));map.set(r.id,id);atts.put({...r,id,entryId:toEntryId});if(b)blobs.put({...b,id});}

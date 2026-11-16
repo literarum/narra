@@ -96,11 +96,24 @@ state.route=VALID_ROUTES.has(location.hash.replace("#/","").split("?")[0])?locat
 
 export const $=(sel,root=document)=>root.querySelector(sel);
 export const $$=(sel,root=document)=>[...root.querySelectorAll(sel)];
-export const uid=()=>crypto.randomUUID();
+/** crypto.randomUUID exists only in secure contexts (https, localhost); fall back to getRandomValues so ids never fail. */
+export const uid=()=>{
+  if(typeof crypto!=="undefined"&&typeof crypto.randomUUID==="function")return crypto.randomUUID();
+  const b=crypto.getRandomValues(new Uint8Array(16));b[6]=(b[6]&0x0f)|0x40;b[8]=(b[8]&0x3f)|0x80;
+  const h=[...b].map(x=>x.toString(16).padStart(2,"0")).join("");
+  return `${h.slice(0,8)}-${h.slice(8,12)}-${h.slice(12,16)}-${h.slice(16,20)}-${h.slice(20)}`;
+};
 export const nowIso=()=>new Date().toISOString();
 export const fmtDate=(iso,opts={})=>new Intl.DateTimeFormat("ru-RU",{month:"short",day:"numeric",...opts}).format(new Date(iso));
 export const fmtLong=iso=>new Intl.DateTimeFormat("ru-RU",{weekday:"long",month:"long",day:"numeric",year:"numeric"}).format(new Date(iso));
 export const fmtTime=iso=>new Intl.DateTimeFormat("ru-RU",{hour:"numeric",minute:"2-digit"}).format(new Date(iso));
+/** A range of day keys ("2026-08-20", "2026-09-29") without repeating the year: «20 авг. — 29 сент. 2026 г.». */
+export function fmtDayRange(fromKey,toKey){
+  const a=new Date(`${fromKey}T12:00:00`),b=new Date(`${toKey||fromKey}T12:00:00`);
+  if(Number.isNaN(a.getTime())||Number.isNaN(b.getTime()))return "";
+  if(fromKey===toKey||!toKey)return fmtDate(a.toISOString(),{year:"numeric"});
+  return a.getFullYear()===b.getFullYear()?`${fmtDate(a.toISOString())} — ${fmtDate(b.toISOString(),{year:"numeric"})}`:`${fmtDate(a.toISOString(),{year:"numeric"})} — ${fmtDate(b.toISOString(),{year:"numeric"})}`;
+}
 export const fmtMonthYear=date=>`${capitalizeRu(new Intl.DateTimeFormat("ru-RU",{month:"long"}).format(date))} ${date.getFullYear()}`;
 export const escapeHtml=(s="")=>String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[c]));
 export const words=wordCount;

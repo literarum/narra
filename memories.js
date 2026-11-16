@@ -12,7 +12,8 @@ import {dayKey} from "./stats.mjs?v=4.6.0";
 import * as store from "./store.js?v=4.6.0";
 
 export function memoryCandidates(){
-  return activeEntries().filter(e=>!e.sensitive&&e.body?.trim()&&!state.mutedMemoryIds.includes(e.id)&&!hasMutedTopic(e));
+  const muted=new Set(state.mutedMemoryIds);
+  return activeEntries().filter(e=>!e.sensitive&&e.body?.trim()&&!muted.has(e.id)&&!hasMutedTopic(e));
 }
 export function relatedEntriesFor(source,limit=3){
   if(!source)return [];

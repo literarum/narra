@@ -1,7 +1,7 @@
 /* Insights («Наблюдения»): what the check-ins and entries say, described — never diagnosed.
    Every number comes with how many observations it rests on and which period; every chart has a table with the same data;
    an association is only shown when at least 10 days stand on each side, and it is worded as a coincidence, not a cause. */
-import {state,ctx,$,escapeHtml,icon,todayKey,checkinLabel,dayLabel,entryLabel,activeEntries,fmtDate,featureOn} from "./core.js?v=4.6.0";
+import {state,ctx,$,escapeHtml,icon,todayKey,checkinLabel,dayLabel,entryLabel,activeEntries,fmtDate,fmtDayRange,featureOn} from "./core.js?v=4.6.0";
 import {pageHeader,emptyState,tabs,chip} from "./kit.js?v=4.6.0";
 import {stateCards,contextAssociations,curateAssociations,describeAssociation,emotionStats,entityStats,rhythm,statePartOfDay,writingEffect,medianLabel,checkinWord} from "./insights-model.mjs?v=4.6.0";
 import {lineChart,barChart,monthStrip,dataTable} from "./charts.mjs?v=4.6.0";
@@ -21,7 +21,7 @@ function scope(){
     checkins:state.checkins.filter(c=>!from||dayKey(c.observedAt)>=from),
     label:period?`последние ${period} ${pluralRu(period,"день","дня","дней")}`:"всё время"};
 }
-const evidence=(n,noun,a,b)=>`По ${n} ${noun(n)}${a?` · ${dayText(a)} — ${dayText(b)}`:""}`;
+const evidence=(n,noun,a,b)=>`По ${n} ${noun(n)}${a?` · ${fmtDayRange(a,b)}`:""}`;
 const checkinsDative=n=>pluralRu(n,"отметке","отметкам","отметкам");
 const meter=(value,max)=>`<span class="meter" aria-hidden="true"><span data-w="${Math.min(100,Math.round(value/max*100))}"></span></span>`;
 const table=(details,summary)=>`<details class="data-details"><summary>${icon("table")}<span>${summary||"Показать таблицей"}</span></summary>${details}</details>`;
@@ -71,7 +71,7 @@ function statesTab(sc){
   return `<div class="insight-stack">${cards.map(c=>{
     if(!c.enough)return `<article class="card insight-block"><h2 class="h3">${escapeHtml(c.dim.name)}</h2>${waiting(c.n,MIN_N,`Отметок пока мало: график появится после ${MIN_N}.`)}</article>`;
     const domain=[Math.min(...c.dim.values),Math.max(...c.dim.values)],modeIdx=c.distribution.indexOf(Math.max(...c.distribution));
-    const line=lineChart({points:c.series,line:c.rolling,domain,lowLabel:c.dim.low,highLabel:c.dim.high,summary:`${c.dim.name}: линия по дням, ${c.n} ${checkinLabel(c.n)}, ${dayText(c.period.from)} — ${dayText(c.period.to)}. Чаще всего — ${c.label}.`});
+    const line=lineChart({points:c.series,line:c.rolling,domain,lowLabel:c.dim.low,highLabel:c.dim.high,summary:`${c.dim.name}: линия по дням, ${c.n} ${checkinLabel(c.n)}, ${fmtDayRange(c.period.from,c.period.to)}. Чаще всего — ${c.label}.`});
     const bars=barChart({items:c.dim.labels.map((l,i)=>({label:l,count:c.distribution[i],mark:i===modeIdx})),summary:`${c.dim.name}: сколько раз выбирали каждое значение.`});
     const t1=dataTable({caption:`${c.dim.name} по дням (медиана дня)`,headers:["День","Значение","Отметок в день"],rows:c.series.map(p=>[dayText(p.day),medianLabel(c.dim,p.value),String(p.count)])});
     const t2=dataTable({caption:`${c.dim.name}: сколько раз выбрано`,headers:["Значение","Раз"],rows:c.dim.labels.map((l,i)=>[l,String(c.distribution[i])])});

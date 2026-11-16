@@ -279,23 +279,35 @@ export function diffRange(oldValue,newValue){
 const esc=s=>s.replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 export function renderInline(text){
   const holds=[];
-  let s=esc(text);
-  s=s.replace(/`([^`\n]+)`/g,(_,c)=>{holds.push(`<code>${c}</code>`);return `\u0000${holds.length-1}\u0000`;});
+  // \u0000 marks placeholders below; a stray one in the text itself must never be read as a placeholder
+  let s=esc(String(text).replace(/\u0000/g,""));
+  const hold=html=>`\u0000${holds.push(html)-1}\u0000`;
+  s=s.replace(/`([^`\n]+)`/g,(_,c)=>hold(`<code>${c}</code>`));
   // media placeholders: the interface fills them with the decrypted picture or player after rendering
-  s=s.replace(/!\[([^\]\n]*)\]\(narra-media:([A-Za-z0-9-]{8,64})\)/g,(_,alt,id)=>`\u0000${holds.push(`<span class="md-media" data-media-id="${id}" data-alt="${alt}"></span>`)-1}\u0000`);
-  s=s.replace(/\[([^\]\n]*)\]\(([^)\s]*)\)/g,(m,label,url)=>{
+  s=s.replace(/!\[([^\]\n]*)\]\(narra-media:([A-Za-z0-9-]{8,64})\)/g,(_,alt,id)=>hold(`<span class="md-media" data-media-id="${id}" data-alt="${alt}"></span>`));
+  // [label](url) — the url may contain one level of balanced parentheses (Wikipedia-style links)
+  s=s.replace(/\[([^\]\n]*)\]\(((?:[^()\s]|\([^()\s]*\))*)\)/g,(m,label,url)=>{
     const raw=url.replace(/&amp;/g,"&");
     if(!/^(https?:\/\/|mailto:)[^\s"'<>]+$/i.test(raw)) return m;
     const href=esc(raw);
-    return `\u0000${holds.push(`<a href="${href}" target="_blank" rel="noopener noreferrer">${label||href}</a>`)-1}\u0000`;
+    return hold(`<a href="${href}" target="_blank" rel="noopener noreferrer">${label||href}</a>`);
+  });
+  // bare web addresses become links too; trailing punctuation and an unbalanced ")" stay outside the link
+  s=s.replace(/(^|[\s(\u00ab"])(https?:\/\/[^\s<>\u0000]+)/g,(m,pre,url)=>{
+    let tail="";
+    while(/[.,;:!?\u00bb]$|&#39;$|&quot;$/.test(url)||(url.endsWith(")")&&(url.match(/\(/g)||[]).length<(url.match(/\)/g)||[]).length)){
+      const cut=url.match(/(&#39;|&quot;|.)$/)[0];tail=cut+tail;url=url.slice(0,-cut.length);
+    }
+    if(!/^https?:\/\/[^/\s]+\.[^\s]+|^https?:\/\/localhost/.test(url))return m;
+    return `${pre}${hold(`<a href="${url}" target="_blank" rel="noopener noreferrer">${url}</a>`)}${tail}`;
   });
   s=s.replace(/\*\*([^*\n]+)\*\*/g,"<strong>$1</strong>")
      .replace(/~~([^~\n]+)~~/g,"<del>$1</del>")
      .replace(/==([^=\n]+)==/g,"<mark>$1</mark>")
      .replace(/(?<![_\w])_([^_\n]+)_(?![_\w])/g,"<em>$1</em>")
      .replace(/(?<![*\w])\*([^*\n]+)\*(?![*\w])/g,"<em>$1</em>")
-     .replace(/(^|[\s(])#([\p{L}\p{N}_-]{2,40})/gu,'$1<span class="md-tag">#$2</span>');
-  return s.replace(/\u0000(\d+)\u0000/g,(_,i)=>holds[Number(i)]);
+     .replace(/(^|[\s(])#([\p{L}\p{N}_-]{2,40})/gu,(m,pre,tag)=>/^[\d_-]+$/u.test(tag)?m:`${pre}<span class="md-tag">#${tag}</span>`);
+  return s.replace(/\u0000(\d+)\u0000/g,(_,i)=>holds[Number(i)]??"");
 }
 /** {collapsible:true} wraps every heading of level 1–3 and what follows it (up to the next heading of the same or higher level)
     in a <details open>, so long entries can be folded in the reading view. Text is never changed. */
@@ -356,7 +368,8 @@ function renderList(items){
   let idx=0;
   const build=(level)=>{
     const kind=items[idx].kind,tag=kind==="numbered"?"ol":"ul";
-    let html=`<${tag}${kind==="checklist"?' class="md-check"':""}>`;
+    const start=kind==="numbered"?parseInt(items[idx].marker,10):1;
+    let html=`<${tag}${kind==="checklist"?' class="md-check"':""}${start>1?` start="${start}"`:""}>`;
     while(idx<items.length&&depth(items[idx])>=level){
       const it=items[idx++];
       if(it.kind==="checklist"){

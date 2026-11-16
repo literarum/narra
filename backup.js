@@ -281,7 +281,8 @@ async function applyImport(){
 /* ---------- demo mode ---------- */
 export async function ensureDemoData(){
   if(await store.metaGet("demo-seeded",false))return;
-  const d=makeDemo();
+  // the demo diary ends today, so «Сегодня», reminders and memories look the way they would for a real person
+  const d=makeDemo({now:new Date()});
   for(const e of d.entries)await store.commitEntrySnapshot(e,"demo");
   for(const c of d.checkins)await store.saveCheckinRecord(c);
   for(const c of d.chapters)await store.saveChapter(c);

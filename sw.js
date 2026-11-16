@@ -1,6 +1,6 @@
 const VERSION="4.6.0";
 const CACHE="narra-shell-v4.6";
-/* Everything the app needs to open without a network. New modules must be listed here (tests/static_contract.py checks it). */
+/* Everything the app needs to open without a network. New modules must be listed here (tests/static.test.mjs checks it). */
 const FILES=["styles.css", "history.mjs","print.mjs","inter.woff", "literata.woff", "literata-italic.woff", "bootstrap.js", "app.js", "core.js", "store.js", "kit.js", "derived.js", "entries-ui.js", "today.js", "journal.js", "search.js", "insights.js", "insights-model.mjs", "lifemap.js", "memories.js", "reviews.js", "settings.js", "editor.js", "editor-panels.js", "backup.js", "assistant.js", "reminders.js", "device.js", "motion.js","toolbar.js", "talk.js", "hub.js", "brain.mjs", "therapy.mjs", "tools.mjs", "notify-rules.js", "privacy.js", "media.js", "checkin-ui.js", "domain.mjs", "md.mjs", "ui.mjs", "stats.mjs", "checkin.mjs", "entities.mjs", "text.mjs", "review.mjs", "semantic.mjs", "zip.mjs", "seal.mjs", "writing.mjs", "importers.mjs", "lock.mjs", "ai-state.mjs","ai.mjs", "charts.mjs", "demo.mjs", "manifest.webmanifest", "icon.svg", "icon-192.png", "icon-512.png", "icon-maskable-512.png", "apple-touch-icon.png"];
 const ASSETS=["./","./index.html",...FILES.map(f=>`./${f}?v=${VERSION}`)];
 /* The app may live in a sub-folder (GitHub Pages: /repo-name/), so paths are built from where sw.js itself is served. */
@@ -8,14 +8,25 @@ const BASE=new URL("./",self.location).pathname;
 const STATIC_PATHS=new Set([BASE,`${BASE}index.html`,...FILES.map(f=>`${BASE}${f}`)]);
 self.addEventListener("install",event=>event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(ASSETS)).then(()=>self.skipWaiting())));
 self.addEventListener("activate",event=>event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(key=>key!==CACHE).map(key=>caches.delete(key)))).then(()=>self.clients.claim())));
+/* Versioned files (?v=4.6.0) never change under the same address: serve them from the cache at once.
+   The page itself goes to the network first (to pick up a new version), but waits at most a few seconds on a bad connection. */
+const NAV_TIMEOUT=3500;
+const cachePut=(event,request,response)=>{if(response&&response.ok){const copy=response.clone();event.waitUntil(caches.open(CACHE).then(cache=>cache.put(request,copy)).catch(()=>{}));}return response;};
 self.addEventListener("fetch",event=>{
   if(event.request.method!=="GET")return;
   const url=new URL(event.request.url);
   if(url.origin!==self.location.origin||!STATIC_PATHS.has(url.pathname))return;
-  event.respondWith(fetch(event.request,{cache:"no-cache"}).then(response=>{
-    if(response.ok){const copy=response.clone();event.waitUntil(caches.open(CACHE).then(cache=>cache.put(event.request,copy)));}
-    return response;
-  }).catch(()=>caches.match(event.request).then(hit=>hit||caches.match("./index.html"))));
+  if(url.searchParams.get("v")===VERSION){
+    event.respondWith(caches.match(event.request).then(hit=>hit||fetch(event.request).then(r=>cachePut(event,event.request,r))));
+    return;
+  }
+  const shell=()=>caches.match(event.request,{ignoreSearch:true}).then(hit=>hit||caches.match("./index.html")).then(hit=>hit||caches.match("./"));
+  event.respondWith(new Promise(resolve=>{
+    let done=false;const finish=r=>{if(!done&&r){done=true;resolve(r);}};
+    const timer=setTimeout(()=>shell().then(hit=>{if(hit)finish(hit);}),NAV_TIMEOUT);
+    fetch(event.request,{cache:"no-cache"}).then(r=>{clearTimeout(timer);finish(cachePut(event,event.request,r));})
+      .catch(()=>{clearTimeout(timer);shell().then(hit=>finish(hit||Response.error()));});
+  }));
 });
 
 /* ---------- reminders (no server: schedule is kept in IndexedDB by the page) ---------- */

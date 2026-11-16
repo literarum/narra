@@ -215,7 +215,9 @@ export function validateCanonicalEntry(entry){
 }
 export function extractHashtags(text=""){
   const result=[], seen=new Set();
-  for(const match of text.matchAll(/#([\p{L}\p{N}_-]{2,40})/gu)){
+  // same rule as the reading view: a tag starts a word (not «site.com/#part»), and «#12» is a number, not a tag
+  for(const match of text.matchAll(/(?:^|[\s(])#([\p{L}\p{N}_-]{2,40})/gu)){
+    if(/^[\d_-]+$/u.test(match[1]))continue;
     const value=match[1].toLocaleLowerCase("ru-RU");
     if(!seen.has(value)){seen.add(value);result.push(value);}
   }
@@ -244,18 +246,22 @@ export function parseRussianDateHint(text="", referenceDate=new Date()){
   const past=source.match(new RegExp(`${B}в прошл(?:ый|ую|ое)\\s+(${Object.keys(WEEKDAYS).join("|")})${E}`,"u"));
   if(past){
     const target=WEEKDAYS[past[1]];let back=(ref.getDay()-target+7)%7;if(back===0)back=7;
-    const date=shift(-back);return {iso:date.toISOString(),label:`Дата: ${past[0].replace(/^в /,"")}`,source:past[0]};
+    const date=shift(-back);return {iso:date.toISOString(),label:`Дата: ${past[0]}`,source:past[0]};
   }
   const numeric=source.match(/(?<![\d.,/])(0?[1-9]|[12]\d|3[01])[./](0[1-9]|1[0-2])(?:[./](\d{4}|\d{2}))?(?![\d]|[.,]\d)/u);
   if(numeric){
     let year=numeric[3]?Number(numeric[3]):ref.getFullYear(); if(year<100)year+=2000;
+    // a diary looks back: «25.12» written in January means last December, not a date eleven months ahead
+    if(!numeric[3]){const d=validDate(year,Number(numeric[2]),Number(numeric[1]));if(d&&d-ref>31*86400000)year--;}
     const date=validDate(year,Number(numeric[2]),Number(numeric[1]));
     if(date)return {iso:date.toISOString(),label:`Дата: ${numeric[1]}.${numeric[2]}.${year}`,source:numeric[0]};
   }
   const months={"января":1,"февраля":2,"марта":3,"апреля":4,"мая":5,"июня":6,"июля":7,"августа":8,"сентября":9,"октября":10,"ноября":11,"декабря":12};
   const named=source.match(new RegExp(`${B}([0-3]?\\d)\\s+(января|февраля|марта|апреля|мая|июня|июля|августа|сентября|октября|ноября|декабря)(?:\\s+(\\d{4}))?${E}`,"u"));
   if(named){
-    const year=named[3]?Number(named[3]):ref.getFullYear(), date=validDate(year,months[named[2]],Number(named[1]));
+    let year=named[3]?Number(named[3]):ref.getFullYear();
+    if(!named[3]){const d=validDate(year,months[named[2]],Number(named[1]));if(d&&d-ref>31*86400000)year--;}
+    const date=validDate(year,months[named[2]],Number(named[1]));
     if(date)return {iso:date.toISOString(),label:`Дата: ${named[1]} ${named[2]} ${year}`,source:named[0]};
   }
   return null;

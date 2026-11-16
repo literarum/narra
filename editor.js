@@ -550,8 +550,9 @@ function bindEditor(box,mode="edit"){
   if(mode==="view"){enterView();return;}
   requestAnimationFrame(()=>{
     autosize(title);autosize(body);
-    if(state.editing.revision||state.editing.body){body.focus({preventScroll:true});body.setSelectionRange(body.value.length,body.value.length);ensureCaretVisible();}
-    else title.focus({preventScroll:true});
+    // a new entry starts in the text: the title is optional and is borrowed from the first sentence when left empty
+    body.focus({preventScroll:true});
+    if(state.editing.revision||state.editing.body){body.setSelectionRange(body.value.length,body.value.length);ensureCaretVisible();}
     syncToolbar();
   });
 }
@@ -705,7 +706,9 @@ export async function closeEditor({finish=false,force=false}={}){
   if(empty){
     if(ed.revision>0&&state.dirty){setSaveStatus("Текст не может быть пустым","error");ctx.toast("Верните текст записи или переместите её в корзину.");return false;}
     if(ed.title.trim()&&!ed.revision){
-      ctx.confirmDialog({title:"Закрыть без сохранения?",text:"Запись без текста не сохраняется, а здесь есть только заголовок. Добавьте хотя бы одну строку.",confirmLabel:"Закрыть без сохранения",cancelLabel:"Продолжить писать",danger:true,iconName:"info"},discard);
+      // a sentence typed into the title is still the person's words: offer to keep it as the text instead of losing it
+      const keep=async()=>{if(state.editing!==ed)return;ed.body=ed.title.trim();ed.title="";const t=$("#entry-title"),b=$("#entry-body");if(t)t.value="";if(b)b.value=ed.body;state.saveEpoch++;state.dirty=true;ctx.closeDialog({restoreFocus:false});await closeEditor({finish});};
+      ctx.confirmDialog({title:"Сохранить заголовок как текст?",text:"Запись без текста не сохраняется, а здесь есть только заголовок. Его можно сохранить как текст записи.",confirmLabel:"Сохранить как текст",cancelLabel:"Продолжить писать",iconName:"info"},keep);
       return false;
     }
     await discard();return true;

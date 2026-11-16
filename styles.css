@@ -486,6 +486,8 @@ body[data-density="compact"] .entry-meta { margin-top: 6px; }
 .modal-body { padding: 22px 24px; }
 .modal-footer { position: sticky; bottom: 0; z-index: 3; display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 10px; padding: 14px 18px calc(14px + var(--safe-b) * 0); border-top: 1px solid var(--line); background: color-mix(in srgb, var(--surface-raised) 96%, transparent); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); }
 .confirm { width: min(460px, 100%); }
+/* two long labels do not fit side by side: let them share the row, and take a full row each when they wrap */
+.confirm .modal-footer > button { flex: 1 1 auto; }
 .confirm .modal-body p { margin: 0; color: var(--muted); line-height: 1.6; }
 .privacy-callout { display: grid; grid-template-columns: 24px 1fr; gap: 12px; padding: 15px 16px; margin-bottom: 18px; border: 1px solid color-mix(in srgb, var(--warning) 28%, var(--line)); border-radius: 14px; background: var(--warning-soft); color: var(--text); }
 .privacy-callout > .icon { color: var(--warning); }

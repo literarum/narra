@@ -25,7 +25,7 @@ function listTab(type){
   const q=norm(filterText);if(q)rows=rows.filter(r=>norm(r.name).includes(q));
   const total=listByType(map,type).length;
   if(!total)return emptyState(`${t.plural} пока нет`,type==="place"?"Место появится, когда вы укажете его в записи.":type==="person"?"Люди появятся, когда вы добавите имена в записи.":type==="theme"?"Темы появятся, когда вы добавите их к записям.":"Проекты появятся, когда вы добавите их к записям.","","map");
-  return `<div class="lm-tools"><input class="input" id="lm-filter" type="search" placeholder="Найти среди «${escapeHtml(t.plural.toLocaleLowerCase("ru-RU"))}»" aria-label="Фильтр по названию" value="${escapeHtml(filterText)}" autocomplete="off">
+  return `<div class="lm-tools"><input class="input" id="lm-filter" type="search" placeholder="${escapeHtml(FILTER_PLACEHOLDER[t.type]||"Найти по названию")}" aria-label="Фильтр по названию" value="${escapeHtml(filterText)}" autocomplete="off">
     <div class="segmented" role="group" aria-label="Порядок"><button data-action="lifemap-sort" data-value="count" aria-pressed="${sort==="count"}" class="${sort==="count"?"is-active":""}">По числу записей</button><button data-action="lifemap-sort" data-value="name" aria-pressed="${sort==="name"}" class="${sort==="name"?"is-active":""}">По алфавиту</button></div></div>
     <div id="lm-list">${listRows(rows)}</div>`;
 }
@@ -88,6 +88,7 @@ function entityView(key){
     ${muted?`<p class="subtle text-small">${icon("info")} Скрыто из воспоминаний.</p>`:""}</div>`;
 }
 
+const FILTER_PLACEHOLDER={person:"Найти человека",place:"Найти место",theme:"Найти тему",project:"Найти проект"};
 export function lifemapView(){
   if(state.lifemapKey)return entityView(state.lifemapKey);
   const items=[...ENTITY_TYPES.map(t=>[t.type,t.plural]),...(featureOn("featChapters")?[["chapter","Главы"]]:[])];

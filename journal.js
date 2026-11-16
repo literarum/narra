@@ -1,5 +1,5 @@
 /* Journal: timeline with day headers, calendar, life chapters, trash; filters, bulk actions and paging. */
-import {state,ctx,$,$$,escapeHtml,icon,fmtLong,fmtMonthYear,fmtDate,relDay,fmtTime,localDateKey,entryLabel,activeEntries,trashedEntries,kindOptions,kindLabels,capitalizeRu,featureOn,uid,nowIso,downloadBlob,isoStamp,mediaOf,checkinLabel,plural} from "./core.js?v=4.6.0";
+import {state,ctx,$,$$,escapeHtml,icon,fmtLong,fmtMonthYear,fmtDate,fmtDayRange,relDay,fmtTime,localDateKey,entryLabel,activeEntries,trashedEntries,kindOptions,kindLabels,capitalizeRu,featureOn,uid,nowIso,downloadBlob,isoStamp,mediaOf,checkinLabel,plural} from "./core.js?v=4.6.0";
 import {entryText} from "./text.mjs?v=4.6.0";
 import {nextRevision} from "./domain.mjs?v=4.6.0";
 import {checkinSummary} from "./checkin.mjs?v=4.6.0";
@@ -111,7 +111,7 @@ function calendarMarkup(){
     ${selDate?`<section class="calendar-selection"><div class="section-heading"><h2>${escapeHtml(capitalizeRu(fmtLong(selDate.toISOString())))}</h2><div class="link-group"><button class="link-button" data-action="new-entry-on-date" data-date="${state.calendarSelectedDate}">Добавить запись</button><button class="link-button" data-action="calendar-clear">Снять выбор</button></div></div>${selectedEntries.length?entryRows(selectedEntries):`<p class="subtle">В этот день записей нет.</p>`}</section>`:""}</div>`;
 }
 /* ----- chapters ----- */
-const rangeText=c=>c.start?`${fmtDate(`${c.start}T12:00:00`,{year:"numeric"})} — ${c.end?fmtDate(`${c.end}T12:00:00`,{year:"numeric"}):"по сегодня"}`:"Без дат: записи назначаются вручную";
+const rangeText=c=>c.start?(c.end?fmtDayRange(c.start,c.end):`${fmtDate(`${c.start}T12:00:00`,{year:"numeric"})} — по сегодня`):"Без дат: записи назначаются вручную";
 function chaptersMarkup(){
   const chapters=sortChapters(state.chapters),all=activeEntries();
   const loose=all.filter(e=>!chapterOf(e,state.chapters)).length;

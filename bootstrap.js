@@ -14,15 +14,14 @@
           <h1>${message}</h1>
           ${details ? `<p class="subtle">${details}</p>` : ""}
           ${steps ? `<div class="startup-steps">
-            <strong>Windows</strong>
+            <strong>Как открыть</strong>
             <ol>
-              <li>Закройте эту вкладку.</li>
-              <li>Дважды щёлкните <code>START_NARRA.bat</code> в папке приложения.</li>
-              <li>Права администратора не нужны.</li>
-              <li>Оставьте окно локального сервера открытым, пока работаете с дневником.</li>
+              <li>Откройте опубликованный адрес приложения (https://…), а не файл с диска.</li>
+              <li>Для запуска на своём компьютере подойдёт любой локальный сервер, например <code>python -m http.server 8765</code> в папке приложения.</li>
+              <li>Затем откройте <code>http://localhost:8765/</code>.</li>
             </ol>
           </div>
-          <p class="text-small subtle">Используйте один адрес: <code>http://127.0.0.1:8765/</code>. Данные браузера привязаны к origin.</p>` : ""}
+          <p class="text-small subtle">Пользуйтесь всегда одним и тем же адресом: данные браузера привязаны к нему.</p>` : ""}
           <button id="startup-retry" class="primary">Повторить загрузку</button>
         </section>`;
       document.querySelector("#startup-retry")?.addEventListener("click",()=>location.reload());
@@ -33,6 +32,13 @@
 
   if (!allowed) {
     showStartup("Откройте Narra через локальный сервер, а не как файл.", "Режим file:// не даёт приложению стабильный origin для ES-модулей, PWA и локального хранилища.");
+    return;
+  }
+
+  // Encryption (Web Crypto) works only on https:// or on localhost. A plain http:// address in a local network would open
+  // the shell and then fail on the first save, so say so before anything loads.
+  if (window.isSecureContext === false || !(window.crypto && crypto.subtle)) {
+    showStartup("Нужно защищённое соединение.", "Narra шифрует записи, а браузер разрешает шифрование только по адресу https:// или на localhost. Откройте приложение по такому адресу — записи в этом браузере не затронуты.");
     return;
   }
 
@@ -68,7 +74,7 @@
   module.type = "module";
   module.src = `./app.js?v=${BUILD}`;
   module.addEventListener("error", () => {
-    showStartup("Не удалось загрузить Narra.", "Перезапустите START_NARRA.bat и обновите страницу. Если ошибка повторяется, откройте инструменты разработчика и скопируйте сообщение из Console.");
+    showStartup("Не удалось загрузить Narra.", navigator.onLine === false ? "Похоже, нет подключения к интернету, а приложение ещё не сохранилось для работы без сети. Подключитесь и обновите страницу." : "Обновите страницу. Если ошибка повторяется, очистите кэш сайта или откройте инструменты разработчика и скопируйте сообщение из Console.", false);
   }, {once:true});
   document.head.appendChild(module);
 })();

@@ -20,6 +20,8 @@ const range=()=>periodRange(state.reviewKind,state.reviewCursor);
 const savedFor=id=>state.reviews.find(r=>r.id===id)||{id,sections:{},hidden:[],updatedAt:nowIso()};
 const build=r=>buildReview({range:r,entries:state.entries,checkins:state.checkins,config:state.config,chapters:state.chapters,notes:state.entityNotes,now:new Date()});
 const canNext=r=>r.to<localDateKey(new Date());
+/** The newest entry that lies before the shown period, if any: the empty state offers a jump to its period. */
+const latestWithData=r=>{let best="";for(const e of state.entries){if(e.deletedAt)continue;const k=localDateKey(new Date(e.createdAt));if(k<r.from&&k>best)best=k;}return best;};
 
 const HELP={
   happened:"Записи периода в порядке времени.",entities:"Кого, где и что вы упоминали чаще всего.",states:"Что говорят ваши отметки. Это описание, а не оценка.",
@@ -46,7 +48,6 @@ function sectionMarkup(key,review,saved){
   }).join("");
   return `<section class="card review-section" aria-labelledby="rs-${key}"><header><h2 id="rs-${key}">${SECTION_TITLES[key]}</h2><p class="subtle text-small">${escapeHtml(HELP[key])}</p></header>${note}
     ${list?`<ul class="fact-list">${list}</ul>`:facts.length?`<p class="subtle">Все строки скрыты.</p>`:key==="surprised"?"":`<p class="subtle">Пока пусто.</p>`}
-    ${gone.length&&!showHidden?"":""}
     <details class="own-details" ${own||key==="surprised"?"open":""}><summary>${icon("pen")}<span>${own?"Ваши слова":"Добавить свои слова"}</span></summary><label class="field own-field"><span class="label">${key==="surprised"?"Что удивило":"Ваши слова"}</span><textarea class="input" rows="3" data-review-section="${key}" maxlength="6000" placeholder="${key==="surprised"?"Что оказалось неожиданным?":key==="questions"?"Ответы или свои вопросы…":"Что вы сами добавили бы?"}">${escapeHtml(own)}</textarea></label></details></section>`;
 }
 export function reviewsView(){
@@ -55,10 +56,10 @@ export function reviewsView(){
   const items=PERIOD_KINDS.map(([k,l])=>[k,l]);
   const s=review.stats;
   const isYear=r.kind==="year";
-  return `${pageHeader("Оглядываясь назад","Обзоры","Черновик из ваших записей. Слова в нём — ваши; выводы — тоже ваши.",`${state.ai?.enabled&&review.hasData?`<button class="secondary" data-action="review-story">${icon("sparkle")}<span>Рассказать период</span></button>`:""}<button class="secondary" data-action="review-export">${icon("download")}<span>Markdown</span></button>${isYear?`<button class="secondary" data-action="review-book">${icon("printer")}<span>Книга года</span></button>`:`<button class="secondary" data-action="review-print">${icon("printer")}<span>Печать</span></button>`}`)}
+  return `${pageHeader("Оглядываясь назад","Обзоры","Черновик из ваших записей. Слова в нём — ваши; выводы — тоже ваши.",`${state.ai?.enabled&&review.hasData?`<button class="secondary" data-action="review-story">${icon("sparkle")}<span>Рассказать период</span></button>`:""}<button class="secondary" data-action="review-export" ${review.hasData?"":"disabled"}>${icon("download")}<span>Markdown</span></button>${isYear?`<button class="secondary" data-action="review-book" ${review.hasData?"":"disabled"}>${icon("printer")}<span>Книга года</span></button>`:`<button class="secondary" data-action="review-print" ${review.hasData?"":"disabled"}>${icon("printer")}<span>Печать</span></button>`}`)}
     ${tabs("reviews",items,state.reviewKind,{label:"Период обзора"})}<div id="panel-reviews" role="tabpanel" aria-labelledby="tab-reviews-${state.reviewKind}">
-    <div class="period-nav"><button class="icon-button" data-action="review-prev" aria-label="Предыдущий период">${icon("chevron-left")}</button><div class="period-label" aria-live="polite"><strong>${escapeHtml(capitalizeRu(r.label))}</strong><span class="subtle text-small">${review.hasData?`${s.entries} ${plural.entry(s.entries)}, ${s.words} ${plural.word(s.words)}, дней с записями: ${s.activeDays} из ${r.days}`:"В этом периоде записей нет"}</span></div><button class="icon-button" data-action="review-next" aria-label="Следующий период" ${canNext(r)?"":"disabled"}>${icon("chevron-right")}</button>${localDateKey(state.reviewCursor)!==localDateKey(new Date())&&!(r.from<=localDateKey(new Date())&&r.to>=localDateKey(new Date()))?`<button class="link-button" data-action="review-now">К текущему</button>`:""}</div>
-    ${!review.hasData&&!saved.sections?.surprised&&!Object.values(saved.sections||{}).some(Boolean)?emptyState("За этот период записей нет","Когда появятся записи или отметки, здесь соберётся черновик обзора. Пока можно перейти к другому периоду.","","reviews"):`
+    <div class="period-nav"><button class="icon-button" data-action="review-prev" aria-label="Предыдущий период">${icon("chevron-left")}</button><div class="period-label" aria-live="polite"><strong>${escapeHtml(capitalizeRu(r.label))}</strong><span class="subtle text-small">${review.hasData?`${s.entries} ${plural.entry(s.entries)}, ${s.words} ${plural.word(s.words)}, дней с записями: ${s.activeDays} из ${r.days}`:"Пока пусто"}</span></div><button class="icon-button" data-action="review-next" aria-label="Следующий период" ${canNext(r)?"":"disabled"}>${icon("chevron-right")}</button>${localDateKey(state.reviewCursor)!==localDateKey(new Date())&&!(r.from<=localDateKey(new Date())&&r.to>=localDateKey(new Date()))?`<button class="link-button" data-action="review-now">К текущему</button>`:""}</div>
+    ${!review.hasData&&!saved.sections?.surprised&&!Object.values(saved.sections||{}).some(Boolean)?emptyState("За этот период записей нет","Когда появятся записи или отметки, здесь соберётся черновик обзора. Пока можно перейти к другому периоду.",latestWithData(r)?`<button class="secondary" data-action="review-latest">${icon("history")}<span>К последнему периоду с записями</span></button>`:"","reviews"):`
     <div class="review-status"><span id="review-save-status" class="text-small subtle" role="status">${saveState==="saved"?"Сохранено":""}</span>${hiddenCount?`<button class="link-button" data-action="review-toggle-hidden">${showHidden?"Скрыть спрятанное":`Показать спрятанные строки (${hiddenCount})`}</button>`:""}</div>
     <div class="review-sections">${SECTION_ORDER.map(k=>sectionMarkup(k,review,saved)).join("")}</div>`}</div>`;
 }
@@ -126,6 +127,7 @@ function bookHtml(r){
 export const views={reviews:reviewsView};
 export const actions={
   "review-prev":()=>shift(-1),"review-next":()=>shift(1),
+  "review-latest":async()=>{const k=latestWithData(range());if(!k)return;await flush();state.reviewCursor=new Date(`${k}T12:00:00`);showHidden=false;ctx.render();},
   "review-now":async()=>{await flush();state.reviewCursor=new Date();showHidden=false;ctx.render();},
   "review-hide":el=>toggleHidden(el.dataset.id,true),
   "review-unhide":el=>toggleHidden(el.dataset.id,false),
