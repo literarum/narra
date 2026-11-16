@@ -132,7 +132,9 @@ export function viewMetaMarkup(entry){
   const chip=(label,cls="")=>`<span class="view-chip ${cls}">${escapeHtml(label)}</span>`;
   const when=[`${fmtLong(entry.happenedAt)}, ${fmtTime(entry.happenedAt)}`];
   if(entry.happenedEnd)when[0]+=` — ${fmtLong(entry.happenedEnd)}`;
-  const line=[capitalizeRu(kindLabels[entry.kind]||"мысль"),...when,entry.location?`${entry.location}`:""].filter(Boolean);
+  // reading time: about 180 words a minute for Russian prose read for oneself
+  const wc=(String(entry.body||"").match(/[\p{L}\p{N}]+/gu)||[]).length,mins=Math.max(1,Math.round(wc/180));
+  const line=[capitalizeRu(kindLabels[entry.kind]||"мысль"),...when,entry.location?`${entry.location}`:"",wc>=120?`≈ ${mins} мин чтения`:""].filter(Boolean);
   const chap=featureOn("featChapters")?chapterOf(entry,state.chapters):null;
   const chips=[
     ...(entry.people||[]).map(x=>chip(x,"is-person")),

@@ -3,7 +3,7 @@
 import {validateCanonicalEntry,nextRevision,searchEntries,parseRussianDateHint,isSealedCapsule} from "./domain.mjs?v=4.7.0";
 import {applyFormat,activeFormats,continueList,shiftIndent,diffRange,renderMarkdown} from "./md.mjs?v=4.7.0";
 import {state,ctx,$,$$,escapeHtml,icon,uid,nowIso,fmtLong,fmtTime,fmtDate,localDateInputValue,dateInputToIso,splitCsv,words,chars,wordLabel,pluralRu,featureOn,activeEntries,entryById,mediaOf,kindLabels,capitalizeRu,downloadBlob,kbdLabel,isQuotaError,QUOTA_TEXT,todayKey} from "./core.js?v=4.7.0";
-import {entryText,excerpt} from "./text.mjs?v=4.7.0";
+import {entryText,excerpt,mdToPlain as mdToPlainText} from "./text.mjs?v=4.7.0";
 import {cleanDecision,cleanLinks} from "./domain.mjs?v=4.7.0";
 import {modalHeader,statusPill} from "./kit.js?v=4.7.0";
 import {enhance} from "./ui.mjs?v=4.7.0";
@@ -24,9 +24,11 @@ const SLASH_ITEMS=[
   {format:"mark",icon:"highlight",label:"Выделение маркером",kw:"подсветка маркер"},{format:"date",icon:"calendar",label:"Дата и время",kw:"сегодня время"},
   {format:"divider",icon:"divider",label:"Разделитель",kw:"линия черта"},
 ];
-export function newEntry({body="",date=null,prefill=""}={}){
+export function newEntry({body="",date=null,prefill="",...extra}={}){
   const at=date?dateInputToIso(date,nowIso()):nowIso();
-  return {id:uid(),title:"",body,prefill,kind:"thought",happenedAt:at,createdAt:nowIso(),updatedAt:nowIso(),revision:0,favorite:false,sensitive:false,completedAt:null,deletedAt:null,people:[],themes:[],projects:[],location:"",dismissedSuggestions:[],happenedEnd:null,chapterId:null,links:[],decision:null};
+  // a copy or a template may bring its title, kind, people, places and themes
+  const carry={};for(const k of ["title","kind","people","themes","projects","location","chapterId","sensitive"])if(extra[k]!==undefined)carry[k]=structuredClone(extra[k]);
+  return {id:uid(),title:"",body,prefill,kind:"thought",happenedAt:at,createdAt:nowIso(),updatedAt:nowIso(),revision:0,favorite:false,sensitive:false,completedAt:null,deletedAt:null,people:[],themes:[],projects:[],location:"",dismissedSuggestions:[],happenedEnd:null,chapterId:null,links:[],decision:null,...carry};
 }
 const statsText=body=>{const wc=words(body),cc=chars(body);return [`${wc} ${wordLabel(wc)}`,`${cc} ${pluralRu(cc,"символ","символа","символов")}`];};
 const canDictate=()=>!!(globalThis.SpeechRecognition||globalThis.webkitSpeechRecognition);
@@ -80,6 +82,9 @@ function editorMarkup(entry,mode="edit"){
       <button type="button" class="icon-button icon-button-quiet only-mobile" data-action="editor-more" aria-label="Ещё" aria-haspopup="dialog">${icon("more")}</button>
       <button type="button" class="icon-button icon-button-quiet focus-exit" data-action="toggle-focus" aria-label="Выйти из режима фокуса" title="Выйти из режима фокуса (Esc)">${icon("focus-off")}<span>Выйти из фокуса</span><kbd class="only-desktop">Esc</kbd></button>
       <button type="button" class="primary button-with-icon edit-only" data-action="finish-editing">${icon("check")}<span>Готово</span></button>
+      <button type="button" class="icon-button icon-button-quiet view-only" data-action="entry-step" data-step="-1" aria-label="Предыдущая запись (←)" title="Более ранняя запись (←)">${icon("chevron-left")}</button>
+      <button type="button" class="icon-button icon-button-quiet view-only" data-action="entry-step" data-step="1" aria-label="Следующая запись (→)" title="Более поздняя запись (→)">${icon("chevron-right")}</button>
+      ${"speechSynthesis" in window?`<button type="button" class="icon-button icon-button-quiet view-only" data-action="read-aloud" id="read-aloud" aria-pressed="false" aria-label="Прочитать вслух" title="Прочитать вслух">${icon("wave")}</button>`:""}
       <button type="button" class="primary button-with-icon view-only" data-action="edit-entry">${icon("pen")}<span>Изменить</span></button>
     </div></div>
     <div class="editor-tools edit-only" id="editor-tools" role="toolbar" aria-label="Форматирование текста">
@@ -324,13 +329,43 @@ function applySlash(format){
   setBodyValue({value:body.value.slice(0,from)+body.value.slice(to),start:from,end:from});
   runFormat(chosen);
 }
+/* A long entry with three or more headings gets a small table of contents; a tap scrolls to the part. */
+function tocMarkup(src){
+  const hs=[...String(src||"").matchAll(/^(#{1,3})[ \t]+(.+)$/gm)].map(m=>({level:m[1].length,text:m[2].replace(/[*_~=`]/g,"").trim()})).filter(h=>h.text);
+  if(hs.length<3)return "";
+  return `<nav class="entry-toc" aria-label="Содержание записи"><strong>Содержание</strong><ol>${hs.map((h,i)=>`<li class="toc-l${h.level}"><button type="button" class="link-button" data-action="toc-go" data-i="${i}">${escapeHtml(h.text)}</button></li>`).join("")}</ol></nav>`;
+}
+/* Reading aloud with the voices of the device (works offline where the system has a Russian voice). */
+function stopReading(){try{speechSynthesis.cancel();}catch{}const b=$("#read-aloud");if(b){b.setAttribute("aria-pressed","false");b.classList.remove("is-active");b.setAttribute("aria-label","Прочитать вслух");}}
+function readAloud(){
+  const b=$("#read-aloud"),ed=state.editing;if(!ed||!("speechSynthesis" in window))return;
+  if(speechSynthesis.speaking){stopReading();return;}
+  const text=[ed.title,mdToPlainText(ed.body||"")].filter(Boolean).join(". ");if(!text.trim())return;
+  const voices=speechSynthesis.getVoices(),ru=voices.find(v=>/^ru/i.test(v.lang));
+  if(voices.length&&!ru)ctx.toast("На устройстве нет русского голоса: чтение может звучать с акцентом. Голоса добавляются в настройках системы.");
+  // long texts are spoken in sentence-sized parts: some engines stop on very long utterances
+  const parts=text.match(/[^.!?…\n]+[.!?…]*\s*/g)||[text];
+  parts.forEach((p,i)=>{const u=new SpeechSynthesisUtterance(p);u.lang="ru-RU";if(ru)u.voice=ru;u.rate=.98;if(i===parts.length-1)u.onend=stopReading;speechSynthesis.speak(u);});
+  if(b){b.setAttribute("aria-pressed","true");b.classList.add("is-active");b.setAttribute("aria-label","Остановить чтение");}
+}
+/** The neighbouring visible entry in time (−1 earlier, +1 later), for reading one after another. */
+function neighbour(step){
+  const ed=state.editing;if(!ed)return null;
+  const list=activeEntries().slice().sort((a,b)=>String(a.happenedAt).localeCompare(String(b.happenedAt)));
+  const i=list.findIndex(e=>e.id===ed.id);return i<0?null:list[i+step]||null;
+}
+async function stepEntry(step){
+  const next=neighbour(step);
+  if(!next){ctx.toast(step<0?"Это самая ранняя запись.":"Это самая поздняя запись.");return;}
+  stopReading();await openEditor(next.id);
+}
 function setPreview(on,{focus=true}={}){
   const modal=$(".editor-modal"),body=$("#entry-body"),pv=$("#entry-preview");if(!modal||!pv)return;
   state.editorPreview=on;hideSlash();
   modal.classList.toggle("is-previewing",on);
   $(".body-wrap")?.toggleAttribute("hidden",on);
   pv.hidden=!on;
-  if(on){pv.innerHTML=renderMarkdown(body.value,{collapsible:true})||`<p class="md-empty">Пока нечего показывать — напишите что-нибудь.</p>`;ctx.animateIn(pv);media.hydrate(pv);}
+  if(on){pv.innerHTML=(tocMarkup(body.value)+renderMarkdown(body.value,{collapsible:true}))||`<p class="md-empty">Пока нечего показывать — напишите что-нибудь.</p>`;ctx.animateIn(pv);media.hydrate(pv);}
   $("#editor-tools")?.classList.toggle("is-disabled",on);
   const btn=$("#preview-toggle");
   if(btn){btn.setAttribute("aria-pressed",String(on));btn.setAttribute("aria-label",on?"Вернуться к редактированию":"Показать, как выглядит текст");btn.title=on?"Редактировать":"Просмотр";btn.innerHTML=icon(on?"pen":"eye");}
@@ -848,6 +883,17 @@ async function printEntry(){
   if(imgs.length)await Promise.race([Promise.all(imgs.map(i=>new Promise(r=>{i.addEventListener("load",r,{once:true});i.addEventListener("error",r,{once:true});}))),new Promise(r=>setTimeout(r,4000))]);
   window.print();
 }
+const isTypingTarget=el=>el&&(el.isContentEditable||/^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName))&&!el.readOnly;
+/* A copy of the entry as a new draft dated now: same text, people, places and themes, no history, no media links. */
+async function duplicateEntry(){
+  const ed=state.editing;if(!ed)return;
+  if(state.dirty)await saveEditing("switch").catch(()=>false);
+  const body=String(ed.body||"").replace(/!\[[^\]]*\]\(narra-media:[^)]+\)\n?/g,"");
+  const {id,revision,createdAt,updatedAt,completedAt,deletedAt,happenedAt,happenedEnd,openOn,pinned,favorite,links,decision,...rest}=ed;
+  await openEditor(null,{...rest,body,title:ed.title?`${ed.title} (копия)`:"",edit:true});
+  markEditorDirty("duplicate");
+  ctx.toast("Копия открыта как новая запись. Фото и аудио не копируются.");
+}
 function togglePin(){
   if(!state.editing)return;
   state.editing.pinned=!state.editing.pinned;markEditorDirty("pin");
@@ -897,6 +943,7 @@ function showEditorMore(){
     ${item("history","История версий","versions")}
     ${item("star",ed.favorite?"Убрать из избранного":"Добавить в избранное","favorite")}
     ${item("pin",ed.pinned?"Открепить":"Закрепить вверху дневника","pin")}
+    ${ed.revision?item("copy","Дублировать","duplicate","Новая запись с тем же текстом"):""}
     ${item("copy","Скопировать текст","copy")}
     ${view?"":item("layout","Сохранить как шаблон","template","Структура записи без вашего текста")}
     ${navigator.share?item("share","Поделиться…","share"):""}
@@ -963,6 +1010,7 @@ async function runEditorAction(run){
   else if(run==="template")saveAsTemplate();
   else if(run==="pin")togglePin();
   else if(run==="timer")askTimer();
+  else if(run==="duplicate")await duplicateEntry();
   else if(run==="print")await printEntry();
 }
 
@@ -978,7 +1026,7 @@ const LINK_PICKER=`${modalHeader("Связать с записью","Выбер�
 
 /* ----- exports to the shell ----- */
 export function onOverlayClosed(){
-  stopTimer();media.stopRecordingIfAny();clearTimeout(idleJob);cancelAnimationFrame(frameJob);frameJob=0;
+  stopTimer();stopReading();media.stopRecordingIfAny();clearTimeout(idleJob);cancelAnimationFrame(frameJob);frameJob=0;
   document.removeEventListener("selectionchange",onSelectionChange);
   store.revokeMediaUrls();
 }
@@ -994,6 +1042,8 @@ export async function onKey(e,mod){
   if(mod&&!e.shiftKey&&e.code==="KeyF"){e.preventDefault();showEditorFind();return;}
   if(mod&&e.key==="Enter"){e.preventDefault();if(state.editorMode==="view")return;await ctx.ACTIONS["finish-editing"]();return;}
   if(mod&&e.code==="KeyS"){e.preventDefault();const ok=await saveEditing("manual");if(ok)ctx.toast("Сохранено.");return;}
+  // reading: ← and → turn to the earlier or later entry (never while typing in a field)
+  if(state.editorMode==="view"&&!mod&&!e.altKey&&(e.key==="ArrowLeft"||e.key==="ArrowRight")&&!isTypingTarget(e.target)){e.preventDefault();await stepEntry(e.key==="ArrowLeft"?-1:1);return;}
   if(e.key==="F3"||(mod&&e.code==="KeyG")){e.preventDefault();if(!$("#editor-findbar")||$("#editor-findbar").hidden)showEditorFind();else findJump(e.shiftKey?-1:1);}
 }
 export const onResize=()=>{if(state.editing){autosize($("#entry-title"));autosize($("#entry-body"));}};
@@ -1049,6 +1099,10 @@ export const actions={
   "editor-more":()=>showEditorMore(),
   "editor-run":el=>runEditorAction(el.dataset.run),
   "apply-template":el=>applyTemplate(el.dataset.id),
+  "entry-step":el=>stepEntry(Number(el.dataset.step)),
+  "read-aloud":()=>readAloud(),
+  "toc-go":el=>{const hs=$$("#entry-preview :is(h2,h3,h4)");const h=hs[Number(el.dataset.i)];if(h){const d=h.closest("details");if(d)d.open=true;h.scrollIntoView({behavior:ctx.reducedMotion?.()?"auto":"smooth",block:"start"});}},
+  "duplicate-entry":()=>duplicateEntry(),
   "timer-start":el=>{ctx.closeDialog({restoreFocus:false});startTimer(Number(el.dataset.min)||15);$("#entry-body")?.focus({preventScroll:true});},
   "timer-stop":()=>{ctx.closeDialog({restoreFocus:false});stopTimer();ctx.toast("Таймер остановлен.");},
   "restore-trash":el=>restoreTrashedEntry(el.dataset.id),

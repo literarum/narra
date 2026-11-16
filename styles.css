@@ -2240,3 +2240,12 @@ body[data-typewriter="on"] .editor-modal:not(.is-viewing) .editor-surface { padd
 .word-goal.is-reached { color: var(--accent-strong); }
 .writing-timer { font-variant-numeric: tabular-nums; color: var(--accent-strong); }
 .writing-timer.is-over { color: var(--muted); }
+
+/* ===== 4.7 — reading view: contents, read aloud ===== */
+.entry-toc { margin: 0 0 22px; padding: 14px 18px; border: 1px solid var(--line); border-radius: var(--r-control); background: var(--surface); font-family: var(--sans); font-size: 14px; }
+.entry-toc strong { display: block; margin-bottom: 6px; font-size: 12px; letter-spacing: .06em; text-transform: uppercase; color: var(--faint); }
+.entry-toc ol { margin: 0; padding: 0; list-style: none; display: grid; gap: 2px; }
+.entry-toc .toc-l2 { padding-left: 14px; } .entry-toc .toc-l3 { padding-left: 28px; }
+.entry-toc .link-button { text-align: left; min-height: 32px; }
+#read-aloud.is-active { color: var(--accent-strong); background: var(--accent-soft); }
+@media (max-width: 400px) { .editor-top-right [data-action="entry-step"] { display: none; } }
