@@ -3,7 +3,7 @@
    an association is only shown when at least 10 days stand on each side, and it is worded as a coincidence, not a cause. */
 import {state,ctx,$,escapeHtml,icon,todayKey,checkinLabel,dayLabel,entryLabel,activeEntries,fmtDate,fmtDayRange,featureOn} from "./core.js?v=4.7.0";
 import {pageHeader,emptyState,tabs,chip} from "./kit.js?v=4.7.0";
-import {stateCards,contextAssociations,curateAssociations,describeAssociation,emotionStats,entityStats,rhythm,statePartOfDay,writingEffect,medianLabel,checkinWord} from "./insights-model.mjs?v=4.7.0";
+import {yearPixels,stateCards,contextAssociations,curateAssociations,describeAssociation,emotionStats,entityStats,rhythm,statePartOfDay,writingEffect,medianLabel,checkinWord} from "./insights-model.mjs?v=4.7.0";
 import {lineChart,barChart,monthStrip,dataTable} from "./charts.mjs?v=4.7.0";
 import {MIN_N,addDays,dayKey} from "./stats.mjs?v=4.7.0";
 import {activeDimensions,EMOTION_GROUP_OF,EMOTION_GROUPS,dimLabel} from "./checkin.mjs?v=4.7.0";
@@ -65,10 +65,30 @@ function baselineText(c){
   const cur=medianLabel(c.dim,b.current.median),prev=medianLabel(c.dim,b.baseline.median);
   return `<p class="baseline-line">Последние 30 дней: <strong>${escapeHtml(cur)}</strong> (по ${b.current.n} ${checkinsDative(b.current.n)}). Предыдущие 90 дней: <strong>${escapeHtml(prev)}</strong> (по ${b.baseline.n} ${checkinsDative(b.baseline.n)}).${b.direction==="same"?" Заметной разницы нет.":""}</p>`;
 }
+/* ---------- year in pixels ---------- */
+let pixelYear=new Date().getFullYear();
+const MONTH_SHORT=["Янв","Фев","Мар","Апр","Май","Июн","Июл","Авг","Сен","Окт","Ноя","Дек"];
+const MOOD_WORD=["очень низкое","низкое","нейтральное","хорошее","очень хорошее"];
+function pixelsMarkup(){
+  const y=pixelYear,px=yearPixels(state.checkins,activeEntries(),y,todayKey()),thisYear=new Date().getFullYear();
+  const firstYear=Math.min(thisYear,...state.checkins.map(c=>new Date(c.observedAt).getFullYear()).filter(Number.isFinite),...activeEntries().map(e=>new Date(e.happenedAt).getFullYear()).filter(Number.isFinite));
+  const cell=d=>{
+    if(!d)return `<span class="px is-void" aria-hidden="true"></span>`;
+    const cls=`px${d.mood!=null?` m${d.mood+2}`:""}${d.written?" is-written":""}${d.future?" is-future":""}`;
+    const label=`${d.day} ${MONTH_SHORT[Number(d.key.slice(5,7))-1].toLowerCase()}: ${d.mood!=null?`настроение ${MOOD_WORD[d.mood+2]}`:"без отметки"}${d.written?", есть запись":""}`;
+    return d.written?`<button type="button" class="${cls}" data-action="pixel-day" data-date="${d.key}" title="${label}" aria-label="${label}"></button>`:`<span class="${cls}" title="${label}"></span>`;
+  };
+  const summary=px.rated?`Дней с отметкой настроения: ${px.rated} (${px.counts.map((n,i)=>n?`${MOOD_WORD[i]} — ${n}`:"").filter(Boolean).join(", ")}).`:"В этом году отметок настроения пока нет. Дни с записями отмечены точкой.";
+  return `<section class="card pixels-card" aria-labelledby="px-title"><div class="pixels-head"><div><h2 class="h3" id="px-title">Год в пикселях</h2><p class="subtle text-small">Каждая клетка — день: цвет — настроение по вашим отметкам, точка — есть запись. Пустые дни ничем не заполняются.</p></div>
+    <div class="pixels-nav"><button class="icon-button" data-action="pixel-year" data-step="-1" aria-label="Предыдущий год" ${y<=firstYear?"disabled":""}>${icon("chevron-left")}</button><strong aria-live="polite">${y}</strong><button class="icon-button" data-action="pixel-year" data-step="1" aria-label="Следующий год" ${y>=thisYear?"disabled":""}>${icon("chevron-right")}</button></div></div>
+    <div class="pixels" role="group" aria-label="${escapeHtml(summary)}">${px.months.map((m,i)=>`<div class="px-row"><span class="px-month">${MONTH_SHORT[i]}</span>${m.map(cell).join("")}</div>`).join("")}</div>
+    <div class="pixels-legend" aria-hidden="true">${MOOD_WORD.map((w,i)=>`<span><i class="px m${i}"></i>${w}</span>`).join("")}<span><i class="px is-written"></i>запись</span></div>
+    <p class="evidence">${escapeHtml(summary)}</p></section>`;
+}
 function statesTab(sc){
   const cards=stateCards(sc.checkins,state.config,{today:sc.today,periodDays:period||null});
   if(!cards.length)return emptyState("Поля отметок выключены","Включите хотя бы одно поле в настройках, в разделе «Отметки».",`<button class="secondary" data-action="go" data-to="settings">Открыть настройки</button>`,"state");
-  return `<div class="insight-stack">${cards.map(c=>{
+  return `${pixelsMarkup()}<div class="insight-stack">${cards.map(c=>{
     if(!c.enough)return `<article class="card insight-block"><h2 class="h3">${escapeHtml(c.dim.name)}</h2>${waiting(c.n,MIN_N,`Отметок пока мало: график появится после ${MIN_N}.`)}</article>`;
     const domain=[Math.min(...c.dim.values),Math.max(...c.dim.values)],modeIdx=c.distribution.indexOf(Math.max(...c.distribution));
     const line=lineChart({points:c.series,line:c.rolling,domain,lowLabel:c.dim.low,highLabel:c.dim.high,summary:`${c.dim.name}: линия по дням, ${c.n} ${checkinLabel(c.n)}, ${fmtDayRange(c.period.from,c.period.to)}. Чаще всего — ${c.label}.`});
@@ -161,6 +181,8 @@ export function insightsView(){
 }
 export const views={insights:insightsView};
 export const actions={
+  "pixel-year":el=>{pixelYear+=Number(el.dataset.step)||0;ctx.render();$(`[data-action="pixel-year"][data-step="${el.dataset.step}"]`)?.focus({preventScroll:true});},
+  "pixel-day":el=>{const k=el.dataset.date;state.journalView="calendar";state.calendarCursor=new Date(`${k.slice(0,7)}-01T12:00:00`);state.calendarSelectedDate=k;ctx.routeTo("journal");},
   "insights-period":el=>{period=Number(el.dataset.value);ctx.render();$(`[data-action="insights-period"][data-value="${period}"]`)?.focus({preventScroll:true});},
   "insights-more":()=>{showAllAssoc=!showAllAssoc;ctx.render();},
   "insights-entity":el=>{entityType=el.dataset.value;ctx.render();$(`[data-action="insights-entity"][data-value="${entityType}"]`)?.focus({preventScroll:true});},

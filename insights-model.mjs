@@ -138,3 +138,25 @@ export function statePartOfDay(checkins,config,{periodDays=null,today=dayKey(new
   }
   return out;
 }
+
+/** «Year in pixels»: every day of a year with the median mood of that day's check-ins (−2…2) and whether something was written.
+    Days without a mood stay empty — nothing is filled in or guessed. Keys are local days "YYYY-MM-DD". */
+export function yearPixels(checkins,entries,year,todayKey){
+  const pad=n=>String(n).padStart(2,"0"),key=d=>`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+  const moods=new Map(),written=new Set();
+  for(const c of checkins||[]){const d=new Date(c.observedAt);if(d.getFullYear()!==year)continue;const v=Number(c.moodValence);if(!Number.isFinite(v)||c.moodValence==null)continue;const k=key(d);if(!moods.has(k))moods.set(k,[]);moods.get(k).push(v);}
+  for(const e of entries||[]){if(e.deletedAt)continue;const d=new Date(e.happenedAt);if(d.getFullYear()===year)written.add(key(d));}
+  const months=[];let rated=0;const counts=[0,0,0,0,0];
+  for(let m=0;m<12;m++){
+    const days=[],last=new Date(year,m+1,0).getDate();
+    for(let d=1;d<=31;d++){
+      if(d>last){days.push(null);continue;}
+      const k=`${year}-${pad(m+1)}-${pad(d)}`,list=moods.get(k);
+      let mood=null;
+      if(list?.length){const s=[...list].sort((a,b)=>a-b),mid=s.length>>1;mood=s.length%2?s[mid]:Math.round((s[mid-1]+s[mid])/2);rated++;counts[mood+2]++;}
+      days.push({key:k,day:d,mood,written:written.has(k),future:Boolean(todayKey)&&k>todayKey});
+    }
+    months.push(days);
+  }
+  return {year,months,rated,counts};
+}

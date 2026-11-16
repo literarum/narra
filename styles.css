@@ -2173,3 +2173,35 @@ ul.card.talk-steps { padding: 8px 12px; }
 .template-chip { flex: 0 0 auto; display: inline-flex; align-items: center; gap: 7px; white-space: nowrap; }
 .template-chip .icon { width: 16px; height: 16px; color: var(--accent-strong); }
 @media (min-width: 721px) { .template-chips { flex-wrap: wrap; overflow: visible; } }
+
+/* ===== 4.7 — year in pixels ===== */
+.pixels-card { padding: 22px 24px; margin-bottom: 18px; }
+.pixels-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 14px; }
+.pixels-head h2 { margin: 0 0 4px; }
+.pixels-head .subtle { margin: 0; max-width: 52ch; }
+.pixels-nav { display: flex; align-items: center; gap: 6px; flex: 0 0 auto; }
+.pixels-nav strong { min-width: 44px; text-align: center; font-variant-numeric: tabular-nums; }
+.pixels { display: grid; gap: 3px; overflow-x: auto; padding-bottom: 2px; }
+.px-row { display: grid; grid-template-columns: 30px repeat(31, minmax(7px, 1fr)); gap: 3px; align-items: center; }
+.px-month { font-size: 11px; color: var(--faint); }
+.px { display: block; aspect-ratio: 1; border-radius: 3px; background: color-mix(in srgb, var(--line) 70%, transparent); border: 0; padding: 0; min-width: 0; position: relative; }
+.px.is-void { background: transparent; }
+.px.is-future { opacity: .35; }
+.px.m0 { background: color-mix(in srgb, var(--danger) 78%, var(--surface)); }
+.px.m1 { background: color-mix(in srgb, var(--danger) 42%, var(--surface)); }
+.px.m2 { background: color-mix(in srgb, var(--line-strong) 80%, var(--surface)); }
+.px.m3 { background: color-mix(in srgb, var(--accent) 50%, var(--surface)); }
+.px.m4 { background: var(--accent); }
+.px.is-written::after { content: ""; position: absolute; inset: 0; margin: auto; width: 34%; height: 34%; border-radius: 50%; background: var(--text); opacity: .55; }
+button.px { cursor: pointer; }
+button.px:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.pixels-legend { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 12px; font-size: 12px; color: var(--muted); }
+.pixels-legend span { display: inline-flex; align-items: center; gap: 6px; }
+.pixels-legend .px { width: 11px; height: 11px; }
+@media (max-width: 720px) {
+  .pixels-card { padding: 16px; }
+  .pixels-head { flex-direction: column; }
+  .px-row { grid-template-columns: 24px repeat(31, minmax(6px, 1fr)); gap: 2px; }
+  .pixels { gap: 2px; }
+  .px { border-radius: 2px; }
+}
