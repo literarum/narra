@@ -2270,3 +2270,23 @@ body[data-typewriter="on"] .editor-modal:not(.is-viewing) .editor-surface { padd
 .capsule-list { display: grid; gap: 10px; }
 .capsule-row { display: flex; align-items: center; gap: 14px; width: 100%; padding: 14px 16px; text-align: left; color: var(--text); }
 .capsule-row span:last-child { display: grid; gap: 2px; } .capsule-row small { color: var(--muted); }
+
+/* ===== 4.7 — writing in numbers, frequent words, pixel modes ===== */
+.records-card { padding: 22px 24px; margin-top: 18px; }
+.records-card h2 { margin: 0 0 14px; }
+.record-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-bottom: 12px; }
+.record-tile { display: grid; gap: 4px; padding: 14px; border-radius: var(--r-control); background: var(--surface-strong); border: 1px solid var(--line); }
+.record-tile strong { font: 500 26px/1.1 var(--serif); font-variant-numeric: tabular-nums; }
+.record-tile span { font-size: 12.5px; color: var(--muted); line-height: 1.35; }
+.records-card .h4 { margin: 18px 0 4px; font-size: 15px; }
+.word-cloud { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.word-chip small { color: var(--faint); margin-left: 4px; font-variant-numeric: tabular-nums; }
+.word-chip.w3 { font-size: 17px; } .word-chip.w2 { font-size: 15px; } .word-chip.w1 { font-size: 13.5px; }
+.pixels-mode { margin-top: 10px; }
+
+/* writing mode: one calm colour that deepens with the amount written — «less» is not painted as «bad» */
+.pixels.is-words .px.m0, .pixels-legend.is-words .px.m0 { background: color-mix(in srgb, var(--accent) 18%, var(--surface)); }
+.pixels.is-words .px.m1, .pixels-legend.is-words .px.m1 { background: color-mix(in srgb, var(--accent) 34%, var(--surface)); }
+.pixels.is-words .px.m2, .pixels-legend.is-words .px.m2 { background: color-mix(in srgb, var(--accent) 52%, var(--surface)); }
+.pixels.is-words .px.m3, .pixels-legend.is-words .px.m3 { background: color-mix(in srgb, var(--accent) 74%, var(--surface)); }
+.pixels.is-words .px.m4, .pixels-legend.is-words .px.m4 { background: var(--accent-strong); }

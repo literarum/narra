@@ -1,14 +1,15 @@
 /* Insights («Наблюдения»): what the check-ins and entries say, described — never diagnosed.
    Every number comes with how many observations it rests on and which period; every chart has a table with the same data;
    an association is only shown when at least 10 days stand on each side, and it is worded as a coincidence, not a cause. */
-import {state,ctx,$,escapeHtml,icon,todayKey,checkinLabel,dayLabel,entryLabel,activeEntries,fmtDate,fmtDayRange,featureOn} from "./core.js?v=4.7.0";
+import {state,ctx,$,escapeHtml,icon,todayKey,checkinLabel,dayLabel,entryLabel,activeEntries,fmtDate,fmtDayRange,featureOn,downloadBlob} from "./core.js?v=4.7.0";
 import {pageHeader,emptyState,tabs,chip} from "./kit.js?v=4.7.0";
-import {yearPixels,stateCards,contextAssociations,curateAssociations,describeAssociation,emotionStats,entityStats,rhythm,statePartOfDay,writingEffect,medianLabel,checkinWord} from "./insights-model.mjs?v=4.7.0";
+import {yearPixels,writingRecords,frequentWords,wordsPerDay,stateCards,contextAssociations,curateAssociations,describeAssociation,emotionStats,entityStats,rhythm,statePartOfDay,writingEffect,medianLabel,checkinWord} from "./insights-model.mjs?v=4.7.0";
 import {lineChart,barChart,monthStrip,dataTable} from "./charts.mjs?v=4.7.0";
 import {MIN_N,addDays,dayKey} from "./stats.mjs?v=4.7.0";
 import {activeDimensions,EMOTION_GROUP_OF,EMOTION_GROUPS,dimLabel} from "./checkin.mjs?v=4.7.0";
 import {ENTITY_TYPES} from "./entities.mjs?v=4.7.0";
-import {pluralRu} from "./domain.mjs?v=4.7.0";
+import {pluralRu,stemRu,formatNumberRu} from "./domain.mjs?v=4.7.0";
+import {entryText} from "./text.mjs?v=4.7.0";
 
 const TABS=[["overview","Обзор"],["states","Состояния"],["contexts","Что с чем совпадает"],["emotions","Эмоции"],["themes","Темы и люди"],["rhythm","Ритм письма"],["writing","Письмо"]];
 const PERIODS=[[30,"30 дней"],[90,"90 дней"],[365,"Год"],[0,"Всё время"]];
@@ -71,19 +72,36 @@ const MONTH_SHORT=["Янв","Фев","Мар","Апр","Май","Июн","Июл
 const MOOD_WORD=["очень низкое","низкое","нейтральное","хорошее","очень хорошее"];
 function pixelsMarkup(){
   const y=pixelYear,px=yearPixels(state.checkins,activeEntries(),y,todayKey()),thisYear=new Date().getFullYear();
+  const byWords=state.prefs.pixelMode==="words",wpd=byWords?wordsPerDay(activeEntries(),y):null;
+  if(byWords)for(const m of px.months)for(const d of m)if(d){const w=wpd.map.get(d.key)||0;d.mood=wpd.level(w)==null?null:wpd.level(w)-2;d.words=w;}
   const firstYear=Math.min(thisYear,...state.checkins.map(c=>new Date(c.observedAt).getFullYear()).filter(Number.isFinite),...activeEntries().map(e=>new Date(e.happenedAt).getFullYear()).filter(Number.isFinite));
   const cell=d=>{
     if(!d)return `<span class="px is-void" aria-hidden="true"></span>`;
     const cls=`px${d.mood!=null?` m${d.mood+2}`:""}${d.written?" is-written":""}${d.future?" is-future":""}`;
-    const label=`${d.day} ${MONTH_SHORT[Number(d.key.slice(5,7))-1].toLowerCase()}: ${d.mood!=null?`настроение ${MOOD_WORD[d.mood+2]}`:"без отметки"}${d.written?", есть запись":""}`;
+    const label=`${d.day} ${MONTH_SHORT[Number(d.key.slice(5,7))-1].toLowerCase()}: ${byWords?(d.words?`${d.words} ${pluralRu(d.words,"слово","слова","слов")}`:"без записей"):`${d.mood!=null?`настроение ${MOOD_WORD[d.mood+2]}`:"без отметки"}${d.written?", есть запись":""}`}`;
     return d.written?`<button type="button" class="${cls}" data-action="pixel-day" data-date="${d.key}" title="${label}" aria-label="${label}"></button>`:`<span class="${cls}" title="${label}"></span>`;
   };
-  const summary=px.rated?`Дней с отметкой настроения: ${px.rated} (${px.counts.map((n,i)=>n?`${MOOD_WORD[i]} — ${n}`:"").filter(Boolean).join(", ")}).`:"В этом году отметок настроения пока нет. Дни с записями отмечены точкой.";
-  return `<section class="card pixels-card" aria-labelledby="px-title"><div class="pixels-head"><div><h2 class="h3" id="px-title">Год в пикселях</h2><p class="subtle text-small">Каждая клетка — день: цвет — настроение по вашим отметкам, точка — есть запись. Пустые дни ничем не заполняются.</p></div>
-    <div class="pixels-nav"><button class="icon-button" data-action="pixel-year" data-step="-1" aria-label="Предыдущий год" ${y<=firstYear?"disabled":""}>${icon("chevron-left")}</button><strong aria-live="polite">${y}</strong><button class="icon-button" data-action="pixel-year" data-step="1" aria-label="Следующий год" ${y>=thisYear?"disabled":""}>${icon("chevron-right")}</button></div></div>
-    <div class="pixels" role="group" aria-label="${escapeHtml(summary)}">${px.months.map((m,i)=>`<div class="px-row"><span class="px-month">${MONTH_SHORT[i]}</span>${m.map(cell).join("")}</div>`).join("")}</div>
-    <div class="pixels-legend" aria-hidden="true">${MOOD_WORD.map((w,i)=>`<span><i class="px m${i}"></i>${w}</span>`).join("")}<span><i class="px is-written"></i>запись</span></div>
+  const words=byWords?[...wpd.map.values()].reduce((a,b)=>a+b,0):0;
+  const summary=byWords?(wpd.map.size?`Дней с записями: ${wpd.map.size}, слов за год: ${formatNumberRu(words)}. Цвет — сколько написано по сравнению с вашим обычным днём (${wpd.median} ${pluralRu(wpd.median,"слово","слова","слов")}).`:"В этом году записей пока нет."):px.rated?`Дней с отметкой настроения: ${px.rated} (${px.counts.map((n,i)=>n?`${MOOD_WORD[i]} — ${n}`:"").filter(Boolean).join(", ")}).`:"В этом году отметок настроения пока нет. Дни с записями отмечены точкой.";
+  return `<section class="card pixels-card" aria-labelledby="px-title"><div class="pixels-head"><div><h2 class="h3" id="px-title">Год в пикселях</h2><p class="subtle text-small">${byWords?"Каждая клетка — день: чем темнее, тем больше вы написали.":"Каждая клетка — день: цвет — настроение по вашим отметкам, точка — есть запись."} Пустые дни ничем не заполняются.</p>
+    <div class="segmented pixels-mode" role="group" aria-label="Что показывать"><button data-action="pixel-mode" data-value="mood" aria-pressed="${!byWords}" class="${byWords?"":"is-active"}">Настроение</button><button data-action="pixel-mode" data-value="words" aria-pressed="${byWords}" class="${byWords?"is-active":""}">Письмо</button></div></div>
+    <div class="pixels-nav"><button class="icon-button" data-action="pixel-year" data-step="-1" aria-label="Предыдущий год" ${y<=firstYear?"disabled":""}>${icon("chevron-left")}</button><strong aria-live="polite">${y}</strong><button class="icon-button" data-action="pixel-year" data-step="1" aria-label="Следующий год" ${y>=thisYear?"disabled":""}>${icon("chevron-right")}</button><button class="icon-button" data-action="pixel-export" aria-label="Сохранить картинкой" title="Сохранить картинкой">${icon("download")}</button></div></div>
+    <div class="pixels${byWords?" is-words":""}" role="group" aria-label="${escapeHtml(summary)}">${px.months.map((m,i)=>`<div class="px-row"><span class="px-month">${MONTH_SHORT[i]}</span>${m.map(cell).join("")}</div>`).join("")}</div>
+    <div class="pixels-legend${byWords?" is-words":""}" aria-hidden="true">${byWords?["меньше обычного","чуть меньше","как обычно","больше","намного больше"].map((w,i)=>`<span><i class="px m${i}"></i>${w}</span>`).join(""):`${MOOD_WORD.map((w,i)=>`<span><i class="px m${i}"></i>${w}</span>`).join("")}<span><i class="px is-written"></i>запись</span>`}</div>
     <p class="evidence">${escapeHtml(summary)}</p></section>`;
+}
+/* The year as a picture (PNG, drawn on this device): the same grid, colours read from the page so both themes look right. */
+function exportPixels(){
+  const grid=$(".pixels");if(!grid)return;
+  const rows=[...grid.querySelectorAll(".px-row")],cell=18,gap=3,left=44,top=56,w=left+31*(cell+gap)+16,h=top+12*(cell+gap)+40;
+  const c=document.createElement("canvas"),scale=2;c.width=w*scale;c.height=h*scale;const g=c.getContext("2d");g.scale(scale,scale);
+  const css=getComputedStyle(document.body);g.fillStyle=css.backgroundColor||"#fff";g.fillRect(0,0,w,h);
+  g.fillStyle=getComputedStyle(document.documentElement).getPropertyValue("--text")||"#222";g.font="600 18px system-ui, sans-serif";g.fillText(`Narra · ${pixelYear} · ${state.prefs.pixelMode==="words"?"письмо":"настроение"}`,16,32);
+  rows.forEach((row,ri)=>{
+    g.fillStyle="#888";g.font="11px system-ui, sans-serif";g.fillText(row.querySelector(".px-month").textContent,16,top+ri*(cell+gap)+13);
+    [...row.querySelectorAll(".px")].forEach((p,ci)=>{if(p.classList.contains("is-void"))return;g.fillStyle=getComputedStyle(p).backgroundColor;const x=left+ci*(cell+gap),y=top+ri*(cell+gap);g.beginPath();g.roundRect?g.roundRect(x,y,cell,cell,4):g.rect(x,y,cell,cell);g.fill();});
+  });
+  c.toBlob(b=>{if(b){downloadBlob(b,"image/png",`narra-${pixelYear}.png`);ctx.toast("Картинка сохранена. На ней только цвета дней — без текста записей.");}},"image/png");
 }
 function statesTab(sc){
   const cards=stateCards(sc.checkins,state.config,{today:sc.today,periodDays:period||null});
@@ -151,6 +169,15 @@ function themesTab(sc){
 }
 
 /* ---------- rhythm ---------- */
+function recordsMarkup(sc){
+  const r=writingRecords(sc.entries),fw=frequentWords(sc.entries,{stem:stemRu});
+  if(!r.entries)return "";
+  const tile=(v,l)=>`<div class="record-tile"><strong>${v}</strong><span>${l}</span></div>`;
+  return `<section class="card records-card" aria-labelledby="rec-title"><h2 class="h3" id="rec-title">Ваше письмо в цифрах <span class="subtle text-small">— ${escapeHtml(sc.label)}</span></h2>
+    <div class="record-grid">${tile(formatNumberRu(r.words),`${pluralRu(r.words,"слово","слова","слов")} — около ${r.pages} ${pluralRu(r.pages,"страницы","страниц","страниц")} книги`)}${tile(r.activeDays,`${pluralRu(r.activeDays,"день","дня","дней")} с записями`)}${tile(r.longestRun,`${pluralRu(r.longestRun,"день","дня","дней")} подряд — самый длинный отрезок`)}${r.longest?tile(formatNumberRu(r.longest.words),`${pluralRu(r.longest.words,"слово","слова","слов")} в самой длинной записи`):""}</div>
+    ${r.longest?`<p class="subtle text-small">Самая длинная запись: <button class="link-button" data-action="open-entry" data-id="${escapeHtml(r.longest.entry.id)}">${escapeHtml(entryText(r.longest.entry).title)}</button>${r.busiest?` · больше всего написано ${escapeHtml(fmtDate(`${r.busiest.day}T12:00:00`,{year:"numeric"}))}`:""}</p>`:""}
+    ${fw.length?`<h3 class="h4">Ваши частые слова</h3><p class="subtle text-small">Без служебных слов, формы одного слова считаются вместе. Нажмите, чтобы найти записи.</p><div class="word-cloud">${fw.map((w,i)=>`<button type="button" class="chip word-chip w${i<4?3:i<10?2:1}" data-action="word-search" data-word="${escapeHtml(w.word)}">${escapeHtml(w.word)} <small>${w.count}</small></button>`).join("")}</div>`:""}</section>`;
+}
 function rhythmTab(sc){
   const r=rhythm(sc.entries,sc.today);
   if(!r.total)return emptyState("Записей за этот период нет","Ритм письма появится после первых записей.","","insights");
@@ -161,6 +188,7 @@ function rhythmTab(sc){
   return `<p class="evidence">${r.total} ${entryLabel(r.total)}, дней с записями: ${r.activeDays} — ${escapeHtml(sc.label)}</p>
     <div class="insight-grid two"><figure class="card chart-figure"><figcaption>Время суток</figcaption>${tod}</figure><figure class="card chart-figure"><figcaption>Дни недели</figcaption>${wd}</figure></div>
     <figure class="card chart-figure"><figcaption>Последние 12 недель</figcaption>${wk}</figure>${table(t)}
+    ${recordsMarkup(sc)}
     <p class="subtle text-small">Это описание привычек, а не оценка. Пропущенные недели — просто пропущенные недели.</p>`;
 }
 
@@ -181,6 +209,9 @@ export function insightsView(){
 }
 export const views={insights:insightsView};
 export const actions={
+  "word-search":el=>{state.searchQuery=el.dataset.word;ctx.routeTo("search");},
+  "pixel-mode":el=>{ctx.setPref("pixelMode",el.dataset.value==="words"?"words":"mood");ctx.render();},
+  "pixel-export":()=>exportPixels(),
   "pixel-year":el=>{pixelYear+=Number(el.dataset.step)||0;ctx.render();$(`[data-action="pixel-year"][data-step="${el.dataset.step}"]`)?.focus({preventScroll:true});},
   "pixel-day":el=>{const k=el.dataset.date;state.journalView="calendar";state.calendarCursor=new Date(`${k.slice(0,7)}-01T12:00:00`);state.calendarSelectedDate=k;ctx.routeTo("journal");},
   "insights-period":el=>{period=Number(el.dataset.value);ctx.render();$(`[data-action="insights-period"][data-value="${period}"]`)?.focus({preventScroll:true});},
