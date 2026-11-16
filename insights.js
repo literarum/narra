@@ -3,6 +3,7 @@
    an association is only shown when at least 10 days stand on each side, and it is worded as a coincidence, not a cause. */
 import {state,ctx,$,escapeHtml,icon,todayKey,checkinLabel,dayLabel,entryLabel,activeEntries,fmtDate,fmtDayRange,featureOn,downloadBlob} from "./core.js?v=4.7.0";
 import {pageHeader,emptyState,tabs,chip} from "./kit.js?v=4.7.0";
+import {shiftingWords} from "./intel.mjs?v=4.7.0";
 import {yearPixels,writingRecords,frequentWords,wordsPerDay,stateCards,contextAssociations,curateAssociations,describeAssociation,emotionStats,entityStats,rhythm,statePartOfDay,writingEffect,medianLabel,checkinWord} from "./insights-model.mjs?v=4.7.0";
 import {lineChart,barChart,monthStrip,dataTable} from "./charts.mjs?v=4.7.0";
 import {MIN_N,addDays,dayKey} from "./stats.mjs?v=4.7.0";
@@ -36,6 +37,15 @@ function waiting(n,need,text){
 }
 
 /* ---------- overview ---------- */
+function shiftingMarkup(){
+  const r=shiftingWords(activeEntries(),{stem:stemRu});
+  if(!r.enough)return `<section class="card shifting-card"><h2 class="h3">Что меняется в словах</h2><p class="subtle text-small">Появится, когда за последний месяц и раньше наберётся достаточно текста: нужно около 150 слов за месяц и 300 до него. Сейчас: ${r.recentWords} и ${r.earlierWords}.</p></section>`;
+  if(!r.rising.length&&!r.fading.length)return "";
+  const chipRow=list=>list.map(x=>`<button type="button" class="chip word-chip" data-action="word-search" data-word="${escapeHtml(x.word)}" title="За месяц: ${x.recent}, раньше: ${x.earlier}">${escapeHtml(x.word)} <small>${x.recent} / ${x.earlier}</small></button>`).join("");
+  return `<section class="card shifting-card" aria-labelledby="shift-title"><h2 class="h3" id="shift-title">Что меняется в словах</h2><p class="subtle text-small">Последние 30 дней по сравнению со всем, что было раньше. Числа — сколько раз за месяц и до него. Показаны только заметные и статистически устойчивые изменения (логарифм правдоподобия, p &lt; 0,01).</p>
+    ${r.rising.length?`<h3 class="h4">Стало чаще</h3><div class="word-cloud">${chipRow(r.rising)}</div>`:""}${r.fading.length?`<h3 class="h4">Стало реже</h3><div class="word-cloud">${chipRow(r.fading)}</div>`:""}
+    <p class="subtle text-small">Это только частота слов — не оценка и не вывод о том, что происходит.</p></section>`;
+}
 function overviewTab(sc){
   const cards=stateCards(sc.checkins,state.config,{today:sc.today,periodDays:period||null}),ready=cards.filter(c=>c.enabled!==false&&c.enough);
   const total=sc.checkins.filter(c=>c.phase==="standalone"||!c.phase).length;
@@ -162,10 +172,10 @@ function emotionsTab(sc){
 function themesTab(sc){
   const type=ENTITY_TYPES.find(t=>t.type===entityType)||ENTITY_TYPES[0],rows=entityStats(sc.entries,state.entityNotes,type.type,12);
   const seg=`<div class="segmented" role="group" aria-label="Что показывать">${ENTITY_TYPES.map(t=>`<button data-action="insights-entity" data-value="${t.type}" aria-pressed="${t.type===type.type}" class="${t.type===type.type?"is-active":""}">${t.plural}</button>`).join("")}</div>`;
-  if(!rows.length)return `${seg}${emptyState(`${type.plural} пока не упоминались`,"Добавляйте их к записям — и здесь появится, как они распределялись во времени.","","insights")}`;
+  if(!rows.length)return `${seg}${shiftingMarkup()}${emptyState(`${type.plural} пока не упоминались`,"Добавляйте их к записям — и здесь появится, как они распределялись во времени.","","insights")}`;
   const max=rows[0].count;
   const t=dataTable({caption:type.plural,headers:[type.singular,"Записей","Первая","Последняя"],rows:rows.map(r=>[r.name,String(r.count),dayText(dayKey(r.first)),dayText(dayKey(r.last))])});
-  return `${seg}<p class="evidence">${sc.entries.length} ${entryLabel(sc.entries.length)} — ${escapeHtml(sc.label)}</p><div class="card"><ul class="bar-list wide">${rows.map(r=>`<li><span class="bar-name"><button class="link-button" data-action="lifemap-open" data-key="${escapeHtml(r.key)}">${escapeHtml(r.name)}</button></span>${meter(r.count,max)}<span class="bar-count">${r.count}</span><span class="strip-wrap">${monthStrip({months:r.months,summary:`${r.name}: записи по месяцам`})}</span></li>`).join("")}</ul></div>${table(t)}`;
+  return `${shiftingMarkup()}${seg}<p class="evidence">${sc.entries.length} ${entryLabel(sc.entries.length)} — ${escapeHtml(sc.label)}</p><div class="card"><ul class="bar-list wide">${rows.map(r=>`<li><span class="bar-name"><button class="link-button" data-action="lifemap-open" data-key="${escapeHtml(r.key)}">${escapeHtml(r.name)}</button></span>${meter(r.count,max)}<span class="bar-count">${r.count}</span><span class="strip-wrap">${monthStrip({months:r.months,summary:`${r.name}: записи по месяцам`})}</span></li>`).join("")}</ul></div>${table(t)}`;
 }
 
 /* ---------- rhythm ---------- */

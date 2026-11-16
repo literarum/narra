@@ -1,11 +1,12 @@
 /* Editor side panels: entry details, links, decision journal, suggestions and writing help. Markup only; editor.js binds them. */
 import {talkAvailable,state,ctx,escapeHtml,icon,localDateInputValue,fmtDate,fmtLong,fmtTime,kindOptions,kindLabels,capitalizeRu,featureOn,activeEntries,entryById} from "./core.js?v=4.7.0";
-import {parseRussianDateHint,extractHashtags,suggestEntryKindRu} from "./domain.mjs?v=4.7.0";
+import {parseRussianDateHint,extractHashtags,suggestEntryKindRu,stemRu} from "./domain.mjs?v=4.7.0";
+import {keywordsFor} from "./intel.mjs?v=4.7.0";
 import {entryText} from "./text.mjs?v=4.7.0";
 import {suggestKnownEntities,chapterOf,sortChapters,NO_CHAPTER} from "./entities.mjs?v=4.7.0";
 import {detailQuestions,reflectiveQuestions,clarityFindings} from "./writing.mjs?v=4.7.0";
 import {relatedEntriesFor} from "./memories.js?v=4.7.0";
-import {entityMap} from "./derived.js?v=4.7.0";
+import {docFreq,entityMap} from "./derived.js?v=4.7.0";
 import {selectHtml} from "./kit.js?v=4.7.0";
 import {checkinSummary} from "./checkin.mjs?v=4.7.0";
 import {LINK_TYPES} from "./domain.mjs?v=4.7.0";
@@ -21,6 +22,17 @@ export function smartSuggestions(entry){
     const key=`date:${date.iso.slice(0,10)}`;
     if(!dismissed.has(key)&&localDateInputValue(entry.happenedAt)!==localDateInputValue(date.iso))out.push({key,type:"date",value:date.iso,label:date.label});
   }
+  // themes the person already uses, recognised in the text by word stem («на набережной» → #набережная): distinctive words
+  // (TF-IDF against the diary) first. New themes are not invented: without a dictionary of word forms they would come out inflected.
+  if(featureOn("featEntitySuggest")&&String(entry.body||"").length>=40){
+    const known=new Map();for(const e of activeEntries())for(const t of e.themes||[])known.set(stemRu(t),t);
+    if(known.size){
+      const kws=keywordsFor(`${entry.title||""} ${entry.body||""}`,docFreq(),{stem:stemRu,limit:12,minOther:1});
+      const picked=[];
+      for(const w of kws){const t=known.get(stemRu(w));if(t&&!picked.includes(t)&&!(entry.themes||[]).includes(t))picked.push(t);if(picked.length>=2)break;}
+      for(const t of picked){const key=`theme:${t}`;if(!dismissed.has(key))out.push({key,type:"theme",value:t,label:`Тема: #${t}`,why:"эта тема уже есть в дневнике, а её слово заметно в записи"});}
+    }
+  }
   for(const theme of extractHashtags(entry.body||"")){
     const key=`theme:${theme}`;
     if(!dismissed.has(key)&&!(entry.themes||[]).includes(theme))out.push({key,type:"theme",value:theme,label:`Тема: #${theme}`});
@@ -34,13 +46,13 @@ export function smartSuggestions(entry){
       if(!dismissed.has(key))out.push({key,type:s.type,value:s.name,label:`${s.type==="person"?"Человек":s.type==="place"?"Место":"Проект"}: ${s.name}`});
     }
   }
-  return out.slice(0,7);
+  return out.filter((x,i,a)=>a.findIndex(y=>y.key===x.key)===i).slice(0,7);
 }
 export function suggestionsMarkup(entry){
   if(!state.smartSuggestionsEnabled)return `<p class="subtle text-small">Умные подсказки выключены в настройках.</p>`;
   const list=smartSuggestions(entry);
-  if(!list.length)return `<p class="subtle text-small">Подсказок нет. Они появляются, если в тексте есть дата, #тема, узнаваемый тип записи или знакомое имя.</p>`;
-  return `<div class="suggestion-list">${list.map(s=>`<span class="suggestion-chip"><button type="button" data-action="accept-suggestion" data-key="${escapeHtml(s.key)}" data-type="${s.type}" data-value="${encodeURIComponent(s.value)}">${escapeHtml(s.label)}</button><button type="button" data-action="dismiss-suggestion" data-key="${escapeHtml(s.key)}" aria-label="Скрыть подсказку">${icon("x")}</button></span>`).join("")}</div>`;
+  if(!list.length)return `<p class="subtle text-small">Подсказок нет. Они появляются, если в тексте есть дата, #тема, узнаваемый тип записи, знакомое имя или слово, которое связывает эту запись с другими.</p>`;
+  return `<div class="suggestion-list">${list.map(s=>`<span class="suggestion-chip"><button type="button" data-action="accept-suggestion" data-key="${escapeHtml(s.key)}" data-type="${s.type}" data-value="${encodeURIComponent(s.value)}"${s.why?` title="Почему: ${escapeHtml(s.why)}"`:""}>${escapeHtml(s.label)}</button><button type="button" data-action="dismiss-suggestion" data-key="${escapeHtml(s.key)}" aria-label="Скрыть подсказку">${icon("x")}</button></span>`).join("")}</div>`;
 }
 export function contextSummaryText(entry){
   const parts=[capitalizeRu(kindLabels[entry.kind]||"мысль"),fmtDate(entry.happenedAt,{year:new Date(entry.happenedAt).getFullYear()===new Date().getFullYear()?undefined:"numeric"})];
