@@ -1,9 +1,9 @@
 /* Narra demo data: a synthetic, clearly fictional diary used by demo mode and by tests.
    Seeded and deterministic. Effects are planted on purpose (days with work → higher tension, days with a walk → better mood),
    so the tests can check that the insights find exactly what was planted and nothing else. Pure, no DOM. */
-import {cleanEntry} from "./domain.mjs?v=4.6.0";
-import {cleanCheckin} from "./checkin.mjs?v=4.6.0";
-import {addDays} from "./stats.mjs?v=4.6.0";
+import {cleanEntry} from "./domain.mjs?v=4.7.0";
+import {cleanCheckin} from "./checkin.mjs?v=4.7.0";
+import {addDays} from "./stats.mjs?v=4.7.0";
 
 export function rng(seed){let a=seed>>>0;return()=>{a=(a+0x6D2B79F5)>>>0;let t=a;t=Math.imul(t^(t>>>15),t|1);t^=t+Math.imul(t^(t>>>7),t|61);return((t^(t>>>14))>>>0)/4294967296;};}
 
@@ -25,11 +25,12 @@ const pick=(r,a)=>a[Math.floor(r()*a.length)];
 /** days: how many days of history; density: chance of an entry on a day; returns {entries,checkins,chapters,config,now,planted}. */
 export function makeDemo({seed=7,days=180,density=.6,now=new Date("2026-09-29T12:00:00+04:00")}={}){
   const r=rng(seed),today=new Date(now),entries=[],checkins=[];
-  const dayOf=i=>addDays(today.toISOString().slice(0,10),-i);
-  const chapters=DEMO_CHAPTERS.map((c,i)=>({id:`demo-ch-${i+1}`,name:c.name,start:dayOf(c.offset[0]===0?c.offset[0]:c.offset[0]),end:dayOf(c.offset[1]),description:c.description,sort:i}));
+  const pad=n=>String(n).padStart(2,"0"),localKey=`${today.getFullYear()}-${pad(today.getMonth()+1)}-${pad(today.getDate())}`;
+  const dayOf=i=>addDays(localKey,-i);
+  const chapters=DEMO_CHAPTERS.map((c,i)=>({id:`demo-ch-${i+1}`,name:c.name,start:dayOf(c.offset[0]),end:dayOf(c.offset[1]),description:c.description,sort:i}));
   chapters[0].start=dayOf(60);chapters[0].end="";chapters[1].start=dayOf(150);chapters[1].end=dayOf(61);
   for(let i=days-1;i>=0;i--){
-    const day=dayOf(i),at=h=>new Date(`${day}T${String(h).padStart(2,"0")}:${String(Math.floor(r()*50)+5).padStart(2,"0")}:00`).toISOString();
+    const day=dayOf(i),at=h=>{const d=new Date(`${day}T${String(h).padStart(2,"0")}:${String(Math.floor(r()*50)+5).padStart(2,"0")}:00`);return (d>today?new Date(today.getTime()-60000*(1+Math.floor(r()*30))):d).toISOString();};
     const workday=new Date(`${day}T12:00:00`).getDay()%6!==0;
     const hasWork=workday&&r()<.75,hasWalk=r()<.35,hasPeople=r()<.3;
     const tension=Math.max(1,Math.min(5,Math.round(2+(hasWork?1.6:0)+(r()-.5)*1.6)));

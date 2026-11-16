@@ -1,17 +1,17 @@
 /* Search: words, phrases and filters over the whole diary, on this device only.
    Understands time phrases («весной 2025», «в марте», «на прошлой неделе») and shows them as removable chips.
    Optional «близость слов» (feature switch) adds entries with related words and says why each was included. */
-import {state,ctx,$,escapeHtml,icon,kindOptions,kindLabels,capitalizeRu,featureOn,activeEntries,mediaOf,entryLabel,matchLabel} from "./core.js?v=4.6.0";
-import {searchEntries,foldRu,stemRu} from "./domain.mjs?v=4.6.0";
-import {parseTimeHints,hybridSearch,expandQuery} from "./semantic.mjs?v=4.6.0";
-import {EMOTION_GROUPS} from "./checkin.mjs?v=4.6.0";
-import {chapterOf,sortChapters} from "./entities.mjs?v=4.6.0";
-import {dayKey} from "./stats.mjs?v=4.6.0";
-import {pageHeader,emptyState,selectHtml,field,checkRow,chip} from "./kit.js?v=4.6.0";
-import {entryRow} from "./entries-ui.js?v=4.6.0";
-import {entityMap,semanticIndex} from "./derived.js?v=4.6.0";
-import {listByType} from "./entities.mjs?v=4.6.0";
-import * as media from "./media.js?v=4.6.0";
+import {state,ctx,$,escapeHtml,icon,kindOptions,kindLabels,capitalizeRu,featureOn,activeEntries,mediaOf,entryLabel,matchLabel} from "./core.js?v=4.7.0";
+import {searchEntries,foldRu,stemRu} from "./domain.mjs?v=4.7.0";
+import {parseTimeHints,hybridSearch,expandQuery} from "./semantic.mjs?v=4.7.0";
+import {EMOTION_GROUPS} from "./checkin.mjs?v=4.7.0";
+import {chapterOf,sortChapters} from "./entities.mjs?v=4.7.0";
+import {dayKey} from "./stats.mjs?v=4.7.0";
+import {pageHeader,emptyState,selectHtml,field,checkRow,chip} from "./kit.js?v=4.7.0";
+import {entryRow} from "./entries-ui.js?v=4.7.0";
+import {entityMap,semanticIndex} from "./derived.js?v=4.7.0";
+import {listByType} from "./entities.mjs?v=4.7.0";
+import * as media from "./media.js?v=4.7.0";
 
 const norm=s=>String(s||"").toLocaleLowerCase("ru-RU");
 const PAGE=30;
@@ -136,7 +136,7 @@ function resultsMarkup(){
   const r=compute();
   if(r.idle)return idleMarkup();
   const sortBar=r.total>1?`<div class="search-sort" role="group" aria-label="Порядок">${SORTS.map(([k,l])=>`<button type="button" class="sort-chip${(state.searchSort||"relevance")===k?" is-on":""}" data-action="search-sort" data-value="${k}" aria-pressed="${(state.searchSort||"relevance")===k}">${l}</button>`).join("")}</div>`:"";
-  const head=`<div class="result-bar"><p class="result-count" role="status">${r.total?`Найдено ${r.total} ${entryLabel(r.total)} — ${escapeHtml(periodWords(r.hints))}${r.hints.length||filtersCount()?"":` (из ${r.poolSize})`}`:"Ничего не найдено"}${r.fuzzy?`. Показаны похожие написания`:""}${r.anyOf?`. Ни в одной записи нет всех слов сразу — показаны записи хотя бы с одним из них`:""}</p>${sortBar}</div>${entityChips(r)}`;
+  const head=`<div class="result-bar"><p class="result-count${r.total?"":" sr-only"}" role="status">${r.total?`${entryLabel(r.total)==="запись"?"Найдена":"Найдено"} ${r.total} ${entryLabel(r.total)} — ${escapeHtml(periodWords(r.hints))}${r.hints.length||filtersCount()?"":` (из ${r.poolSize})`}`:"Ничего не найдено"}${r.fuzzy?`. Показаны похожие написания`:""}${r.anyOf?`. Ни в одной записи нет всех слов сразу — показаны записи хотя бы с одним из них`:""}</p>${sortBar}</div>${entityChips(r)}`;
   if(!r.total){
     const rel=r.related.length?`<div class="chip-group"><span class="label">Попробуйте близкие слова</span><div class="chips">${r.related.map(w=>chip(escapeHtml(w),`data-action="search-try" data-value="${escapeHtml(w)}"`)).join("")}</div></div>`:"";
     return `${head}${emptyState("Ничего не нашлось","Проверьте написание, уберите часть слов или сбросьте фильтры. Поиск идёт по заголовкам, тексту, темам, людям и местам.",`<button class="secondary" data-action="search-reset">Сбросить поиск</button>`,"search")}${rel}`;

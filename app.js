@@ -1,20 +1,20 @@
-/* Narra 4.3 — application shell: routing, overlays, dialogs, command palette, global listeners, start-up.
+/* Narra — application shell: routing, overlays, dialogs, command palette, global listeners, start-up.
    Everything a section does lives in its own module (today, journal, editor, insights, …); this file wires them together. */
-import {fuzzyScore,searchEntries,pluralRu,warmSearchIndex} from "./domain.mjs?v=4.6.0";
-import {enhance,closePopovers,popoverOpen,setDateOptions} from "./ui.mjs?v=4.6.0";
-import {entryText} from "./text.mjs?v=4.6.0";
-import {talkAvailable,secretAttrs,state,ctx,$,$$,escapeHtml,icon,relDay,kindLabels,activeEntries,isTyping,safeStorageGet,safeStorageSet,PREF_KEY,PREF_DEFAULTS,VALID_ROUTES,ROUTE_TITLES,ROUTE_FEATURE,SECONDARY_ROUTES,routeAllowed,featureOn,APP_VERSION,nowIso} from "./core.js?v=4.6.0";
-import {modalHeader,pageHeader,emptyState} from "./kit.js?v=4.6.0";
-import * as store from "./store.js?v=4.6.0";
-import * as today from "./today.js?v=4.6.0";
-import * as journal from "./journal.js?v=4.6.0";
-import * as search from "./search.js?v=4.6.0";
-import * as memories from "./memories.js?v=4.6.0";
-import * as editor from "./editor.js?v=4.6.0";
-import * as privacy from "./privacy.js?v=4.6.0";
-import * as motion from "./motion.js?v=4.6.0";
-import * as media from "./media.js?v=4.6.0";
-import * as checkinUi from "./checkin-ui.js?v=4.6.0";
+import {fuzzyScore,searchEntries,pluralRu,warmSearchIndex} from "./domain.mjs?v=4.7.0";
+import {enhance,closePopovers,popoverOpen,setDateOptions} from "./ui.mjs?v=4.7.0";
+import {entryText} from "./text.mjs?v=4.7.0";
+import {talkAvailable,secretAttrs,state,ctx,$,$$,escapeHtml,icon,relDay,kindLabels,activeEntries,isTyping,safeStorageGet,safeStorageSet,PREF_KEY,PREF_DEFAULTS,VALID_ROUTES,ROUTE_TITLES,ROUTE_FEATURE,SECONDARY_ROUTES,routeAllowed,featureOn,APP_VERSION,nowIso,shortcutList,MOD_KEY,recordError} from "./core.js?v=4.7.0";
+import {modalHeader,pageHeader,emptyState} from "./kit.js?v=4.7.0";
+import * as store from "./store.js?v=4.7.0";
+import * as today from "./today.js?v=4.7.0";
+import * as journal from "./journal.js?v=4.7.0";
+import * as search from "./search.js?v=4.7.0";
+import * as memories from "./memories.js?v=4.7.0";
+import * as editor from "./editor.js?v=4.7.0";
+import * as privacy from "./privacy.js?v=4.7.0";
+import * as motion from "./motion.js?v=4.7.0";
+import * as media from "./media.js?v=4.7.0";
+import * as checkinUi from "./checkin-ui.js?v=4.7.0";
 
 const MODULES=[today,journal,search,memories,editor,privacy,media,checkinUi];
 const VIEWS={},ACTIONS={};
@@ -41,7 +41,7 @@ function loadLazy(name){
 }
 const loadAllLazy=()=>Promise.all(Object.keys(LAZY_FILES).map(loadLazy));
 window.addEventListener("beforeinstallprompt",e=>{e.preventDefault();window.__narraInstall=e;});
-ACTIONS["reload-app"]=()=>location.reload();
+ACTIONS["reload-app"]=async()=>{if(state.editing&&state.dirty)await editor.saveEditing("reload").catch(()=>false);location.reload();}; // never reload over unsaved text
 
 /* ---------- preferences & theme ---------- */
 function setPref(key,value){
@@ -51,7 +51,7 @@ function setPref(key,value){
 }
 function applyPrefs(){
   const b=document.body,p=state.prefs;
-  b.dataset.density=p.density;b.dataset.editorFont=p.editorFont;b.dataset.editorWidth=p.editorWidth;
+  b.dataset.density=p.density;b.dataset.editorFont=p.editorFont;b.dataset.editorWidth=p.editorWidth;b.dataset.editorSize=p.editorSize;b.dataset.typewriter=p.typewriter?"on":"off";
   b.dataset.motion=p.motion==="off"?"off":"on";b.dataset.kbd=p.shortcuts?"on":"off";b.dataset.mode=state.mode;
   setDateOptions({weekStart:p.weekStart});
   applyFeatures();
@@ -69,7 +69,8 @@ function resolveTheme(){return state.theme==="system"?(matchMedia("(prefers-colo
 function applyTheme(){
   const theme=resolveTheme();
   document.documentElement.dataset.theme=theme;
-  document.querySelector('meta[name="theme-color"]').content=theme==="dark"?"#1d1c19":"#f4f0e7";
+  // the system bar follows the chosen theme, not only the system one: both tags get the same colour
+  for(const m of document.querySelectorAll('meta[name="theme-color"]')){m.content=theme==="dark"?"#1d1c19":"#f4f0e7";m.removeAttribute("media");}
   const use=$("[data-theme-icon]");if(use)use.setAttribute("href",theme==="dark"?"#icon-sun":"#icon-theme");
 }
 function reducedMotion(){return state.prefs.motion==="off"||matchMedia("(prefers-reduced-motion: reduce)").matches;}
@@ -89,8 +90,11 @@ function normalizeRoute(route){return VALID_ROUTES.has(route)&&routeAllowed(rout
 function routeTo(route,{scroll=true}={}){
   route=normalizeRoute(route);
   closePopovers();
+  // a new section is a new history step, so the browser's (and Android's) Back returns to the previous section instead of leaving the app
+  const from=state.route,target=`#/${route}`;
+  if(!location.hash||location.hash.split("?")[0]==="#/")history.replaceState(null,"",`#/${from}`);
+  if(from!==route&&location.hash.split("?")[0]!==target)history.pushState(null,"",target);else history.replaceState(null,"",target);
   state.route=route;
-  history.replaceState(null,"",`#/${route}`);
   document.title=`${ROUTE_TITLES[route]} — Narra`;
   render({enter:true});
   if(scroll){window.scrollTo({top:0,left:0,behavior:"instant"});if(lockedAt!==null)lockedAt=0;}
@@ -184,14 +188,25 @@ function render({enter=false}={}){
   for(const m of MODULES)m.afterRender?.(state.route,view);
   media.hydrate(view);
   renderBanner();
+  for(const t of view.querySelectorAll(".tabs"))fadeTabs(t);
+}
+/* Scrollable tab rows fade at the edge that has more tabs behind it, so it is clear the row continues. */
+function fadeTabs(t){
+  const update=()=>{const more=t.scrollWidth-t.clientWidth>2;t.classList.toggle("fade-end",more&&t.scrollLeft<t.scrollWidth-t.clientWidth-2);t.classList.toggle("fade-start",more&&t.scrollLeft>2);};
+  update();
+  if(!t.dataset.fadeBound){t.dataset.fadeBound="1";t.addEventListener("scroll",update,{passive:true});}
 }
 /** A single quiet strip under the header: demo mode, or changes made in another tab. */
 function renderBanner(){
   let bar=$("#app-banner");
-  const demo=state.mode==="demo",remote=state.remoteChanged&&!state.editing;
-  if(!demo&&!remote){bar?.remove();return;}
+  const demo=state.mode==="demo",remote=state.remoteChanged&&!state.editing,damaged=state.damaged>0;
+  if(!demo&&!remote&&!damaged){bar?.remove();return;}
   if(!bar){bar=document.createElement("div");bar.id="app-banner";bar.className="app-banner";bar.setAttribute("role","status");$("#main").prepend(bar);}
-  bar.innerHTML=demo?`<span>${icon("info")}<span>Демонстрация: вымышленные данные в отдельном хранилище. Ваши записи не затронуты.</span></span><button class="link-button" data-action="exit-demo">Выйти из демонстрации</button>`
+  bar.classList.toggle("is-warning",damaged&&!demo&&!remote);
+  // on a phone the demo strip is one short line, not a fifth of the screen
+  if(demo){bar.innerHTML=`<span>${icon("info")}<span class="banner-long">Демонстрация: вымышленные данные в отдельном хранилище. Ваши записи не затронуты.</span><span class="banner-short">Демо-режим</span></span><button class="link-button" data-action="exit-demo">Выйти<span class="banner-long"> из демонстрации</span></button>`;return;}
+  bar.innerHTML=damaged&&!demo&&!remote?`<span>${icon("shield")}<span>Не удалось прочитать ${state.damaged} ${pluralRu(state.damaged,"элемент","элемента","элементов")} дневника. ${state.damaged===1?"Он остался":"Они остались"} в хранилище нетронутым${state.damaged===1?"":"и"}, остальное работает. Восстановить можно из резервной копии.</span></span><button class="link-button" data-action="run-diagnostics">Подробнее</button>`
+    :demo?`<span>${icon("info")}<span>Демонстрация: вымышленные данные в отдельном хранилище. Ваши записи не затронуты.</span></span><button class="link-button" data-action="exit-demo">Выйти из демонстрации</button>`
     :`<span>${icon("refresh")}<span>Дневник изменился в другой вкладке.</span></span><button class="link-button" data-action="reload-data">Обновить</button>`;
 }
 
@@ -293,6 +308,12 @@ function sheetDialog(content,label){
   return box;
 }
 
+/* ---------- keyboard help («?») ---------- */
+function showShortcuts(){
+  sheetDialog(`${modalHeader("Клавиши","Сочетания работают, когда курсор не в поле ввода (кроме редактора).","keyboard","close-dialog")}<div class="modal-body shortcuts-help">${shortcutList().map(([group,list])=>`<h3>${escapeHtml(group)}</h3><dl>${list.map(([k,t])=>`<div><dt><kbd>${escapeHtml(k)}</kbd></dt><dd>${escapeHtml(t)}</dd></div>`).join("")}</dl>`).join("")}</div>`,"Клавиши");
+}
+ACTIONS["show-shortcuts"]=()=>showShortcuts();
+
 /* ---------- more sheet (phones) ---------- */
 function moreMenu(){
   const item=(iconName,title,sub,attrs)=>`<button class="more-menu-item" ${attrs}>${icon(iconName)}<span><strong>${title}</strong><small>${sub}</small></span>${icon("chevron-right")}</button>`;
@@ -328,6 +349,9 @@ function commandItems(){
     {key:"export",group:"Система",icon:"backup",label:"Экспорт и резервная копия",kw:"скачать сохранить архив",action:"export"},
     {key:"import",group:"Система",icon:"upload",label:"Восстановить из копии",kw:"импорт загрузить файл markdown",action:"import"},
     {key:"diagnostics",group:"Система",icon:"shield",label:"Самопроверка",kw:"диагностика хранилище",action:"run-diagnostics"},
+    {key:"dups",group:"Действия",icon:"layout",label:"Найти похожие записи",kw:"повторы дубли дубликаты одинаковые объединить",action:"find-duplicates"},
+    {key:"week3",group:"Действия",icon:"quote",label:"Неделя своими словами",kw:"главное итог неделя фразы сводка",action:"key-sentences"},
+    {key:"keys",group:"Система",icon:"keyboard",label:"Клавиши",kw:"горячие сочетания shortcuts помощь справка",action:"show-shortcuts"},
   ];
   if(state.lock)base.push({key:"lock",group:"Система",icon:"lock",label:"Заблокировать",kw:"пароль скрыть закрыть замок",action:"lock-now"});
   return base;
@@ -384,7 +408,7 @@ function setSegmentedActive(el){
   const group=el.closest(".segmented");if(!group)return;
   $$("button",group).forEach(b=>{const on=b===el;b.classList.toggle("is-active",on);b.setAttribute("aria-pressed",String(on));});
 }
-const warmSearch=()=>{if(!state.lock||state.entries.length)warmSearchIndex(state.entries.filter(e=>!e.deletedAt),kindLabels).catch(()=>{});};
+const warmSearch=()=>{if(!state.lock||state.entries.length)warmSearchIndex(activeEntries(),kindLabels).catch(()=>{});};
 async function reloadData(){await store.loadData();state.remoteChanged=false;render();warmSearch();}
 
 const CORE_ACTIONS={
@@ -401,6 +425,7 @@ const CORE_ACTIONS={
     setPref(key,typeof PREF_DEFAULTS[key]==="number"?Number(raw):raw);setSegmentedActive(el);
   },
   "request-persistence":()=>requestStoragePersistence(),
+  "snooze-backup-notice":el=>{safeStorageSet("narra-backup-notice-until",String(Date.now()+14*86400000));const n=el.closest(".notice-card");if(n)collapseAndRemove(n);},
   "snooze-storage-notice":el=>{safeStorageSet("narra-storage-notice-until",String(Date.now()+7*86400000));const n=el.closest(".notice-card");if(n)collapseAndRemove(n);},
   "close-overlay":()=>closeOverlay(),
   "close-overlay-backdrop":async(el,event)=>{
@@ -526,11 +551,43 @@ document.addEventListener("keydown",async e=>{
   if(mod&&e.code==="KeyF"&&!e.shiftKey&&!overlayOpen()){e.preventDefault();goTo("search");return;}
   const plain=!mod&&!e.altKey&&!e.shiftKey&&!isTyping(document.activeElement)&&!overlayOpen()&&!dialogOpen();
   if(e.key==="/"&&plain){e.preventDefault();goTo("search");return;}
+  if(e.key==="?"&&!mod&&!e.altKey&&!isTyping(document.activeElement)&&!overlayOpen()&&!dialogOpen()){e.preventDefault();showShortcuts();return;}
   if(plain&&state.prefs.quickKey!=="off"&&e.key.toLowerCase()===state.prefs.quickKey){e.preventDefault();ctx.openEditor();}
 });
-window.addEventListener("hashchange",()=>{
+window.addEventListener("hashchange",async()=>{
   const route=location.hash.replace("#/","").split("?")[0],next=normalizeRoute(route);
-  if(next!==state.route){state.route=next;document.title=`${ROUTE_TITLES[next]} — Narra`;render({enter:true});}
+  // Back while a window is open closes the window first (an open entry is saved the usual way, or asks); the section stays
+  if(next!==state.route&&(overlayOpen()||dialogOpen())){
+    history.pushState(null,"",`#/${state.route}`);
+    if(dialogOpen()){closeDialog();return;}
+    if(state.editing){await editor.closeEditor();return;}
+    closeOverlay();return;
+  }
+  if(next!==state.route){closePopovers();state.route=next;document.title=`${ROUTE_TITLES[next]} — Narra`;render({enter:true});window.scrollTo({top:0,left:0,behavior:"instant"});}
+});
+/* Unexpected errors: written to the flight recorder; the person hears about it once per session, calmly.
+   Expected interruptions (a cancelled picker, a blocked autoplay, an aborted fetch) are not errors. */
+let errorToastShown=false;
+const benign=e=>/^(AbortError|NotAllowedError)$/.test(e?.name||"")||/ResizeObserver loop/.test(String(e?.message||e||""));
+function onUnexpected(kind,error,source){
+  if(benign(error))return;
+  recordError(kind,error,source);
+  if(!errorToastShown){errorToastShown=true;setTimeout(()=>toast("Что-то пошло не так, но записи на месте. Если повторится — откройте Настройки → О Narra → Самопроверка.",null,{duration:8000}),0);}
+}
+window.addEventListener("error",e=>{if(e.error||e.message)onUnexpected("error",e.error||e.message,`${e.filename||""}:${e.lineno||0}`);});
+window.addEventListener("unhandledrejection",e=>onUnexpected("promise",e.reason,""));
+/* Caps Lock is the usual reason a right password «does not fit»: say so under every password field while typing */
+const capsWatch=e=>{const t=e.target;if(!(t instanceof HTMLInputElement)||!(t.type==="password"||t.dataset.secret==="1")||!e.getModifierState)return;t.closest(".field")?.classList.toggle("caps-on",e.getModifierState("CapsLock"));};
+document.addEventListener("keydown",capsWatch,true);document.addEventListener("keyup",capsWatch,true);
+/* A backup or Markdown files dropped onto the window (outside an open entry) start the usual restore preview. */
+const droppable=e=>!state.editing&&!state.locked&&!overlayOpen()&&!dialogOpen()&&e.dataTransfer?.types?.includes("Files");
+window.addEventListener("dragover",e=>{if(droppable(e)){e.preventDefault();e.dataTransfer.dropEffect="copy";}});
+window.addEventListener("drop",async e=>{
+  if(!droppable(e))return;
+  e.preventDefault();
+  const files=[...(e.dataTransfer.files||[])].filter(f=>/\.(narra|zip|json|md|markdown|txt)$/i.test(f.name));
+  if(!files.length){toast("Сюда можно перетащить резервную копию (.narra, .zip, .json) или файлы Markdown.");return;}
+  try{(await loadLazy("backup")).beginImport(files);}catch(error){console.error(error);toast("Не удалось открыть файл.");}
 });
 window.addEventListener("online",()=>toast("Сеть снова доступна. Дневник по-прежнему хранится только на этом устройстве."));
 window.addEventListener("offline",()=>toast("Сети нет. Можно продолжать писать — сохранение локальное."));
@@ -573,9 +630,15 @@ async function init(){
   if(!("indexedDB" in window))throw new Error("IndexedDB недоступна в этом браузере.");
   if(!crypto?.subtle)throw new Error("Web Crypto недоступен в этом контексте браузера.");
   applyPrefs();applyTheme();
+  // ⌘ on Apple keyboards, Ctrl elsewhere
+  for(const k of $$(".rail kbd"))k.textContent=`${MOD_KEY} K`;
+  for(const btn of $$('[data-action="open-command"][title]'))btn.title=`Команды (${MOD_KEY} K)`;
   state.db=await store.openDB();await store.ensureCryptoKey();
   if(state.mode==="demo")await (await loadLazy("backup")).ensureDemoData();
   await store.loadData();await checkStoragePersistence();
+  await today.restoreQuickDraft?.();
+  // warn before the disk is full, not after a save has failed
+  try{if(navigator.storage?.estimate){const e=await navigator.storage.estimate();state.storageTight=e.quota>0&&e.usage/e.quota>.85?Math.round(e.usage/e.quota*100):0;}}catch{}
   document.title=`${ROUTE_TITLES[state.route]} — Narra`;
   store.onRemoteChange(async()=>{
     if(state.locked)return;
@@ -587,8 +650,14 @@ async function init(){
   else{store.syncLockHint();document.documentElement.classList.remove("boot-locked");render({enter:true});}
   privacy.startIdleWatch?.();
   warmSearch();
+  // once after an update: say that the app changed (never on the very first start, never in the demo)
+  const seen=safeStorageGet("narra-seen-version");
+  if(seen!==APP_VERSION){safeStorageSet("narra-seen-version",APP_VERSION);if(seen&&state.mode!=="demo")setTimeout(()=>toast(`Narra обновлена до версии ${APP_VERSION}. Записи на месте.${matchMedia("(hover: hover) and (pointer: fine)").matches?" Подсказка по клавишам — «?»":""}`,null,{duration:7000}),1200);}
   if("serviceWorker" in navigator&&window.isSecureContext){
     try{
+      // a new version installed in the background takes over the cache: offer a reload instead of mixing old and new files
+      const hadController=Boolean(navigator.serviceWorker.controller);let offered=false;
+      navigator.serviceWorker.addEventListener("controllerchange",()=>{if(!hadController||offered)return;offered=true;toast("Доступна новая версия Narra. Записи не затронуты.",{label:"Обновить",action:"reload-app"},{duration:15000});});
       const registration=await navigator.serviceWorker.register(`./sw.js?v=${APP_VERSION}`,{updateViaCache:"none"});
       registration?.update?.()?.catch?.(()=>{});
     }catch(error){console.warn("Не удалось зарегистрировать service worker",error);}

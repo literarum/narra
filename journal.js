@@ -1,15 +1,16 @@
 /* Journal: timeline with day headers, calendar, life chapters, trash; filters, bulk actions and paging. */
-import {state,ctx,$,$$,escapeHtml,icon,fmtLong,fmtMonthYear,fmtDate,relDay,fmtTime,localDateKey,entryLabel,activeEntries,trashedEntries,kindOptions,kindLabels,capitalizeRu,featureOn,uid,nowIso,downloadBlob,isoStamp,mediaOf,checkinLabel,plural} from "./core.js?v=4.6.0";
-import {entryText} from "./text.mjs?v=4.6.0";
-import {nextRevision} from "./domain.mjs?v=4.6.0";
-import {checkinSummary} from "./checkin.mjs?v=4.6.0";
-import {chapterOf,chapterEntries,sortChapters,chapterMembership,chapterPatch,NO_CHAPTER} from "./entities.mjs?v=4.6.0";
-import {entryToMarkdown} from "./importers.mjs?v=4.6.0";
-import {dayKey} from "./stats.mjs?v=4.6.0";
-import {pageHeader,emptyState,tabs,selectHtml,field,checkRow,modalHeader} from "./kit.js?v=4.6.0";
-import {entryRows,entryRow} from "./entries-ui.js?v=4.6.0";
-import {EMOTION_GROUPS} from "./checkin.mjs?v=4.6.0";
-import * as store from "./store.js?v=4.6.0";
+import {safeStorageGet,safeStorageSet,entryById,state,ctx,$,$$,escapeHtml,icon,fmtLong,fmtMonthYear,fmtDate,fmtDayRange,relDay,fmtTime,localDateKey,entryLabel,activeEntries,trashedEntries,kindOptions,kindLabels,capitalizeRu,featureOn,uid,nowIso,downloadBlob,isoStamp,mediaOf,checkinLabel,plural} from "./core.js?v=4.7.0";
+import {entryText} from "./text.mjs?v=4.7.0";
+import {nextRevision} from "./domain.mjs?v=4.7.0";
+import {checkinSummary} from "./checkin.mjs?v=4.7.0";
+import {chapterOf,chapterEntries,sortChapters,chapterMembership,chapterPatch,NO_CHAPTER} from "./entities.mjs?v=4.7.0";
+import {entryToMarkdown} from "./importers.mjs?v=4.7.0";
+import {nearDuplicates} from "./intel.mjs?v=4.7.0";
+import {dayKey} from "./stats.mjs?v=4.7.0";
+import {pageHeader,emptyState,tabs,selectHtml,field,checkRow,modalHeader} from "./kit.js?v=4.7.0";
+import {entryRows,entryRow} from "./entries-ui.js?v=4.7.0";
+import {EMOTION_GROUPS} from "./checkin.mjs?v=4.7.0";
+import * as store from "./store.js?v=4.7.0";
 
 const F=()=>state.journalFilters;
 const norm=s=>String(s||"").toLocaleLowerCase("ru-RU");
@@ -47,13 +48,16 @@ const weekdayLong=iso=>capitalizeRu(new Intl.DateTimeFormat("ru-RU",{weekday:"lo
 function timelineMarkup(entries){
   if(!entries.length)return filtersActive()?emptyState("Ничего не найдено","Попробуйте убрать часть фильтров.",`<button class="secondary" data-action="journal-filters-reset">Сбросить фильтры</button>`,"journal"):entryRows(entries);
   const limit=state.journalLimit,shown=entries.slice(0,limit),select=state.journalSelect;
+  // pinned entries sit above the timeline (and stay in their place in it too), like pinned notes
+  const pinned=filtersActive()?[]:entries.filter(e=>e.pinned).slice(0,12);
+  const pins=pinned.length?`<section class="timeline-group pinned-group" aria-label="Закреплённые записи"><h2>${icon("pin")}Закреплённые</h2>${entryRows(pinned,null,{select})}</section>`:"";
   const months=new Map();
   for(const e of shown){const k=dayKey(e.happenedAt).slice(0,7);if(!months.has(k))months.set(k,new Map());const m=months.get(k),d=dayKey(e.happenedAt);if(!m.has(d))m.set(d,[]);m.get(d).push(e);}
   const html=[...months.entries()].map(([k,days])=>`<section class="timeline-group"><h2>${fmtMonthYear(new Date(`${k}-01T12:00:00`))}</h2>${[...days.entries()].map(([d,list])=>{
     const hint=state.prefs.showCheckin?dayHint(d):"";
     return `<div class="day-block"><div class="day-head"><h3>${escapeHtml(weekdayLong(list[0].happenedAt))}</h3>${hint?`<span class="day-hint" title="Отметки этого дня">${escapeHtml(hint)}</span>`:""}</div>${entryRows(list,null,{select})}</div>`;}).join("")}</section>`).join("");
   const more=entries.length>limit?`<div class="load-more"><button class="secondary" data-action="journal-more">Показать ещё ${Math.min(state.prefs.journalPage,entries.length-limit)}</button><span class="subtle text-small">Показано ${limit} из ${entries.length}</span></div>`:"";
-  return html+more;
+  return pins+html+more;
 }
 const chipToggle=(id,label,checked,iconName)=>`<label class="chip-toggle${checked?" is-on":""}"><input id="${id}" type="checkbox" ${checked?"checked":""}><span>${icon(iconName)}<span>${label}</span></span></label>`;
 function filtersMarkup(found,total){
@@ -77,6 +81,8 @@ function bulkBar(){
   const n=state.journalSelected.size;
   return `<div class="bulk-bar" role="region" aria-label="Действия с выбранными записями"><span class="bulk-count">${n?`Выбрано: ${n}`:"Отметьте записи"}</span><div class="bulk-actions">
     <button class="secondary" data-action="bulk-export" ${n?"":"disabled"}>${icon("download")}<span>Экспорт</span></button>
+    <button class="secondary" data-action="bulk-print" ${n?"":"disabled"}>${icon("printer")}<span>Печать</span></button>
+    <button class="secondary" data-action="bulk-merge" ${n>1?"":"disabled"}>${icon("layout")}<span>Объединить</span></button>
     <button class="secondary" data-action="bulk-theme" ${n?"":"disabled"}>${icon("tag")}<span>Тема</span></button>
     ${featureOn("featChapters")&&state.chapters.length?`<button class="secondary" data-action="bulk-chapter" ${n?"":"disabled"}>${icon("book")}<span>В главу</span></button>`:""}
     ${featureOn("featChapters")&&state.chapters.length?`<button class="secondary" data-action="bulk-unchapter" ${n?"":"disabled"}>${icon("x")}<span>Вне глав</span></button>`:""}
@@ -86,7 +92,7 @@ function bulkBar(){
 function trashMarkup(){
   const entries=trashedEntries().sort((a,b)=>new Date(b.deletedAt)-new Date(a.deletedAt));
   if(!entries.length)return emptyState("Корзина пуста","Удалённые записи остаются здесь, пока вы не решите восстановить их или удалить навсегда.","","trash");
-  return `<p class="trash-note">Записи из корзины не показываются в дневнике, поиске, обзорах и воспоминаниях.</p><div>${entries.map(e=>{const t=entryText(e,180);return `<article class="trash-row"><time class="entry-date" datetime="${escapeHtml(e.deletedAt)}"><strong>${escapeHtml(relDay(e.deletedAt))}</strong><span>${escapeHtml(fmtTime(e.deletedAt))}</span></time><div><h3>${escapeHtml(t.title)}</h3>${t.rest?`<p class="entry-excerpt">${escapeHtml(t.rest)}</p>`:""}</div><div class="trash-actions"><button class="secondary" data-action="restore-trash" data-id="${escapeHtml(e.id)}">Восстановить</button><button class="ghost danger-quiet" data-action="purge-entry" data-id="${escapeHtml(e.id)}">Удалить навсегда</button></div></article>`;}).join("")}</div>
+  return `<p class="trash-note">В корзине ${entries.length} ${entryLabel(entries.length)}. Записи из корзины не показываются в дневнике, поиске, обзорах и воспоминаниях. Слева — когда запись удалена.</p><div>${entries.map(e=>{const t=entryText(e,180);return `<article class="trash-row"><time class="entry-date" datetime="${escapeHtml(e.deletedAt)}" title="Удалена"><strong>${escapeHtml(relDay(e.deletedAt))}</strong><span>${escapeHtml(fmtTime(e.deletedAt))}</span></time><div><h3>${escapeHtml(t.title)}</h3><p class="subtle text-small">Запись от ${escapeHtml(fmtDate(e.happenedAt,{year:"numeric"}))}</p>${t.rest?`<p class="entry-excerpt">${escapeHtml(t.rest)}</p>`:""}</div><div class="trash-actions"><button class="secondary" data-action="restore-trash" data-id="${escapeHtml(e.id)}">Восстановить</button><button class="ghost danger-quiet" data-action="purge-entry" data-id="${escapeHtml(e.id)}">Удалить навсегда</button></div></article>`;}).join("")}</div>
     <div class="section"><button class="secondary danger button-with-icon" data-action="purge-all">${icon("trash")}<span>Очистить корзину</span></button></div>`;
 }
 function calendarMarkup(){
@@ -99,8 +105,8 @@ function calendarMarkup(){
   const dayLabel=date=>new Intl.DateTimeFormat("ru-RU",{month:"long",day:"numeric"}).format(date);
   for(let d=1;d<=last.getDate();d++){
     const entries=byDay.get(d)||[],date=new Date(year,month,d),key=localDateKey(date),selected=state.calendarSelectedDate===key,today=key===todayStr;
-    if(entries.length)cells.push(`<button class="day has-entry${selected?" is-selected":""}${today?" is-today":""}" data-action="calendar-day" data-date="${key}" aria-pressed="${selected}" aria-label="${dayLabel(date)}, ${entries.length} ${entryLabel(entries.length)}"><span>${d}</span><span class="density" aria-hidden="true">${Array.from({length:Math.min(entries.length,3)},()=>"<i></i>").join("")}</span></button>`);
-    else cells.push(`<button class="day${selected?" is-selected":""}${today?" is-today":""}" data-action="calendar-day" data-date="${key}" aria-pressed="${selected}" aria-label="${dayLabel(date)}, записей нет"><span>${d}</span></button>`);
+    if(entries.length)cells.push(`<button class="day has-entry${selected?" is-selected":""}${today?" is-today":""}" data-action="calendar-day" data-date="${key}" aria-pressed="${selected}" aria-label="${dayLabel(date)}${today?", сегодня":""}, ${entries.length} ${entryLabel(entries.length)}"><span>${d}</span><span class="density" aria-hidden="true">${Array.from({length:Math.min(entries.length,3)},()=>"<i></i>").join("")}</span></button>`);
+    else cells.push(`<button class="day${selected?" is-selected":""}${today?" is-today":""}${key>todayStr?" is-future":""}" data-action="calendar-day" data-date="${key}" aria-pressed="${selected}" aria-label="${dayLabel(date)}${today?", сегодня":""}, записей нет"><span>${d}</span></button>`);
   }
   const selectedEntries=state.calendarSelectedDate?monthEntries.filter(e=>localDateKey(new Date(e.happenedAt))===state.calendarSelectedDate):[];
   const selDate=state.calendarSelectedDate?new Date(`${state.calendarSelectedDate}T12:00:00`):null;
@@ -111,7 +117,7 @@ function calendarMarkup(){
     ${selDate?`<section class="calendar-selection"><div class="section-heading"><h2>${escapeHtml(capitalizeRu(fmtLong(selDate.toISOString())))}</h2><div class="link-group"><button class="link-button" data-action="new-entry-on-date" data-date="${state.calendarSelectedDate}">Добавить запись</button><button class="link-button" data-action="calendar-clear">Снять выбор</button></div></div>${selectedEntries.length?entryRows(selectedEntries):`<p class="subtle">В этот день записей нет.</p>`}</section>`:""}</div>`;
 }
 /* ----- chapters ----- */
-const rangeText=c=>c.start?`${fmtDate(`${c.start}T12:00:00`,{year:"numeric"})} — ${c.end?fmtDate(`${c.end}T12:00:00`,{year:"numeric"}):"по сегодня"}`:"Без дат: записи назначаются вручную";
+const rangeText=c=>c.start?(c.end?fmtDayRange(c.start,c.end):`${fmtDate(`${c.start}T12:00:00`,{year:"numeric"})} — по сегодня`):"Без дат: записи назначаются вручную";
 function chaptersMarkup(){
   const chapters=sortChapters(state.chapters),all=activeEntries();
   const loose=all.filter(e=>!chapterOf(e,state.chapters)).length;
@@ -176,22 +182,65 @@ async function bulkUpdate(ids,patch,source){
 }
 const selected=()=>[...state.journalSelected].filter(id=>state.entries.some(e=>e.id===id));
 
+/* All photos of the visible entries, newest first: a quick way back to a day by its picture. */
+function galleryItems(){
+  const visible=new Map(activeEntries().map(e=>[e.id,e]));
+  return state.attachments.filter(a=>a.kind==="image"&&visible.has(a.entryId)).map(a=>({a,e:visible.get(a.entryId)})).sort((x,y)=>String(y.e.happenedAt).localeCompare(String(x.e.happenedAt)));
+}
+function galleryMarkup(items){
+  return `<p class="subtle text-small gallery-note">Фото из записей: ${items.length}. Нажмите, чтобы открыть запись.</p><div class="photo-grid">${items.slice(0,600).map(({a,e})=>`<button type="button" class="photo-cell" data-action="open-entry" data-id="${escapeHtml(e.id)}" aria-label="${escapeHtml(`${entryText(e).title}, ${fmtDate(e.happenedAt,{year:"numeric"})}`)}"><img data-media-thumb="${escapeHtml(a.id)}" alt="" loading="lazy"><span>${escapeHtml(fmtDate(e.happenedAt))}</span></button>`).join("")}</div>`;
+}
+/** Several entries become one: the texts in time order under their dates, people/places/themes combined, photos moved along.
+    The originals go to the trash, so the step can be undone from there. */
+export function mergeEntries(list,{after=null}={}){
+    ctx.confirmDialog({title:`Объединить ${list.length} ${entryLabel(list.length)}?`,text:"Получится одна запись: тексты по порядку под своими датами, люди, места и темы — вместе, фото и аудио переедут в неё.",detail:"Исходные записи уйдут в корзину — оттуда их можно вернуть.",confirmLabel:"Объединить",iconName:"layout"},async()=>{
+      try{
+        const id=uid(),now=nowIso(),u=k=>[...new Set(list.flatMap(e=>e[k]||[]))];
+        const body=list.map(e=>`## ${fmtDate(e.happenedAt,{year:"numeric"})}${e.title?` · ${e.title}`:""}\n\n${String(e.body||"").trim()}`).join("\n\n");
+        const merged={id,title:`Вместе: ${fmtDayRange(dayKey(list[0].happenedAt),dayKey(list[list.length-1].happenedAt))}`,body,kind:"thought",happenedAt:list[0].happenedAt,createdAt:now,updatedAt:now,revision:1,favorite:list.some(e=>e.favorite),completedAt:now,deletedAt:null,
+          people:u("people"),themes:u("themes"),projects:u("projects").slice(0,12),location:list.find(e=>e.location)?.location||"",sensitive:list.some(e=>e.sensitive),dismissedSuggestions:[],happenedEnd:list.length>1?list[list.length-1].happenedAt:null,chapterId:null,links:[],decision:null,pinned:false,openOn:null};
+        await store.commitEntrySnapshot(merged,"merge");
+        for(const e of list)for(const a of state.attachments.filter(a=>a.entryId===e.id))await store.moveAttachment(a.id,id);
+        await bulkUpdate(list.map(e=>e.id),()=>({deletedAt:nowIso()}),"merged_into");
+        state.journalSelected=new Set();state.journalSelect=false;after?.();
+        await store.loadData();store.notifyChange("entry");ctx.render();
+        ctx.toast("Записи объединены. Исходные — в корзине.",{label:"Открыть",action:"open-entry",id});
+      }catch(error){console.error(error);await store.loadData().catch(()=>{});ctx.render();ctx.toast("Не удалось объединить записи. Ничего не потеряно.");}
+    });
+}
+
+/* Entries that are almost the same text (pasted or saved twice). Jaccard resemblance of word 3-shingles; 60 % and more is shown. */
+const dupDismissed=()=>{try{return new Set(JSON.parse(safeStorageGet("narra-dup-dismissed")||"[]"));}catch{return new Set();}};
+export function showDuplicates(){
+  const pairs=nearDuplicates(activeEntries(),{dismissed:dupDismissed()});
+  const row=p=>`<div class="dup-pair card"><div class="dup-head"><strong>Совпадает на ${Math.round(p.similarity*100)} %</strong><span class="subtle text-small">по фрагментам из трёх слов подряд</span></div>
+    ${[p.a,p.b].map(e=>`<button type="button" class="dup-entry" data-action="open-entry" data-id="${escapeHtml(e.id)}"><span>${escapeHtml(entryText(e).title)}</span><small>${escapeHtml(fmtDate(e.happenedAt,{year:"numeric"}))} · ${e.body.length} симв.</small></button>`).join("")}
+    <div class="dup-actions"><button class="ghost" data-action="dup-dismiss" data-key="${escapeHtml(p.key)}">Это не повтор</button><button class="secondary" data-action="dup-merge" data-a="${escapeHtml(p.a.id)}" data-b="${escapeHtml(p.b.id)}">Объединить</button></div></div>`;
+  ctx.sheetDialog(`${modalHeader("Похожие записи",pairs.length?`Найдено пар: ${pairs.length}`:"Повторов нет","layout","close-dialog")}<div class="modal-body dup-body">${pairs.length?`<p class="subtle text-small">Записи с почти одинаковым текстом — например, сохранённые дважды. Решаете вы: объединить или оставить как есть.</p>${pairs.map(row).join("")}`:`<p>Записей с почти одинаковым текстом нет.</p>`}</div>`,"Похожие записи");
+}
 export function journalView(){
   const trashCount=trashedEntries().length;
   const items=[["timeline","Лента"],["calendar","Календарь"]];
   if(featureOn("featChapters"))items.push(["chapters","Главы"]);
+  const photos=featureOn("featMedia")?galleryItems():[];
+  if(photos.length)items.push(["photos","Фото"]);
   items.push(["trash",`Корзина${trashCount?` · ${trashCount}`:""}`]);
   if(!items.some(i=>i[0]===state.journalView))state.journalView="timeline";
   const v=state.journalView,filtered=v==="timeline"||v==="calendar"?applyFilters(activeEntries()):null;
-  const content=v==="calendar"?calendarMarkup():v==="trash"?trashMarkup():v==="chapters"?chaptersMarkup():timelineMarkup(filtered);
+  const ordered=filtered&&state.prefs.journalOrder==="old"?[...filtered].reverse():filtered;
+  const content=v==="calendar"?calendarMarkup():v==="trash"?trashMarkup():v==="chapters"?chaptersMarkup():v==="photos"?galleryMarkup(photos):timelineMarkup(ordered);
   const showTools=v==="timeline"||v==="calendar";
     return `${pageHeader("Ваша история","Дневник","Хронология без оценок и давления.")}
   <div class="journal-controls">${tabs("journal",items,v,{label:"Вид дневника"})}
-    <div class="journal-tools">${v==="timeline"?`<button class="secondary button-with-icon" data-action="bulk-toggle" aria-pressed="${state.journalSelect}">${icon("check")}<span>${state.journalSelect?"Выбор включён":"Выбрать"}</span></button>`:""}<button class="secondary button-with-icon" data-action="export">${icon("backup")}<span>Резервная копия</span></button></div></div>
+    <div class="journal-tools">${v==="timeline"?`<button class="secondary button-with-icon" data-action="journal-order" aria-label="Порядок: ${state.prefs.journalOrder==="old"?"сначала старые":"сначала новые"}">${icon(state.prefs.journalOrder==="old"?"chevron-up":"chevron-down")}<span>${state.prefs.journalOrder==="old"?"Сначала старые":"Сначала новые"}</span></button>`:""}${v==="timeline"?`<button class="secondary button-with-icon" data-action="bulk-toggle" aria-pressed="${state.journalSelect}">${icon("check")}<span>${state.journalSelect?"Выбор включён":"Выбрать"}</span></button>`:""}<button class="secondary button-with-icon" data-action="export">${icon("backup")}<span>Резервная копия</span></button></div></div>
   ${showTools?filtersMarkup(filtered?filtered.length:0,activeEntries().length):""}${v==="timeline"?bulkBar():""}<div id="panel-journal" role="tabpanel" aria-labelledby="tab-journal-${v}">${content}</div>`;
 }
 export const views={journal:journalView};
 export const actions={
+  "find-duplicates":()=>showDuplicates(),
+  "dup-dismiss":el=>{const set=dupDismissed();set.add(el.dataset.key);safeStorageSet("narra-dup-dismissed",JSON.stringify([...set].slice(-500)));el.closest(".dup-pair")?.remove();},
+  "dup-merge":el=>{const a=entryById(el.dataset.a),b=entryById(el.dataset.b);if(!a||!b)return;ctx.closeDialog({restoreFocus:false});mergeEntries([a,b].sort((x,y)=>new Date(x.happenedAt)-new Date(y.happenedAt)));},
+  "journal-order":()=>{ctx.setPref("journalOrder",state.prefs.journalOrder==="old"?"new":"old");state.journalLimit=state.prefs.journalPage;ctx.render();},
   "calendar-prev":()=>{state.calendarCursor=ctx.shiftMonth(state.calendarCursor,-1);state.calendarSelectedDate=null;ctx.render();},
   "calendar-next":()=>{state.calendarCursor=ctx.shiftMonth(state.calendarCursor,1);state.calendarSelectedDate=null;ctx.render();},
   "calendar-today":()=>{const n=new Date();state.calendarCursor=new Date(n.getFullYear(),n.getMonth(),1);state.calendarSelectedDate=localDateKey(n);ctx.render();},
@@ -224,6 +273,17 @@ export const actions={
   "bulk-toggle":()=>{state.journalSelect=!state.journalSelect;state.journalSelected=new Set();ctx.render();},
   "bulk-done":()=>{state.journalSelect=false;state.journalSelected=new Set();ctx.render();},
   "bulk-all":()=>{const shown=applyFilters(activeEntries()).slice(0,state.journalLimit);state.journalSelected=new Set(shown.map(e=>e.id));ctx.render();},
+  "bulk-print":async()=>{
+    const list=selected().map(id=>state.entries.find(e=>e.id===id)).filter(Boolean).sort((a,b)=>new Date(a.happenedAt)-new Date(b.happenedAt));
+    (await import("./editor.js?v=4.7.0")).printEntries(list);
+  },
+  /* several entries become one: the texts in time order under their dates, people/places/themes combined, photos moved along.
+     The originals go to the trash, so the step can be undone from there. */
+  "bulk-merge":()=>{
+    const list=selected().map(id=>state.entries.find(e=>e.id===id)).filter(Boolean).sort((a,b)=>new Date(a.happenedAt)-new Date(b.happenedAt));
+    if(list.length<2)return;
+    mergeEntries(list);
+  },
   "bulk-export":()=>{
     const list=selected().map(id=>state.entries.find(e=>e.id===id)).sort((a,b)=>new Date(a.happenedAt)-new Date(b.happenedAt));
     downloadBlob(list.map(e=>entryToMarkdown(e)).join("\n---\n\n"),"text/markdown;charset=utf-8",`narra-selected-${isoStamp()}.md`);

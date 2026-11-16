@@ -1,11 +1,11 @@
 /* Privacy: screen lock, inactivity timer and password re-entry before dangerous actions.
    The lock hides the diary and drops what was decrypted for display (text in memory, media links); it is a screen lock,
    not encryption of the data at rest — the settings screen says so in plain words. */
-import {state,ctx,$,$$,escapeHtml,icon,safeStorageGet,safeStorageSet,safeStorageRemove,secretAttrs,secretShown,secretShow} from "./core.js?v=4.6.0";
-import {makeLock,verifyPasscode,retryDelayMs,passcodeProblem,INACTIVITY_OPTIONS,makeRecoveryCode,makeRecovery,verifyRecovery,hintProblem,HINT_MAX} from "./lock.mjs?v=4.6.0";
-import {modalHeader} from "./kit.js?v=4.6.0";
-import * as store from "./store.js?v=4.6.0";
-import * as media from "./media.js?v=4.6.0";
+import {state,ctx,$,$$,escapeHtml,icon,safeStorageGet,safeStorageSet,safeStorageRemove,secretAttrs,secretShown,secretShow} from "./core.js?v=4.7.0";
+import {makeLock,verifyPasscode,retryDelayMs,passcodeProblem,INACTIVITY_OPTIONS,makeRecoveryCode,makeRecovery,verifyRecovery,hintProblem,HINT_MAX} from "./lock.mjs?v=4.7.0";
+import {modalHeader} from "./kit.js?v=4.7.0";
+import * as store from "./store.js?v=4.7.0";
+import * as media from "./media.js?v=4.7.0";
 
 const FAIL_KEY="narra-lock-fails";
 const readFails=()=>{try{const v=JSON.parse(safeStorageGet(FAIL_KEY)||"{}");return {n:Number(v.n)||0,at:Number(v.at)||0};}catch{return {n:0,at:0};}};
@@ -181,7 +181,8 @@ let lastActivity=Date.now(),watching=false;
 export function startIdleWatch(){
   if(watching)return;watching=true;
   const bump=()=>{lastActivity=Date.now();};
-  for(const ev of ["pointerdown","keydown","touchstart","wheel"])window.addEventListener(ev,bump,{passive:true,capture:true});
+  // "input" covers dictation and IME keyboards that type without key events: a long dictated entry must not lock mid-sentence
+  for(const ev of ["pointerdown","keydown","touchstart","wheel","input","scroll"])window.addEventListener(ev,bump,{passive:true,capture:true});
   const check=()=>{
     const min=state.prefs.lockMinutes;
     if(state.lock&&!state.locked&&min>0&&Date.now()-lastActivity>=min*60000&&!$("#dialog-root .recovery-dialog"))lockNow();

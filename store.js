@@ -2,10 +2,11 @@
    Diary text, titles, tags, check-in details, chapters, review notes and media are encrypted with a non-extractable key
    kept next to the data (protects against casual reading of the database, not against someone who has the whole browser profile —
    the interface says so). Dates and ids stay readable so the database can be indexed. */
-import {state,uid,nowIso,DB_NAME_MAIN,DB_NAME_DEMO} from "./core.js?v=4.6.0";
-import {pickEntryMeta,cleanMeta,cleanChapter,cleanReview,cleanEntityNote,ENTRY_META_DEFAULTS} from "./domain.mjs?v=4.6.0";
-import {cleanConfig,DEFAULT_CONFIG} from "./checkin.mjs?v=4.6.0";
-import {cleanAiState} from "./ai-state.mjs?v=4.6.0";
+import {state,uid,nowIso,DB_NAME_MAIN,DB_NAME_DEMO} from "./core.js?v=4.7.0";
+import {staleVersions,pickEntryMeta,cleanMeta,cleanChapter,cleanReview,cleanEntityNote,ENTRY_META_DEFAULTS} from "./domain.mjs?v=4.7.0";
+import {cleanConfig,DEFAULT_CONFIG} from "./checkin.mjs?v=4.7.0";
+import {cleanAiState} from "./ai-state.mjs?v=4.7.0";
+import {cleanTemplates} from "./templates.mjs?v=4.7.0";
 
 export const DB_VERSION=2;
 export const STORES={entries:"entries",versions:"versions",checkins:"checkins",meta:"meta",attachments:"attachments",blobs:"blobs",reviews:"reviews",chapters:"chapters",entities:"entities"};
@@ -52,19 +53,32 @@ export async function put(store,value,durability="strict"){const tx=openTx(store
 export async function del(store,key,durability="strict"){const tx=openTx(store,"readwrite",durability),done=txDone(tx);tx.objectStore(store).delete(key);await done;}
 
 /* ---------- encryption ---------- */
+/* Key canary: a known text encrypted with the local key. If it decrypts, the key is right, so a record that does not decrypt
+   is a damaged record (isolated, the rest opens) — not a wrong key (then nothing is opened or written). */
+const CANARY="narra-key-check";
+let keyVerified=false;
+async function checkCanary(){
+  const row=await getRecord(STORES.meta,"key-canary");
+  if(!row?.value){keyVerified=false;return;}
+  if(await decryptText(row.value)!==CANARY)throw new Error("Ключ шифрования не подходит к этому дневнику. Narra остановилась до попытки что-либо перезаписать.");
+  keyVerified=true;
+}
+async function writeCanary(){try{await put(STORES.meta,{key:"key-canary",value:await encryptText(CANARY)});keyVerified=true;}catch(error){console.warn(error);}}
 export async function ensureCryptoKey(){
   const stored=await getRecord(STORES.meta,"local-key");
-  if(stored?.value){state.cryptoKey=stored.value;return;}
+  if(stored?.value){state.cryptoKey=stored.value;await checkCanary();return;}
   const [e,v,c]=await Promise.all([all(STORES.entries),all(STORES.versions),all(STORES.checkins)]);
   if(e.length||v.length||c.some(x=>x.payloadEnc))throw new Error("Локальный ключ шифрования отсутствует, хотя зашифрованные данные ещё существуют. Narra не станет создавать новый ключ или перезаписывать эти данные.");
   const key=await crypto.subtle.generateKey({name:"AES-GCM",length:256},false,["encrypt","decrypt"]);
   await put(STORES.meta,{key:"local-key",value:key});
   state.cryptoKey=key;
+  await writeCanary();
 }
 export async function encryptText(value=""){
   const iv=crypto.getRandomValues(new Uint8Array(12));
   const ciphertext=await crypto.subtle.encrypt({name:"AES-GCM",iv},state.cryptoKey,new TextEncoder().encode(value));
-  return {iv:[...iv],data:[...new Uint8Array(ciphertext)]};
+  // typed arrays are stored by IndexedDB as compact binary; older records kept plain number arrays and still decrypt
+  return {iv,data:new Uint8Array(ciphertext)};
 }
 export async function decryptText(payload){
   if(!payload)return "";
@@ -139,7 +153,7 @@ export async function trimVersions(entryId,limit){
   const count=await reqP(idx.count(entryId));
   if(count<=limit)return;
   const rows=await reqP(idx.getAll(entryId));
-  const stale=rows.sort((a,b)=>new Date(b.createdAt)-new Date(a.createdAt)).slice(limit);
+  const stale=staleVersions(rows,limit);
   if(!stale.length)return;
   const tx=openTx(STORES.versions,"readwrite","relaxed"),done=txDone(tx),store=tx.objectStore(STORES.versions);stale.forEach(v=>store.delete(v.id));await done;
 }
@@ -163,22 +177,45 @@ export const saveAiSecret=async key=>{if(key){await metaSet("ai-secret",await en
 export const saveAiState=async s=>{state.ai=cleanAiState(s);await metaSet("ai-state",state.ai);};
 export const syncLockHint=()=>{try{if(state.lock&&state.lock.enabled!==false)localStorage.setItem("narra-lock-hint","1");else localStorage.removeItem("narra-lock-hint");}catch{}};
 export const saveLock=async lock=>{if(lock)await metaSet("lock",lock);else await del(STORES.meta,"lock");state.lock=lock||null;syncLockHint();}; // memory follows the disk, never the other way round
+/** Saved quotes: short fragments of the person's own entries, kept encrypted with a link back to the entry. */
+export const cleanQuotes=list=>(Array.isArray(list)?list:[]).filter(q=>q&&typeof q.id==="string"&&typeof q.text==="string"&&q.text.trim()&&typeof q.entryId==="string").map(q=>({id:q.id,entryId:q.entryId,text:q.text.slice(0,1200),at:typeof q.at==="string"?q.at:new Date().toISOString()})).slice(-500);
+export const saveQuotes=async list=>{state.quotes=cleanQuotes(list);await metaSetSecure("quotes",state.quotes);};
+export const saveTemplates=async list=>{state.templates=cleanTemplates(list);await metaSetSecure("templates",state.templates);};
 export const saveMutedTopics=async list=>{state.mutedTopics=[...new Set(list)];await metaSet("muted-topics",state.mutedTopics);};
 
+/** Records that could not be decrypted on the last load. They stay in the database untouched (never overwritten or deleted);
+    the rest of the diary opens normally and the interface says how many could not be read. */
+export const damaged=[];
+/** Decrypts every row on its own: one damaged record must not keep the whole diary closed.
+    If every row of a non-empty store fails, the key itself is the problem — then stop, as before, before anything is written. */
+async function unpackAll(storeName,rows,fn){
+  const res=await Promise.allSettled(rows.map(fn)),out=[];
+  res.forEach((r,i)=>{if(r.status==="fulfilled")out.push(r.value);else damaged.push({store:storeName,id:rows[i]?.id??rows[i]?.key??"?",error:String(r.reason?.message||r.reason)});});
+  if(!keyVerified&&rows.length&&!out.length&&res.some(r=>r.status==="rejected"))throw res.find(r=>r.status==="rejected").reason;
+  return out;
+}
 export async function loadData(){
   const [entries,checkins,atts,chapters,reviews,entities]=await Promise.all([all(STORES.entries),all(STORES.checkins),all(STORES.attachments),all(STORES.chapters),all(STORES.reviews),all(STORES.entities)]);
-  state.entries=(await Promise.all(entries.map(unpackEntry))).sort((a,b)=>new Date(b.happenedAt)-new Date(a.happenedAt));
-  state.checkins=(await Promise.all(checkins.map(unpackCheckin))).sort((a,b)=>new Date(b.observedAt)-new Date(a.observedAt));
-  state.attachments=(await Promise.all(atts.map(unpackAttachmentMeta))).sort((a,b)=>new Date(a.createdAt)-new Date(b.createdAt));
-  state.chapters=(await Promise.all(chapters.map(async r=>cleanChapter(await unpackSecure(r))))).filter(Boolean);
-  state.reviews=(await Promise.all(reviews.map(async r=>cleanReview(await unpackSecure(r))))).filter(Boolean);
-  state.entityNotes=(await Promise.all(entities.map(async r=>cleanEntityNote(await unpackSecure(r))))).filter(Boolean);
+  damaged.length=0;
+  state.entries=(await unpackAll("entries",entries,unpackEntry)).sort((a,b)=>new Date(b.happenedAt)-new Date(a.happenedAt));
+  state.checkins=(await unpackAll("checkins",checkins,unpackCheckin)).sort((a,b)=>new Date(b.observedAt)-new Date(a.observedAt));
+  state.attachments=(await unpackAll("attachments",atts,unpackAttachmentMeta)).sort((a,b)=>new Date(a.createdAt)-new Date(b.createdAt));
+  state.chapters=(await unpackAll("chapters",chapters,async r=>cleanChapter(await unpackSecure(r)))).filter(Boolean);
+  state.reviews=(await unpackAll("reviews",reviews,async r=>cleanReview(await unpackSecure(r)))).filter(Boolean);
+  state.entityNotes=(await unpackAll("entities",entities,async r=>cleanEntityNote(await unpackSecure(r)))).filter(Boolean);
+  state.damaged=damaged.length;
+  // older diaries have no canary yet: once something decrypted with this key, remember the key as the right one
+  if(!keyVerified&&(state.entries.length||state.checkins.length))await writeCanary();
   state.config=cleanConfig(await metaGetSecure("checkin-config",DEFAULT_CONFIG));
   state.ai=cleanAiState(await metaGet("ai-state",null));
   try{state.aiKey=(await decryptText(await metaGet("ai-secret",null)))||"";}catch{state.aiKey="";}
   state.lock=await metaGet("lock",null);syncLockHint();
-  state.mutedMemoryIds=await metaGet("muted-memory-ids",[]);
-  state.mutedTopics=await metaGet("muted-topics",[]);
+  state.lastBackup=await metaGet("last-backup",null);
+  try{state.templates=cleanTemplates(await metaGetSecure("templates",[]));}catch{state.templates=[];}
+  try{state.quotes=cleanQuotes(await metaGetSecure("quotes",[]));}catch{state.quotes=[];}
+  const list=v=>Array.isArray(v)?v.filter(x=>typeof x==="string"):[];
+  state.mutedMemoryIds=list(await metaGet("muted-memory-ids",[]));
+  state.mutedTopics=list(await metaGet("muted-topics",[]));
 }
 
 /* ---------- attachments ---------- */
@@ -208,8 +245,9 @@ export async function deleteAttachment(id){
   tx.objectStore(STORES.attachments).delete(id);tx.objectStore(STORES.blobs).delete(id);await done;
   notifyChange("media");
 }
+const attachmentsOf=entryId=>reqP(openTx(STORES.attachments).objectStore(STORES.attachments).index("entryId").getAll(entryId));
 export async function deleteAttachmentsFor(entryId){
-  const rows=(await all(STORES.attachments)).filter(a=>a.entryId===entryId);
+  const rows=await attachmentsOf(entryId);
   for(const r of rows)await deleteAttachment(r.id);
 }
 export async function readAttachmentBytes(id){const b=await getRecord(STORES.blobs,id);return b?decryptBytes(b.dataEnc):null;}
@@ -255,7 +293,7 @@ export async function saveCheckinRecord(checkin){await put(STORES.checkins,await
 export async function reloadAttachments(){state.attachments=(await Promise.all((await all(STORES.attachments)).map(unpackAttachmentMeta))).sort((a,b)=>new Date(a.createdAt)-new Date(b.createdAt));}
 /** Copies an entry's attachments for another entry (used when a conflicting edit is kept as a separate entry). Returns old id → new id. */
 export async function cloneAttachments(fromEntryId,toEntryId){
-  const rows=(await all(STORES.attachments)).filter(a=>a.entryId===fromEntryId),map=new Map();
+  const rows=await attachmentsOf(fromEntryId),map=new Map();
   if(!rows.length)return map;
   const tx=openTx([STORES.attachments,STORES.blobs],"readwrite","strict"),done=txDone(tx),blobs=tx.objectStore(STORES.blobs),atts=tx.objectStore(STORES.attachments);
   for(const r of rows){const id=uid(),b=await reqP(blobs.get(r.id));map.set(r.id,id);atts.put({...r,id,entryId:toEntryId});if(b)blobs.put({...b,id});}
@@ -270,10 +308,15 @@ export async function saveVersionOnly(entry,source){
 /* ---------- raw reads for export ---------- */
 export async function readAllVersions(){
   const rows=await all(STORES.versions),out=[];
+  let skipped=0;
   for(const v of rows){
-    const meta=v.metaEnc?await decryptJson(v.metaEnc,{}):{};
-    out.push({id:v.id,entryId:v.entryId,revision:v.revision,createdAt:v.createdAt,source:v.source,title:await decryptText(v.titleEnc),body:await decryptText(v.bodyEnc),metadata:meta});
+    // a damaged old version is skipped (and counted) instead of failing the whole export
+    try{
+      const meta=v.metaEnc?await decryptJson(v.metaEnc,{}):{};
+      out.push({id:v.id,entryId:v.entryId,revision:v.revision,createdAt:v.createdAt,source:v.source,title:await decryptText(v.titleEnc),body:await decryptText(v.bodyEnc),metadata:meta});
+    }catch{skipped++;}
   }
+  out.skipped=skipped;
   return out;
 }
 export async function readBlobBundle(id){

@@ -5,11 +5,12 @@
   const pad=n=>String(n).padStart(2,"0");
   const dayKey=d=>`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
   const minutes=t=>{const m=/^([01]\d|2[0-3]):([0-5]\d)$/.exec(t||"");return m?Number(m[1])*60+Number(m[2]):null;};
-  const DEFAULTS={dailyOn:false,dailyTime:"21:00",weeklyOn:false,weeklyDay:0,weeklyTime:"19:00",decisionsOn:false,memoryOn:false,onThisDay:0,memoryDay:"",lastEntryDay:"",decisionDates:[],fired:{},base:"./"};
+  const DEFAULTS={dailyOn:false,dailyTime:"21:00",weeklyOn:false,weeklyDay:0,weeklyTime:"19:00",decisionsOn:false,memoryOn:false,onThisDay:0,memoryDay:"",lastEntryDay:"",decisionDates:[],capsuleDates:[],fired:{},base:"./"};
   function normalize(raw){
     const c={...DEFAULTS,...(raw&&typeof raw==="object"?raw:{})};
     c.fired=c.fired&&typeof c.fired==="object"?c.fired:{};
     c.decisionDates=Array.isArray(c.decisionDates)?c.decisionDates.filter(x=>typeof x==="string"&&/^\d{4}-\d{2}-\d{2}$/.test(x)):[];
+    c.capsuleDates=Array.isArray(c.capsuleDates)?c.capsuleDates.filter(x=>typeof x==="string"&&/^\d{4}-\d{2}-\d{2}$/.test(x)):[];
     if(minutes(c.dailyTime)==null)c.dailyTime=DEFAULTS.dailyTime;
     if(minutes(c.weeklyTime)==null)c.weeklyTime=DEFAULTS.weeklyTime;
     if(!(c.weeklyDay>=0&&c.weeklyDay<=6))c.weeklyDay=0;
@@ -27,6 +28,9 @@
       out.push({id:"decisions",title:"Narra",body:"Есть решение, к которому вы хотели вернуться.",url:"?go=journal"});
     if(c.memoryOn&&c.memoryDay===today&&c.onThisDay>0&&c.fired.memory!==today&&at>=9*60+30)
       out.push({id:"memory",title:"Narra",body:c.onThisDay===1?"В этот день у вас есть запись из прошлого.":"В этот день у вас есть записи из прошлого.",url:"?go=memories"});
+    // a time capsule opens today (only the date is known here, never the text)
+    if(c.memoryOn&&c.capsuleDates.includes(today)&&c.fired.capsule!==today&&at>=9*60)
+      out.push({id:"capsule",title:"Narra",body:"Сегодня открывается письмо, которое вы когда-то написали себе.",url:"?go=today"});
     return out;
   }
   /** How many things are waiting, for the icon badge (ignores whether a notification was already shown). */

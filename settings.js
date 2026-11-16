@@ -1,18 +1,18 @@
 /* Settings: interface, feature switches, editor, check-in fields, privacy (lock and assistant), data, and an honest «about».
    Everything optional can be turned off here and its screens disappear; nothing that was written is deleted by a switch. */
-import {state,ctx,$,$$,escapeHtml,icon,FEATURES,APP_VERSION,featureOn,entryLabel,plural,kindLabels} from "./core.js?v=4.6.0";
-import {pageHeader,tabs,settingsGroup,switchRow,segmentedRow,selectHtml} from "./kit.js?v=4.6.0";
-import {CORE_DIMENSIONS,DEEP_DIMENSIONS,activeDimensions,cleanConfig,DEFAULT_CONFIG} from "./checkin.mjs?v=4.6.0";
-import {AI_FEATURES,FEATURE_GROUPS,PROVIDERS,providerById,detectProvider,listModels,pickModel,createProvider,runFeature,cleanAiState,REASON_TEXT} from "./ai.mjs?v=4.6.0";
-import {TIERS,fmtTok} from "./brain.mjs?v=4.6.0";
-import {ADDRESS,STYLES,LENGTHS} from "./therapy.mjs?v=4.6.0";
-import {INACTIVITY_OPTIONS} from "./lock.mjs?v=4.6.0";
-import {capitalizeRu} from "./domain.mjs?v=4.6.0";
-import {MIN_N,METHOD_VERSION} from "./stats.mjs?v=4.6.0";
-import {METHOD_ID} from "./insights-model.mjs?v=4.6.0";
-import {entryText} from "./text.mjs?v=4.6.0";
-import {entityMap} from "./derived.js?v=4.6.0";
-import * as store from "./store.js?v=4.6.0";
+import {state,ctx,$,$$,escapeHtml,icon,FEATURES,APP_VERSION,featureOn,entryLabel,plural,kindLabels,shortcutList} from "./core.js?v=4.7.0";
+import {pageHeader,tabs,settingsGroup,switchRow,segmentedRow,selectHtml} from "./kit.js?v=4.7.0";
+import {CORE_DIMENSIONS,DEEP_DIMENSIONS,activeDimensions,cleanConfig,DEFAULT_CONFIG} from "./checkin.mjs?v=4.7.0";
+import {AI_FEATURES,FEATURE_GROUPS,PROVIDERS,providerById,detectProvider,listModels,pickModel,createProvider,runFeature,cleanAiState,REASON_TEXT} from "./ai.mjs?v=4.7.0";
+import {TIERS,fmtTok} from "./brain.mjs?v=4.7.0";
+import {ADDRESS,STYLES,LENGTHS} from "./therapy.mjs?v=4.7.0";
+import {INACTIVITY_OPTIONS} from "./lock.mjs?v=4.7.0";
+import {capitalizeRu} from "./domain.mjs?v=4.7.0";
+import {MIN_N,METHOD_VERSION} from "./stats.mjs?v=4.7.0";
+import {METHOD_ID} from "./insights-model.mjs?v=4.7.0";
+import {entryText} from "./text.mjs?v=4.7.0";
+import {entityMap} from "./derived.js?v=4.7.0";
+import * as store from "./store.js?v=4.7.0";
 
 const TABS=[["basic","Основные"],["features","Функции"],["editor","Редактор"],["checkin","Отметки"],["privacy","Приватность"],["ai","Помощник"],["data","Данные"],["about","О Narra"]];
 const sw=(attrs,title,desc,checked,extra="")=>`<div class="setting-row"><div class="setting-row-text"><strong>${title}</strong>${desc?`<span>${desc}</span>`:""}</div><div class="setting-row-control"><label class="switch"><input type="checkbox" role="switch" ${attrs} ${checked?"checked":""} ${extra} aria-label="${escapeHtml(title.replace(/<[^>]+>/g,""))}"><span class="switch-track"></span></label></div></div>`;
@@ -87,10 +87,20 @@ function featuresTab(){
 }
 
 /* ---------- editor ---------- */
+function templatesGroup(){
+  const own=state.templates||[];
+  const rows=own.length?own.map(t=>`<div class="setting-row"><div class="setting-row-text"><strong>${escapeHtml(t.name)}</strong><span>${escapeHtml(String(t.body).replace(/[*_#>`-]/g,"").replace(/\s+/g," ").trim().slice(0,90))}</span></div><div class="setting-row-control"><button class="ghost" data-action="template-delete" data-id="${escapeHtml(t.id)}">Удалить</button></div></div>`).join("")
+    :`<div class="setting-row"><div class="setting-row-text"><strong>Своих шаблонов пока нет</strong><span>Откройте запись с удачной структурой → «…» → «Сохранить как шаблон». Встроенные шаблоны есть всегда.</span></div></div>`;
+  return settingsGroup("layout","Шаблоны записей",rows,"Шаблоны предлагаются в пустой новой записи. Хранятся зашифрованными, как записи.");
+}
 function editorTab(){
   return `${settingsGroup("type","Шрифт и ширина",
     segmentedRow("editorFont","Шрифт письма","Для текста записи.",[["serif","С засечками"],["sans","Без засечек"]])
-    +segmentedRow("editorWidth","Ширина строки","Узкая строка читается легче.",[["standard","Узкая"],["wide","Широкая"]]))}
+    +segmentedRow("editorWidth","Ширина строки","Узкая строка читается легче.",[["standard","Узкая"],["wide","Широкая"]])
+    +segmentedRow("editorSize","Размер текста","Для письма и чтения записей.",[["s","Мельче"],["m","Обычный"],["l","Крупнее"],["xl","Крупный"]]))}
+    ${settingsGroup("focus","Письмо",
+      switchRow("typewriter","Печатная машинка","Строка, которую вы пишете, держится в середине экрана — взгляд не уходит вниз.")
+      +segmentedRow("wordGoal","Цель на запись","Мягкий ориентир в нижней строке редактора. Ничего не требует и не считает серии.",[["0","Нет"],["100","100"],["250","250"],["500","500"],["1000","1000"]],{stacked:true}))}
     <section class="settings-group"><h2>${icon("eye")}Как это выглядит</h2><div class="card editor-sample" data-editor-sample><p>Утро было тихим. Я долго стояла у окна и думала о том, что хочу сохранить из этого года.</p></div></section>
     ${settingsGroup("type","Панель форматирования",
       row("Кнопки над текстом","Меняйте порядок, убирайте лишнее, добавляйте свои инструменты. В самом редакторе кнопку можно удержать и перетащить.",`<button type="button" class="secondary" data-action="toolbar-settings">Настроить</button>`))}
@@ -99,7 +109,7 @@ function editorTab(){
       +sw('data-pref="spellcheck"',"Проверка орфографии браузера","Подчёркивание слов с ошибками. Проверку делает сам браузер.",state.prefs.spellcheck)
       +sw('data-pref="featWritingAssist"',"Помощь при письме","Вопросы и шаблон структуры — только по нажатию.",featureOn("featWritingAssist"))
       +sw('data-pref="featEntitySuggest"',"Подсказки людей и мест","Предлагает добавить тех, кого вы уже упоминали.",featureOn("featEntitySuggest")),
-      "Сохранение автоматическое: текст записывается на устройство несколько секунд спустя после последнего нажатия.")}`;
+      "Сохранение автоматическое: текст записывается на устройство несколько секунд спустя после последнего нажатия.")}${templatesGroup()}`;
 }
 
 /* ---------- check-in fields ---------- */
@@ -197,7 +207,7 @@ function dataTab(){
 
 /* ---------- about ---------- */
 function aboutTab(){
-  const shortcuts=[["Ctrl/⌘ K","Палитра команд"],["N","Новая запись"],["/","Поиск"],["Ctrl/⌘ Enter","Готово, закрыть запись"],["Ctrl/⌘ F","Найти в тексте записи (в редакторе) или поиск"],["Esc","Закрыть окно"]];
+  const shortcuts=shortcutList().flatMap(([,list])=>list);
   return `${settingsGroup("info","Narra",row("Версия",`Narra ${APP_VERSION}`,"")+row("Обновление приложения","Проверить, нет ли новой версии файлов Narra. Записи не затрагиваются.",`<button class="secondary" data-action="refresh-app-shell">Проверить</button>`)+row("Где хранятся записи","Только в этом браузере, на этом устройстве. Нет аккаунта, сервера и синхронизации.",""))}
     ${settingsGroup("insights","Как считаются наблюдения",
       row("Что это","Описание совпадений в ваших записях: «в дни с этой темой напряжение чаще выше». Это не причины и не диагнозы.","")
@@ -242,6 +252,8 @@ async function updateConfig(mutate){
 const ownTitles={emotions:"Свои эмоции",needs:"Что сейчас нужно",triggers:"Что повлияло",activities:"Чем занимались",social:"С кем"};
 export const views={settings:settingsView};
 export const actions={
+  "template-delete":el=>{const t=(state.templates||[]).find(x=>x.id===el.dataset.id);if(!t)return;
+    ctx.confirmDialog({title:`Удалить шаблон «${t.name}»?`,text:"Записи, начатые с него, не изменятся.",confirmLabel:"Удалить",danger:true},async()=>{try{await store.saveTemplates(state.templates.filter(x=>x.id!==t.id));ctx.render();ctx.toast("Шаблон удалён.");}catch(error){console.error(error);ctx.toast("Не удалось удалить шаблон.");}});},
   "open-privacy":()=>{state.settingsTab="privacy";ctx.render();},
   "open-ai-settings":()=>{state.settingsTab="ai";if(state.route==="settings")ctx.render();else ctx.goTo("settings");},
   "features-minimal":()=>{for(const f of FEATURES)ctx.setPref(f.key,false);ctx.render();ctx.toast("Осталась только основа: дневник, запись, поиск. Данные не тронуты.");},

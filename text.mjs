@@ -1,11 +1,14 @@
 /* Narra text helpers shared by the interface and by pure modules (reviews, export). No DOM. */
-import {capitalizeRu,pluralRu} from "./domain.mjs?v=4.6.0";
+import {capitalizeRu,pluralRu} from "./domain.mjs?v=4.7.0";
 
 export const strip=(s="")=>String(s).replace(/\s+/g," ").trim();
 /** Markdown → plain text for excerpts and search-like views. */
 export function mdToPlain(s=""){
   return String(s).replace(/```[\s\S]*?```/g," ").replace(/!\[([^\]]*)\]\(narra-media:[^)]*\)/g,"").replace(/^\s{0,3}#{1,6}\s+/gm,"").replace(/^\s*>\s?/gm,"").replace(/^\s*(?:[-*+]\s+\[[ xX]\]\s+|[-*+]\s+|\d+[.)]\s+)/gm,"")
-    .replace(/^\s*([-*_])(?:\s*\1){2,}\s*$/gm," ").replace(/\[\[([^\]|]*)(?:\|([^\]]*))?\]\]/g,(m,a,b)=>b||a).replace(/\[([^\]]*)\]\(([^)]*)\)/g,"$1").replace(/(\*\*|__|~~|`)/g,"").replace(/(^|[\s(])_([^_\n]+)_(?=$|[\s.,;:!?)])/g,"$1$2");
+    .replace(/^\s*([-*_])(?:\s*\1){2,}\s*$/gm," ").replace(/\[\[([^\]|]*)(?:\|([^\]]*))?\]\]/g,(m,a,b)=>b||a).replace(/\[([^\]]*)\]\(([^)]*)\)/g,"$1").replace(/(\*\*|__|~~|`)/g,"").replace(/(^|[\s(])_([^_\n]+)_(?=$|[\s.,;:!?)])/g,"$1$2")
+    // single-star emphasis and ==highlight== (not «5 * 3»), table rules and the outer pipes of table rows
+    .replace(/(^|[\s(])\*(?!\s)([^*\n]+?)(?<!\s)\*(?=$|[\s.,;:!?)])/g,"$1$2").replace(/==([^=\n]+)==/g,"$1")
+    .replace(/^\s*\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)*\|?\s*$/gm," ").replace(/^\s*\|(.*)\|\s*$/gm,(m,inner)=>inner.split("|").map(c=>c.trim()).filter(Boolean).join(" · "));
 }
 export const excerpt=(s="",n=220)=>{const t=strip(mdToPlain(s));return t.slice(0,n)+(t.length>n?"…":"");};
 /** Title and excerpt for lists. Untitled entries borrow their first sentence, and the excerpt then skips it. */

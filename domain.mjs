@@ -35,7 +35,9 @@ export function pluralRu(number, one, few, many){
 }
 export function capitalizeRu(text=""){ return text? text.charAt(0).toLocaleUpperCase("ru-RU")+text.slice(1):text; }
 export function wordCount(text=""){
-  return (String(text).match(/[\p{L}\p{N}]+(?:[’'-][\p{L}\p{N}]+)*/gu)||[]).length;
+  // link targets, attached media ids and bare web addresses are not words the person wrote
+  const t=String(text).replace(/!\[[^\]]*\]\([^)]*\)/g," ").replace(/\]\([^)\s]*\)/g,"] ").replace(/\bhttps?:\/\/\S+/g," ");
+  return (t.match(/[\p{L}\p{N}]+(?:[’'-][\p{L}\p{N}]+)*/gu)||[]).length;
 }
 /** Signed number with a typographic minus and Russian decimal comma: -0.5 -> "−0,5", 1 -> "+1". */
 export function formatSigned(n){
@@ -43,7 +45,12 @@ export function formatSigned(n){
   const body=String(Math.abs(v)).replace(".",",");
   return v>0?`+${body}`:v<0?`−${body}`:"0";
 }
-export function formatNumberRu(n){ return String(Number(n)).replace(".",","); }
+/** Russian number style: decimal comma, and from 10 000 on digits are grouped with a narrow space (12 345,6). */
+export function formatNumberRu(n){
+  const [int,frac]=String(Number(n)).split(".");
+  const grouped=/^-?\d{5,}$/.test(int)?int.replace(/\B(?=(\d{3})+(?!\d))/g,"\u202f"):int;
+  return frac?`${grouped},${frac}`:grouped;
+}
 
 const SCALES={
   mood:["очень низкое","низкое","нейтральное","хорошее","очень хорошее"],
@@ -215,7 +222,9 @@ export function validateCanonicalEntry(entry){
 }
 export function extractHashtags(text=""){
   const result=[], seen=new Set();
-  for(const match of text.matchAll(/#([\p{L}\p{N}_-]{2,40})/gu)){
+  // same rule as the reading view: a tag starts a word (not «site.com/#part»), and «#12» is a number, not a tag
+  for(const match of text.matchAll(/(?:^|[\s(])#([\p{L}\p{N}_-]{2,40})/gu)){
+    if(/^[\d_-]+$/u.test(match[1]))continue;
     const value=match[1].toLocaleLowerCase("ru-RU");
     if(!seen.has(value)){seen.add(value);result.push(value);}
   }
@@ -244,18 +253,22 @@ export function parseRussianDateHint(text="", referenceDate=new Date()){
   const past=source.match(new RegExp(`${B}в прошл(?:ый|ую|ое)\\s+(${Object.keys(WEEKDAYS).join("|")})${E}`,"u"));
   if(past){
     const target=WEEKDAYS[past[1]];let back=(ref.getDay()-target+7)%7;if(back===0)back=7;
-    const date=shift(-back);return {iso:date.toISOString(),label:`Дата: ${past[0].replace(/^в /,"")}`,source:past[0]};
+    const date=shift(-back);return {iso:date.toISOString(),label:`Дата: ${past[0]}`,source:past[0]};
   }
   const numeric=source.match(/(?<![\d.,/])(0?[1-9]|[12]\d|3[01])[./](0[1-9]|1[0-2])(?:[./](\d{4}|\d{2}))?(?![\d]|[.,]\d)/u);
   if(numeric){
     let year=numeric[3]?Number(numeric[3]):ref.getFullYear(); if(year<100)year+=2000;
+    // a diary looks back: «25.12» written in January means last December, not a date eleven months ahead
+    if(!numeric[3]){const d=validDate(year,Number(numeric[2]),Number(numeric[1]));if(d&&d-ref>31*86400000)year--;}
     const date=validDate(year,Number(numeric[2]),Number(numeric[1]));
     if(date)return {iso:date.toISOString(),label:`Дата: ${numeric[1]}.${numeric[2]}.${year}`,source:numeric[0]};
   }
   const months={"января":1,"февраля":2,"марта":3,"апреля":4,"мая":5,"июня":6,"июля":7,"августа":8,"сентября":9,"октября":10,"ноября":11,"декабря":12};
   const named=source.match(new RegExp(`${B}([0-3]?\\d)\\s+(января|февраля|марта|апреля|мая|июня|июля|августа|сентября|октября|ноября|декабря)(?:\\s+(\\d{4}))?${E}`,"u"));
   if(named){
-    const year=named[3]?Number(named[3]):ref.getFullYear(), date=validDate(year,months[named[2]],Number(named[1]));
+    let year=named[3]?Number(named[3]):ref.getFullYear();
+    if(!named[3]){const d=validDate(year,months[named[2]],Number(named[1]));if(d&&d-ref>31*86400000)year--;}
+    const date=validDate(year,months[named[2]],Number(named[1]));
     if(date)return {iso:date.toISOString(),label:`Дата: ${named[1]} ${named[2]} ${year}`,source:named[0]};
   }
   return null;
@@ -318,14 +331,14 @@ export function circularMonthDayDistance(a, b){
 }
 
 /* ---------- canonical entry model ---------- */
-import {cleanCheckin as cleanCheckinRecord,cleanConfig} from "./checkin.mjs?v=4.6.0";
+import {cleanCheckin as cleanCheckinRecord,cleanConfig} from "./checkin.mjs?v=4.7.0";
 export const SCHEMA="narra.local-prototype.v4.2";
 export const SCHEMA_PREFIX="narra.local-prototype.";
 export const KINDS=["thought","event","day","memory","dream","decision","milestone","letter"];
 const KIND_SET=new Set(KINDS);
 export const LINK_TYPES=["related","continuation","decision_followup","custom"];
 /** Fields that live in the encrypted `meta` blob of an entry (and of every version snapshot). */
-export const ENTRY_META_DEFAULTS=Object.freeze({kind:"thought",sensitive:false,people:[],themes:[],projects:[],location:"",dismissedSuggestions:[],happenedEnd:null,chapterId:null,links:[],decision:null});
+export const ENTRY_META_DEFAULTS=Object.freeze({kind:"thought",sensitive:false,people:[],themes:[],projects:[],location:"",dismissedSuggestions:[],happenedEnd:null,chapterId:null,links:[],decision:null,pinned:false,openOn:null});
 export function pickEntryMeta(entry={}){
   const out={};
   for(const [k,d] of Object.entries(ENTRY_META_DEFAULTS)){
@@ -362,7 +375,8 @@ export function cleanMeta(m,happenedAt=null){
   if(end&&happenedAt&&new Date(end)<new Date(happenedAt)) end=null;
   return {kind:KIND_SET.has(m.kind)?m.kind:"thought",sensitive:Boolean(m.sensitive),people:strArray(m.people),themes:strArray(m.themes),projects:strArray(m.projects,12),
     location:text(m.location,200),dismissedSuggestions:strArray(m.dismissedSuggestions,60),happenedEnd:end,
-    chapterId:typeof m.chapterId==="string"&&m.chapterId&&m.chapterId.length<=80?m.chapterId:null,links:cleanLinks(m.links),decision:cleanDecision(m.decision)};
+    chapterId:typeof m.chapterId==="string"&&m.chapterId&&m.chapterId.length<=80?m.chapterId:null,links:cleanLinks(m.links),decision:cleanDecision(m.decision),
+    pinned:Boolean(m.pinned),openOn:typeof m.openOn==="string"&&/^\d{4}-\d{2}-\d{2}$/.test(m.openOn)?m.openOn:null};
 }
 export function cleanEntry(raw){
   if(!raw||typeof raw!=="object") return null;
@@ -447,3 +461,24 @@ export function planImport(payload,existing={entries:[],checkins:[],versions:[],
   return {ok:true,entries,checkins,versions,chapters,reviews,entities,config,fromSchema:migrated.from,stats,
     nothingToDo:!entries.length&&!checkins.length&&!versions.length&&!chapters.length&&!reviews.length&&!entities.length};
 }
+
+/** History thinning instead of a hard cut: the newest versions are all kept; older ones keep one per hour for a week,
+    then one per day; imports, restores and conflict copies are never thinned. Only beyond `limit*2` the oldest go. */
+export function staleVersions(rows,limit,now=Date.now()){
+  const sorted=[...rows].sort((a,b)=>String(b.createdAt).localeCompare(String(a.createdAt)));
+  const keep=new Set(sorted.slice(0,Math.ceil(limit*.4)).map(v=>v.id)),seen=new Set();
+  for(const v of sorted.slice(Math.ceil(limit*.4))){
+    if(/^(import|restore|restore_trash|revert|conflict_.*|trash|complete|before_versions|manual|talk_session|merge|merged_into|capsule_open)$/.test(v.source||"")){keep.add(v.id);continue;}
+    const t=Date.parse(v.createdAt)||0,age=now-t,d=new Date(t);
+    const bucket=age<7*86400000?`h${d.getFullYear()}-${d.getMonth()}-${d.getDate()}-${d.getHours()}`:`d${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+    if(!seen.has(bucket)){seen.add(bucket);keep.add(v.id);} // the newest version in each hour/day (list is newest first)
+  }
+  const kept=sorted.filter(v=>keep.has(v.id)),overflow=kept.slice(limit*2).map(v=>v.id);
+  return sorted.filter(v=>!keep.has(v.id)||overflow.includes(v.id));
+}
+
+/* ---------- time capsule ----------
+   An entry with `openOn` (a local day "YYYY-MM-DD") is a letter to the future: until that day its text is not shown anywhere —
+   not in lists, search, memories, reviews or the life map. It is stored like every entry (encrypted), only kept out of sight. */
+export const isSealedCapsule=(e,todayKey)=>Boolean(e?.openOn)&&e.openOn>todayKey;
+export const isOpenedCapsule=(e,todayKey)=>Boolean(e?.openOn)&&e.openOn<=todayKey;

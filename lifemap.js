@@ -1,17 +1,17 @@
 /* Life map («Карта жизни»): people, places, themes, projects and life chapters — only what the user wrote on their entries.
    Each page shows the entries, the months they cluster in (empty months stay visible), neighbours, and state associations
    with the days behind them. Names can be renamed, merged and annotated without touching the entries themselves. */
-import {talkAvailable,state,ctx,$,escapeHtml,icon,fmtDate,relDay,activeEntries,entryLabel,dayLabel,featureOn} from "./core.js?v=4.6.0";
-import {pageHeader,emptyState,tabs,chip,modalHeader} from "./kit.js?v=4.6.0";
-import {ENTITY_TYPES,collectEntities,listByType,entityPage,norm,entityKey,sortChapters,chapterEntries,chapterOf} from "./entities.mjs?v=4.6.0";
-import {entityMap} from "./derived.js?v=4.6.0";
-import {describeAssociation} from "./insights-model.mjs?v=4.6.0";
-import {monthStrip} from "./charts.mjs?v=4.6.0";
-import {activeDimensions,dimLabel} from "./checkin.mjs?v=4.6.0";
-import {benjaminiHochberg,dayKey,MIN_N} from "./stats.mjs?v=4.6.0";
-import {cleanEntityNote} from "./domain.mjs?v=4.6.0";
-import {entryRows} from "./entries-ui.js?v=4.6.0";
-import * as store from "./store.js?v=4.6.0";
+import {sealedCapsules,talkAvailable,state,ctx,$,escapeHtml,icon,fmtDate,relDay,activeEntries,entryLabel,dayLabel,featureOn} from "./core.js?v=4.7.0";
+import {pageHeader,emptyState,tabs,chip,modalHeader} from "./kit.js?v=4.7.0";
+import {ENTITY_TYPES,collectEntities,listByType,entityPage,norm,entityKey,sortChapters,chapterEntries,chapterOf} from "./entities.mjs?v=4.7.0";
+import {entityMap} from "./derived.js?v=4.7.0";
+import {describeAssociation} from "./insights-model.mjs?v=4.7.0";
+import {monthStrip} from "./charts.mjs?v=4.7.0";
+import {activeDimensions,dimLabel} from "./checkin.mjs?v=4.7.0";
+import {benjaminiHochberg,dayKey,MIN_N} from "./stats.mjs?v=4.7.0";
+import {cleanEntityNote} from "./domain.mjs?v=4.7.0";
+import {entryRows} from "./entries-ui.js?v=4.7.0";
+import * as store from "./store.js?v=4.7.0";
 
 const TYPE_ICON={person:"users",place:"map",theme:"tag",project:"layout"};
 let sort="count",filterText="";
@@ -25,7 +25,7 @@ function listTab(type){
   const q=norm(filterText);if(q)rows=rows.filter(r=>norm(r.name).includes(q));
   const total=listByType(map,type).length;
   if(!total)return emptyState(`${t.plural} пока нет`,type==="place"?"Место появится, когда вы укажете его в записи.":type==="person"?"Люди появятся, когда вы добавите имена в записи.":type==="theme"?"Темы появятся, когда вы добавите их к записям.":"Проекты появятся, когда вы добавите их к записям.","","map");
-  return `<div class="lm-tools"><input class="input" id="lm-filter" type="search" placeholder="Найти среди «${escapeHtml(t.plural.toLocaleLowerCase("ru-RU"))}»" aria-label="Фильтр по названию" value="${escapeHtml(filterText)}" autocomplete="off">
+  return `<div class="lm-tools"><input class="input" id="lm-filter" type="search" placeholder="${escapeHtml(FILTER_PLACEHOLDER[t.type]||"Найти по названию")}" aria-label="Фильтр по названию" value="${escapeHtml(filterText)}" autocomplete="off">
     <div class="segmented" role="group" aria-label="Порядок"><button data-action="lifemap-sort" data-value="count" aria-pressed="${sort==="count"}" class="${sort==="count"?"is-active":""}">По числу записей</button><button data-action="lifemap-sort" data-value="name" aria-pressed="${sort==="name"}" class="${sort==="name"?"is-active":""}">По алфавиту</button></div></div>
     <div id="lm-list">${listRows(rows)}</div>`;
 }
@@ -71,7 +71,7 @@ function associationBlock(page){
   }).join("");
 }
 function entityView(key){
-  const page=entityPage(key,state.entries,state.checkins,state.entityNotes);
+  const page=entityPage(key,state.entries.filter(e=>!e.openOn||!sealedCapsules().includes(e)),state.checkins,state.entityNotes);
   if(!page){state.lifemapKey=null;return `${pageHeader("Карта жизни","Карта жизни")}${emptyState("Такого элемента больше нет","Возможно, все записи с ним удалены или он объединён с другим.",`<button class="secondary" data-action="lifemap-back">Назад к списку</button>`,"map")}`;}
   const e=page.entity,t=typeOf(key),muted=state.mutedTopics.includes(key);
   const neigh=[{type:"person",items:page.people},{type:"place",items:page.places},{type:"theme",items:page.themes},{type:"project",items:page.projects}].filter(g=>g.items.length);
@@ -88,6 +88,7 @@ function entityView(key){
     ${muted?`<p class="subtle text-small">${icon("info")} Скрыто из воспоминаний.</p>`:""}</div>`;
 }
 
+const FILTER_PLACEHOLDER={person:"Найти человека",place:"Найти место",theme:"Найти тему",project:"Найти проект"};
 export function lifemapView(){
   if(state.lifemapKey)return entityView(state.lifemapKey);
   const items=[...ENTITY_TYPES.map(t=>[t.type,t.plural]),...(featureOn("featChapters")?[["chapter","Главы"]]:[])];

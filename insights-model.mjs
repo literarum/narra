@@ -1,10 +1,10 @@
 /* Narra insights model: everything the Insights screen shows, computed as plain data. Pure and testable.
    Rules: at least 10 observations on each side, days as the unit, medians and ranks (the scales are ordinal), missing data stays missing,
    several comparisons are corrected (Benjamini–Hochberg), and the wording that goes with a result is associative — never causal. */
-import {activeDimensions,dimLabel,dimValue,knownDimensions,EMOTION_GROUP_OF} from "./checkin.mjs?v=4.6.0";
-import {dayKey,addDays,median,spread,distribution,dailySeries,rollingMedian,baselineCompare,pairedChange,dayStates,associate,cooccurrence,timeOfDay,TIME_BUCKETS,weeklyCounts,MIN_N,STRONG_N,METHOD_VERSION,benjaminiHochberg,daysBetween,quantile} from "./stats.mjs?v=4.6.0";
-import {collectEntities,contextDayMap,labelFor,buildAliasMap,monthDistribution,listByType} from "./entities.mjs?v=4.6.0";
-import {wordCount,pluralRu} from "./domain.mjs?v=4.6.0";
+import {activeDimensions,dimLabel,dimValue,knownDimensions,EMOTION_GROUP_OF} from "./checkin.mjs?v=4.7.0";
+import {dayKey,addDays,median,spread,distribution,dailySeries,rollingMedian,baselineCompare,pairedChange,dayStates,associate,cooccurrence,timeOfDay,TIME_BUCKETS,weeklyCounts,MIN_N,STRONG_N,METHOD_VERSION,benjaminiHochberg,daysBetween,quantile} from "./stats.mjs?v=4.7.0";
+import {collectEntities,contextDayMap,labelFor,buildAliasMap,monthDistribution,listByType} from "./entities.mjs?v=4.7.0";
+import {wordCount,pluralRu} from "./domain.mjs?v=4.7.0";
 
 export const METHOD_ID="day-state-v1";
 const plural={n:(n,a,b,c)=>pluralRu(n,a,b,c)};
@@ -137,4 +137,61 @@ export function statePartOfDay(checkins,config,{periodDays=null,today=dayKey(new
       sentence:`«${d.name}»: медиана выше ${hi.label} («${medianLabel(d,hi.median)}»), чем ${lo.label} («${medianLabel(d,lo.median)}»). Это описание ваших отметок, а не объяснение причин.`});
   }
   return out;
+}
+
+/** «Year in pixels»: every day of a year with the median mood of that day's check-ins (−2…2) and whether something was written.
+    Days without a mood stay empty — nothing is filled in or guessed. Keys are local days "YYYY-MM-DD". */
+export function yearPixels(checkins,entries,year,todayKey){
+  const pad=n=>String(n).padStart(2,"0"),key=d=>`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+  const moods=new Map(),written=new Set();
+  for(const c of checkins||[]){const d=new Date(c.observedAt);if(d.getFullYear()!==year)continue;const v=Number(c.moodValence);if(!Number.isFinite(v)||c.moodValence==null)continue;const k=key(d);if(!moods.has(k))moods.set(k,[]);moods.get(k).push(v);}
+  for(const e of entries||[]){if(e.deletedAt)continue;const d=new Date(e.happenedAt);if(d.getFullYear()===year)written.add(key(d));}
+  const months=[];let rated=0;const counts=[0,0,0,0,0];
+  for(let m=0;m<12;m++){
+    const days=[],last=new Date(year,m+1,0).getDate();
+    for(let d=1;d<=31;d++){
+      if(d>last){days.push(null);continue;}
+      const k=`${year}-${pad(m+1)}-${pad(d)}`,list=moods.get(k);
+      let mood=null;
+      if(list?.length){const s=[...list].sort((a,b)=>a-b),mid=s.length>>1;mood=s.length%2?s[mid]:Math.round((s[mid-1]+s[mid])/2);rated++;counts[mood+2]++;}
+      days.push({key:k,day:d,mood,written:written.has(k),future:Boolean(todayKey)&&k>todayKey});
+    }
+    months.push(days);
+  }
+  return {year,months,rated,counts};
+}
+
+/* ---------- writing records and the person's own frequent words ---------- */
+const STOP=new Set(("и в во не что он на я с со как а то все она так его но да ты к у же вы за бы по только ее её мне было вот от меня еще ещё нет о из ему теперь когда даже ну вдруг ли если уже или ни быть был него до вас нибудь опять уж вам ведь там потом себя ничего ей может они тут где есть надо ней для мы тебя их чем была сам чтоб без будто чего раз тоже себе под будет ж тогда кто этот того потому этого какой совсем ним здесь этом один почти мой тем чтобы нее неё сейчас были куда зачем всех никогда можно при наконец два об другой хоть после над больше тот через эти нас про всего них какая много разве три эту моя впрочем хорошо свою этой перед иногда лучше чуть том нельзя такой им более всегда конечно всю между это очень день сегодня вчера просто всё весь вся мои мою моё свой своё свои её снова тоже утром днем вечером ночью долго неделе неделю недели следующем следующий обеда после сегодняшний завтра").split(" "));
+/** Totals and personal records for a set of entries: no rankings against anyone, only the person's own history. */
+export function writingRecords(entries){
+  const list=(entries||[]).filter(e=>!e.deletedAt);
+  const words=e=>(String(e.body||"").replace(/!?\[[^\]]*\]\([^)]*\)/g," ").match(/[\p{L}\p{N}]+(?:[’'-][\p{L}\p{N}]+)*/gu)||[]).length;
+  let total=0,longest=null,days=new Set(),byDay=new Map();
+  for(const e of list){const w=words(e);total+=w;if(!longest||w>longest.words)longest={entry:e,words:w};const d=new Date(e.happenedAt),k=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;days.add(k);byDay.set(k,(byDay.get(k)||0)+w);}
+  const sorted=[...days].sort();let best=0,run=0,prev=null;
+  for(const k of sorted){const t=Date.parse(`${k}T12:00:00Z`);run=prev!=null&&t-prev===86400000?run+1:1;best=Math.max(best,run);prev=t;}
+  const busiest=[...byDay.entries()].sort((a,b)=>b[1]-a[1])[0]||null;
+  return {entries:list.length,words:total,pages:Math.round(total/250),activeDays:days.size,longest,longestRun:best,busiest:busiest?{day:busiest[0],words:busiest[1]}:null,first:sorted[0]||null};
+}
+/** Words the person uses most (by stem, shown in their most frequent form), without common function words. */
+export function frequentWords(entries,{limit=24,minLen=4,stem=w=>w}={}){
+  const counts=new Map();
+  for(const e of entries||[]){
+    if(e.deletedAt)continue;
+    const text=`${e.title||""} ${String(e.body||"").replace(/!?\[[^\]]*\]\([^)]*\)/g," ").replace(/https?:\/\/\S+/g," ")}`.toLocaleLowerCase("ru-RU").replace(/ё/g,"е");
+    for(const w of text.match(/\p{L}+/gu)||[]){
+      if(w.length<minLen||STOP.has(w))continue;
+      const k=stem(w),c=counts.get(k)||{n:0,forms:new Map()};c.n++;c.forms.set(w,(c.forms.get(w)||0)+1);counts.set(k,c);
+    }
+  }
+  return [...counts.values()].filter(c=>c.n>=2).sort((a,b)=>b.n-a.n).slice(0,limit).map(c=>({word:[...c.forms.entries()].sort((a,b)=>b[1]-a[1])[0][0],count:c.n}));
+}
+/** Words written per day of a year (for the «year in pixels» by writing): 0–4 buckets relative to the person's own median day. */
+export function wordsPerDay(entries,year){
+  const m=new Map();
+  for(const e of entries||[]){if(e.deletedAt)continue;const d=new Date(e.happenedAt);if(d.getFullYear()!==year)continue;const k=`${year}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;m.set(k,(m.get(k)||0)+((String(e.body||"").match(/[\p{L}\p{N}]+/gu)||[]).length));}
+  const vals=[...m.values()].sort((a,b)=>a-b),med=vals.length?vals[vals.length>>1]:0;
+  const level=w=>!w?null:w<med*.5?0:w<med?1:w<med*1.6?2:w<med*2.5?3:4;
+  return {map:m,level,median:med};
 }

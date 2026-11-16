@@ -1,7 +1,7 @@
 /* Photos and voice notes. Photos are re-drawn on a canvas, which drops all embedded metadata (location, camera, time),
    scaled down and stored encrypted with a thumbnail. Audio is stored as recorded. Nothing is uploaded anywhere. */
-import {state,ctx,$,$$,escapeHtml,icon,featureOn,mediaOf} from "./core.js?v=4.6.0";
-import * as store from "./store.js?v=4.6.0";
+import {state,ctx,$,$$,escapeHtml,icon,featureOn,mediaOf,isQuotaError} from "./core.js?v=4.7.0";
+import * as store from "./store.js?v=4.7.0";
 
 export const LIMITS={imageIn:30*1024*1024,audioIn:30*1024*1024,perEntry:40,maxSide:2000,thumbSide:360,recordSeconds:600};
 const fmtSize=n=>n>=1048576?`${(n/1048576).toFixed(1).replace(".",",")} МБ`:`${Math.max(1,Math.round(n/1024))} КБ`;
@@ -36,9 +36,14 @@ async function audioDuration(file){
   });
 }
 /** Stores files for an entry. Returns the ids added. Errors are reported one by one; the rest still go through. */
+/* Some systems hand over files without a type (Windows and HEIC/M4A, files from archives): judge by the extension then. */
+const EXT_TYPES={jpg:"image/jpeg",jpeg:"image/jpeg",png:"image/png",gif:"image/gif",webp:"image/webp",heic:"image/heic",heif:"image/heif",avif:"image/avif",bmp:"image/bmp",
+  mp3:"audio/mpeg",m4a:"audio/mp4",aac:"audio/aac",ogg:"audio/ogg",oga:"audio/ogg",opus:"audio/ogg",wav:"audio/wav",webm:"audio/webm",flac:"audio/flac"};
+const typeOf=file=>file.type||EXT_TYPES[String(file.name||"").split(".").pop().toLowerCase()]||"";
 export async function addFiles(entryId,files){
   const added=[];
-  for(const file of files){
+  for(const original of files){
+    const type=typeOf(original),file=type&&type!==original.type?new File([original],original.name,{type}):original;
     if(mediaOf(entryId).length+added.length>=LIMITS.perEntry){ctx.toast(`К одной записи можно добавить до ${LIMITS.perEntry} вложений.`);break;}
     try{
       if(file.type.startsWith("image/")){
@@ -51,7 +56,7 @@ export async function addFiles(entryId,files){
         const id=await store.addAttachment({entryId,kind:"audio",mime:file.type||"audio/webm",bytes,meta:{name:(file.name||"голосовая заметка").slice(0,120),duration,caption:""}});
         added.push({id,kind:"audio",name:file.name||"голосовая заметка"});
       }else throw new Error(`«${file.name}» — не фото и не аудио.`);
-    }catch(error){console.error(error);ctx.toast(error.message||"Не удалось добавить файл.");}
+    }catch(error){console.error(error);ctx.toast(isQuotaError(error)?"Не хватает места, чтобы сохранить вложение. Освободите место или уменьшите файл.":error.message||"Не удалось добавить файл.");if(isQuotaError(error))break;}
   }
   if(added.length)await store.reloadAttachments();
   return added;

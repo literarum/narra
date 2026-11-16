@@ -1,11 +1,12 @@
 /* Today: quick capture, a short check-in, one memory, one question, recent entries, first-run welcome. */
-import {talkAvailable,state,ctx,$,$$,escapeHtml,icon,uid,nowIso,fmtLong,fmtTime,relDay,activeEntries,sameDay,todayKey,safeStorageGet,safeStorageSet,featureOn,PREF_KEY} from "./core.js?v=4.6.0";
-import {entryText} from "./text.mjs?v=4.6.0";
-import {pageHeader,modalHeader} from "./kit.js?v=4.6.0";
-import {entryRows} from "./entries-ui.js?v=4.6.0";
-import {checkinCard} from "./checkin-ui.js?v=4.6.0";
-import {memoryCard} from "./memories.js?v=4.6.0";
-import * as store from "./store.js?v=4.6.0";
+import {localDateKey,talkAvailable,state,ctx,$,$$,escapeHtml,icon,uid,nowIso,fmtLong,fmtTime,relDay,activeEntries,sameDay,todayKey,safeStorageGet,safeStorageSet,featureOn,PREF_KEY,pluralRu,backupDue,sealedCapsules} from "./core.js?v=4.7.0";
+import {entryText} from "./text.mjs?v=4.7.0";
+import {pageHeader,modalHeader} from "./kit.js?v=4.7.0";
+import {entryRows} from "./entries-ui.js?v=4.7.0";
+import {checkinCard} from "./checkin-ui.js?v=4.7.0";
+import {memoryCard,onThisDay,memoryCandidates} from "./memories.js?v=4.7.0";
+import {parseRussianDateHint} from "./domain.mjs?v=4.7.0";
+import * as store from "./store.js?v=4.7.0";
 
 const PROMPTS=[
   "Что сегодня оказалось важнее, чем выглядело сначала?","Какой момент этого дня хочется запомнить?","О чём вы сегодня думали чаще всего?",
@@ -40,16 +41,53 @@ export function pauseNote(entries,now=new Date()){
   const last=act.reduce((a,e)=>Math.max(a,new Date(e.createdAt||e.happenedAt).getTime()),0); // when it was written, not the date it is about
   const days=Math.floor((now.getTime()-last)/86400000);
   if(days<5)return "";
-  const n=days>=60?"больше двух месяцев":days>=30?"больше месяца":`${days} ${days%10===1&&days%100!==11?"день":days%10>=2&&days%10<=4&&(days%100<12||days%100>14)?"дня":"дней"}`;
-  return `<p class="pause-note">${icon("moon")}<span>С последней записи прошло ${n}. Ничего страшного — можно начать с одной фразы.</span></p>`;
+  const word=pluralRu(days,"день","дня","дней");
+  const n=days>=365?"больше года":days>=180?"больше полугода":days>=60?"больше двух месяцев":days>=30?"больше месяца":`${days} ${word}`;
+  // «прошёл 21 день», but «прошло 5 дней» and «прошло больше месяца»
+  const verb=days<30&&word==="день"?"прошёл":"прошло";
+  return `<p class="pause-note">${icon("moon")}<span>С последней записи ${verb} ${n}. Ничего страшного — можно начать с одной фразы.</span></p>`;
 }
-const promptMarkup=()=>`<section class="section" id="prompt-section"><div class="section-heading"><h2>Вопрос для размышления</h2></div><article class="card prompt-card"><p>${escapeHtml(dailyPrompt())}</p><div class="prompt-actions"><button class="ghost button-with-icon" data-action="next-prompt" aria-label="Другой вопрос">${icon("refresh")}<span>Другой</span></button>${state.ai?.enabled?`<button class="ghost button-with-icon" data-action="prompt-ai" aria-label="Вопрос по моим записям">${icon("sparkle")}<span>По моим записям</span></button>`:""}<button class="secondary" data-action="use-prompt">Ответить</button></div></article></section>`;
+/* A question from the person's own past: an entry from this date in an earlier year, with «what has changed since?» */
+function echoMarkup(){
+  if(!featureOn("featMemories")||safeStorageGet("narra-echo-dismissed")===todayKey())return "";
+  const {exact}=onThisDay(memoryCandidates());if(!exact.length)return "";
+  const e=[...exact].sort((a,b)=>String(a.happenedAt).localeCompare(String(b.happenedAt)))[0],years=new Date().getFullYear()-new Date(e.happenedAt).getFullYear();
+  const t=entryText(e,160);
+  return `<section class="section" id="echo-section"><div class="section-heading"><h2>Вопрос из прошлого</h2></div><article class="card prompt-card echo-card"><p class="eyebrow">${years} ${pluralRu(years,"год","года","лет")} назад, в этот день</p><blockquote>«${escapeHtml(t.title)}${t.rest?` — ${escapeHtml(t.rest)}`:""}»</blockquote><p>Что изменилось с тех пор?</p><div class="prompt-actions"><button class="ghost" data-action="echo-dismiss">Не сегодня</button><button class="ghost" data-action="open-entry" data-id="${escapeHtml(e.id)}">Перечитать</button><button class="secondary" data-action="echo-answer" data-id="${escapeHtml(e.id)}">Ответить</button></div></article></section>`;
+}
+const promptMarkup=()=>`${echoMarkup()}<section class="section" id="prompt-section"><div class="section-heading"><h2>Вопрос для размышления</h2></div><article class="card prompt-card"><p>${escapeHtml(dailyPrompt())}</p><div class="prompt-actions"><button class="ghost button-with-icon" data-action="next-prompt" aria-label="Другой вопрос">${icon("refresh")}<span>Другой</span></button>${state.ai?.enabled?`<button class="ghost button-with-icon" data-action="prompt-ai" aria-label="Вопрос по моим записям">${icon("sparkle")}<span>По моим записям</span></button>`:""}<button class="secondary" data-action="use-prompt">Ответить</button></div></article></section>`;
 export const greetingText=(now=new Date())=>{const h=now.getHours();return h<5?"Доброй ночи":h<12?"Доброе утро":h<18?"Добрый день":"Добрый вечер";};
 
+function spaceNoticeMarkup(){
+  if(!state.storageTight)return "";
+  return `<aside class="card notice-card is-warning" role="alert"><p><strong>Место почти закончилось: занято ${state.storageTight}%.</strong> Скоро новые записи и фото перестанут сохраняться. Сделайте резервную копию и освободите место: удалите крупные вложения или очистите корзину.</p><div class="notice-actions"><button class="secondary" data-action="export">Сделать копию</button></div></aside>`;
+}
 function storageNoticeMarkup(){
+  if(state.storageTight)return "";
   if(!state.prefs.showStorageNotice||state.storagePersistent!==false)return "";
   if(Date.now()<=Number(safeStorageGet("narra-storage-notice-until")||0))return "";
   return `<aside class="card notice-card" role="note"><p><strong>Дневник хранится только в этом браузере.</strong> Браузер пока не гарантирует, что данные переживут нехватку места. Защитите хранилище и время от времени делайте резервную копию.</p><div class="notice-actions"><button class="ghost" data-action="snooze-storage-notice">Позже</button><button class="secondary" data-action="request-persistence">Защитить</button></div></aside>`;
+}
+/* Time capsules: an opened letter is offered once on the day it opens (and until it is read); sealed ones are only counted. */
+const seenCapsules=()=>{try{const v=JSON.parse(safeStorageGet("narra-capsules-seen")||"[]");return new Set(Array.isArray(v)?v:[]);}catch{return new Set();}};
+export function markCapsuleSeen(id){const s=seenCapsules();s.add(id);safeStorageSet("narra-capsules-seen",JSON.stringify([...s].slice(-200)));}
+function capsuleMarkup(){
+  const t=todayKey(),seen=seenCapsules();
+  const opened=state.entries.filter(e=>!e.deletedAt&&e.openOn&&e.openOn<=t&&!seen.has(e.id)).sort((a,b)=>a.openOn.localeCompare(b.openOn));
+  const sealed=sealedCapsules().length;
+  if(opened.length){
+    const e=opened[0];
+    return `<aside class="card capsule-card" role="note"><div class="capsule-envelope" aria-hidden="true">${icon("mail")}</div><div><p class="eyebrow">Капсула времени открылась</p><h2>Письмо от ${escapeHtml(fmtLong(e.createdAt||e.happenedAt))}</h2><p class="subtle">Вы написали его себе и запечатали до ${escapeHtml(fmtLong(`${e.openOn}T12:00:00`))}.</p></div><div class="notice-actions"><button class="primary" data-action="capsule-read" data-id="${escapeHtml(e.id)}">Прочитать</button></div></aside>`;
+  }
+  return sealed?`<p class="pause-note">${icon("mail")}<span>Запечатано писем в будущее: ${sealed}. Они откроются в свой день.</span></p>`:"";
+}
+/* Only one quiet notice at a time: the storage notice first, then the backup reminder. */
+function backupNoticeMarkup(){
+  if(state.storageTight||storageNoticeMarkup())return "";
+  const due=backupDue();if(!due)return "";
+  if(Date.now()<=Number(safeStorageGet("narra-backup-notice-until")||0))return "";
+  const text=due.never?"Резервной копии на этом устройстве ещё не было. Если браузер очистит данные или устройство потеряется, записи не вернуть.":`Последняя резервная копия — ${due.days} ${pluralRu(due.days,"день","дня","дней")} назад, с тех пор появились новые записи.`;
+  return `<aside class="card notice-card" role="note"><p><strong>Пора сохранить копию.</strong> ${escapeHtml(text)}</p><div class="notice-actions"><button class="ghost" data-action="snooze-backup-notice">Позже</button><button class="secondary" data-action="export">Сделать копию</button></div></aside>`;
 }
 function welcomeMarkup(){
   if(state.prefs.onboarded||state.mode==="demo")return "";
@@ -68,12 +106,12 @@ export function todayView(){
   const unfinished=p.showContinue?activeEntries().filter(e=>!e.completedAt).sort((a,b)=>new Date(b.updatedAt)-new Date(a.updatedAt))[0]:null;
   const recent=activeEntries().slice(0,4);
   const memory=p.showMemory&&featureOn("featMemories")?memoryCard():"";
-  return `${pageHeader(fmtLong(now),greetingText(now),"Спокойное место для того, что хочется сохранить.")}${welcomeMarkup()}${pauseNote(state.entries)}${storageNoticeMarkup()}${reminderMarkup()}
+  return `${pageHeader(fmtLong(now),greetingText(now),"Спокойное место для того, что хочется сохранить.")}${welcomeMarkup()}${pauseNote(state.entries)}${capsuleMarkup()}${spaceNoticeMarkup()}${storageNoticeMarkup()}${backupNoticeMarkup()}${reminderMarkup()}
     ${unfinished?`<article class="card continue-card"><div><p class="eyebrow">Продолжить</p><h3>${escapeHtml(entryText(unfinished).title)}</h3><p>Последнее изменение: ${escapeHtml(relDay(unfinished.updatedAt))}, ${escapeHtml(fmtTime(unfinished.updatedAt))}</p></div><button class="secondary" data-action="open-entry" data-id="${escapeHtml(unfinished.id)}">Продолжить</button></article>`:""}
     <div class="hero-grid${p.showCheckin?"":" is-single"}">
       <article class="card quick-card"><div><p class="eyebrow">Быстрая запись</p><h2>Что сейчас хочется запомнить?</h2></div>
         <textarea class="quick-capture" id="quick-capture" aria-label="Быстрая запись" autocomplete="off" spellcheck="${p.spellcheck}" placeholder="Достаточно одной фразы…"></textarea>
-        <div class="quick-footer"><span class="save-state" id="quick-state" role="status"><i class="save-dot"></i><span>Начните писать</span></span><div class="quick-actions"><button class="ghost" data-action="expand-quick">Открыть в редакторе</button><button class="primary button-with-icon" id="save-quick" data-action="save-quick" disabled>${icon("check")}<span>Сохранить</span></button></div></div>
+        <div class="quick-footer"><span class="save-state" id="quick-state" role="status"><i class="save-dot"></i><span>Начните писать</span></span><button type="button" class="chip quick-date" id="quick-date" data-action="quick-date" aria-pressed="false" hidden></button><div class="quick-actions"><button class="ghost" data-action="expand-quick">Открыть в редакторе</button><button class="primary button-with-icon" id="save-quick" data-action="save-quick" disabled>${icon("check")}<span>Сохранить</span></button></div></div>
       </article>
       ${p.showCheckin?checkinCard():""}
     </div>
@@ -87,6 +125,10 @@ function updateQuickState(){
   const quick=$("#quick-capture"),label=$("#quick-state span"),save=$("#save-quick"),dot=$("#quick-state");
   if(!quick||!label)return;
   const has=Boolean(quick.value.trim());
+  const hint=has?parseRussianDateHint(quick.value,new Date()):null,chip=$("#quick-date");
+  const differs=hint&&localDateKey(new Date(hint.iso))!==todayKey();
+  if(!differs)state.quickDateOn=false;
+  if(chip){chip.hidden=!differs;if(differs){chip.textContent=`${state.quickDateOn?"✓ ":""}${hint.label.replace(/^Дата: /,"Записать на ")}`;chip.setAttribute("aria-pressed",String(Boolean(state.quickDateOn)));chip.classList.toggle("is-on",Boolean(state.quickDateOn));chip.dataset.iso=hint.iso;}}
   label.textContent=has?"Ещё не сохранено":"Начните писать";
   dot?.classList.toggle("is-busy",has);
   if(save)save.disabled=!has;
@@ -100,7 +142,19 @@ function autosizeQuick(q){
   q.style.height=`${want}px`;
   q.classList.toggle("is-capped",q.scrollHeight>max&&q.scrollTop+q.clientHeight<q.scrollHeight-2);
 }
-function clearQuick(){state.quickDraft="";const q=$("#quick-capture");if(q){q.value="";updateQuickState();autosizeQuick(q);}}
+/* The quick note survives the tab being closed or unloaded by the phone: it is kept encrypted, like everything written here. */
+let draftTimer=0;
+function persistQuickDraft(now=false){
+  clearTimeout(draftTimer);
+  const write=()=>store.metaSetSecure("quick-draft",{text:state.quickDraft||"",at:nowIso()}).catch(()=>{});
+  if(now)return write();
+  draftTimer=setTimeout(write,700);
+}
+export async function restoreQuickDraft(){
+  try{const d=await store.metaGetSecure("quick-draft",null);if(d?.text&&!state.quickDraft){state.quickDraft=d.text;return true;}}catch{}
+  return false;
+}
+function clearQuick(){state.quickDraft="";persistQuickDraft(true);const q=$("#quick-capture");if(q){q.value="";updateQuickState();autosizeQuick(q);}}
 async function quickToEntry(expand=false){
   if(state.quickSaving)return;
   const q=$("#quick-capture")?.value.trim()||"";
@@ -110,14 +164,18 @@ async function quickToEntry(expand=false){
   try{
     const recent=activeEntries().find(e=>e.body.trim()===q&&Date.now()-new Date(e.createdAt).getTime()<10000);
     if(recent){ctx.toast("Такая запись только что уже сохранена.");return;}
-    const at=nowIso();
-    const entry={id:uid(),title:"",body:q,kind:"thought",happenedAt:at,createdAt:at,updatedAt:at,revision:1,favorite:false,sensitive:false,completedAt:at,deletedAt:null,people:[],themes:[],projects:[],location:"",dismissedSuggestions:[],happenedEnd:null,chapterId:null,links:[],decision:null};
+    const at=nowIso(),chip=$("#quick-date");
+    // the date chosen from the text keeps the current time of day, so the entry sorts naturally within that day
+    const happened=state.quickDateOn&&chip?.dataset.iso?(()=>{const d=new Date(chip.dataset.iso),n=new Date();d.setHours(n.getHours(),n.getMinutes(),n.getSeconds(),0);return d.toISOString();})():at;
+    state.quickDateOn=false;
+    const entry={id:uid(),title:"",body:q,kind:"thought",happenedAt:happened,createdAt:at,updatedAt:at,revision:1,favorite:false,sensitive:false,completedAt:at,deletedAt:null,people:[],themes:[],projects:[],location:"",dismissedSuggestions:[],happenedEnd:null,chapterId:null,links:[],decision:null};
     await store.commitEntrySnapshot(entry,"quick_capture");await store.loadData();store.notifyChange("entry");
     clearQuick();ctx.render();
     ctx.toast("Запись сохранена.",{label:"Открыть",action:"open-entry",id:entry.id});
   }catch(error){console.error("Ошибка быстрой записи",error);ctx.toast("Запись не сохранена. Текст остался на экране.");}
   finally{state.quickSaving=false;}
 }
+let resizeBound=false;
 export function beforeRender(){const q=$("#quick-capture");if(q)state.quickDraft=q.value;}
 export function afterRender(route){
   if(route!=="today")return;
@@ -126,9 +184,11 @@ export function afterRender(route){
   if(quick){
     if(state.quickDraft){quick.value=state.quickDraft;updateQuickState();}
     autosizeQuick(quick);
-    quick.addEventListener("input",()=>{state.quickDraft=quick.value;updateQuickState();autosizeQuick(quick);});
+    quick.addEventListener("input",()=>{state.quickDraft=quick.value;updateQuickState();autosizeQuick(quick);persistQuickDraft();});
+    quick.addEventListener("blur",()=>persistQuickDraft(true));
     quick.addEventListener("scroll",()=>autosizeQuick(quick),{passive:true});
-    window.addEventListener("resize",()=>autosizeQuick($("#quick-capture")),{passive:true});
+    if(!resizeBound){resizeBound=true;window.addEventListener("resize",()=>{const q=$("#quick-capture");if(q)autosizeQuick(q);},{passive:true});} // once, not on every render
+    quick.closest(".quick-card")?.addEventListener("click",e=>{if(!e.target.closest("button,a,input,textarea,select,label"))quick.focus();});
     quick.addEventListener("keydown",e=>{if((e.metaKey||e.ctrlKey)&&e.key==="Enter"){e.preventDefault();quickToEntry(false);}});
   }
 }
@@ -146,10 +206,15 @@ const finishOnboarding=()=>{ctx.setPref("onboarded",true);ctx.closeDialog({resto
 export const views={today:todayView};
 export const actions={
   "save-quick":()=>quickToEntry(false),
+  "capsule-read":el=>{markCapsuleSeen(el.dataset.id);ctx.openEditor(el.dataset.id);},
   "expand-quick":()=>quickToEntry(true),
   "quick-focus":()=>{ctx.goTo("today");setTimeout(()=>$("#quick-capture")?.focus(),80);},
   "prompt-ai":async()=>{const m=await ctx.loadLazy("assistant");m.dailyQuestionFlow();},
   "use-prompt":()=>{const i=promptIndex(),text=`${state.aiPrompt||PROMPTS[i]}\n\n`;markPromptUsed(i);state.aiPrompt=null;state.promptShift++;ctx.openEditor(null,{body:text,prefill:text});},
+  "echo-dismiss":el=>{safeStorageSet("narra-echo-dismissed",todayKey());const s=el.closest("#echo-section");if(s)ctx.collapseAndRemove(s);},
+  "echo-answer":async el=>{const src=state.entries.find(e=>e.id===el.dataset.id);if(!src)return;const y=new Date(src.happenedAt).getFullYear();
+    const q=`Год ${y}, этот же день. Что изменилось с тех пор?\n\n`;await ctx.openEditor(null,{body:q,prefill:q,edit:true});if(state.editing){state.editing.links=[{to:src.id,type:"related"}];ctx.markEditorDirty?.("echo");}},
+  "quick-date":()=>{state.quickDateOn=!state.quickDateOn;updateQuickState();},
   "next-prompt":()=>{if(state.aiPrompt)state.aiPrompt=null;else{markPromptUsed(promptIndex());state.promptShift++;}const p=$("#prompt-section .prompt-card p");if(p){p.textContent=dailyPrompt();ctx.animateIn(p);}},
   "dismiss-reminder":el=>{safeStorageSet("narra-reminder-dismissed",todayKey());const n=el.closest(".reminder-card");if(n)ctx.collapseAndRemove(n);},
   "onboard-open":()=>ctx.sheetDialog(tourSheet(0),"Коротко о главном"),

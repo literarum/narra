@@ -1,6 +1,6 @@
 /* Motion that needs a little script: a tab indicator that slides, a pill that glides between bottom-bar items, and sheets that follow the finger.
    Everything here is skipped when animations are off or the system asks for reduced motion; the static styles then do the same job without movement. */
-import {state,ctx,$,$$} from "./core.js?v=4.6.0";
+import {state,ctx,$,$$} from "./core.js?v=4.7.0";
 
 const SPRING="cubic-bezier(.3,1.15,.5,1)";
 const off=()=>ctx.reducedMotion?.()??false;
@@ -49,8 +49,11 @@ function initSheets(){
   let drag=null;
   document.addEventListener("pointerdown",e=>{
     if(e.pointerType==="mouse"||e.button>0||innerWidth>768)return;
-    const head=e.target.closest?.(".modal-header");if(!head)return;
-    const modal=head.closest(".modal,.sheet");if(!modal||modal.classList.contains("editor-modal")||!closeButton(modal))return;
+    // the header or the grab handle above it (the top strip of the sheet) start the pull
+    const candidate=e.target.closest?.(".modal,.sheet"),head=e.target.closest?.(".modal-header");
+    const onHandle=candidate&&!head&&e.clientY-candidate.getBoundingClientRect().top<=30;
+    if(!head&&!onHandle)return;
+    const modal=head?head.closest(".modal,.sheet"):candidate;if(!modal||modal.classList.contains("editor-modal")||!closeButton(modal))return;
     if(e.target.closest("button,a,input,select,textarea"))return;
     drag={modal,id:e.pointerId,y0:e.clientY,t0:performance.now(),dy:0};
   },true);

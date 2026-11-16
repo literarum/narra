@@ -1,13 +1,13 @@
 /* Writing assistant in the editor (loads on first use). Everything goes through the consent gateway and the hub:
    the person sees what would be sent (and roughly what it costs), confirms it, and the result is a draft that changes nothing until accepted. */
-import {state,ctx,$,escapeHtml,icon} from "./core.js?v=4.6.0";
-import {canRun,REASON_TEXT,transcribeSupport,AI_FEATURES,FEATURE_GROUPS,FEATURE_PROMPTS,REWRITE_STYLES,createProvider,cleanAiState,providerById,featureById,parseAnalysis,parseTitles,parseTasks} from "./ai.mjs?v=4.6.0";
-import * as store from "./store.js?v=4.6.0";
-import * as hub from "./hub.js?v=4.6.0";
-import {modalHeader} from "./kit.js?v=4.6.0";
-import {compressText,estimateTokens,tierById,fmtTok,tokensToChars} from "./brain.mjs?v=4.6.0";
-import {mdToPlain,strip} from "./text.mjs?v=4.6.0";
-import {wordCount} from "./domain.mjs?v=4.6.0";
+import {state,ctx,$,escapeHtml,icon} from "./core.js?v=4.7.0";
+import {canRun,REASON_TEXT,transcribeSupport,AI_FEATURES,FEATURE_GROUPS,FEATURE_PROMPTS,REWRITE_STYLES,createProvider,cleanAiState,providerById,featureById,parseAnalysis,parseTitles,parseTasks} from "./ai.mjs?v=4.7.0";
+import * as store from "./store.js?v=4.7.0";
+import * as hub from "./hub.js?v=4.7.0";
+import {modalHeader} from "./kit.js?v=4.7.0";
+import {compressText,estimateTokens,tierById,fmtTok,tokensToChars} from "./brain.mjs?v=4.7.0";
+import {mdToPlain,strip} from "./text.mjs?v=4.7.0";
+import {wordCount} from "./domain.mjs?v=4.7.0";
 
 let job=null; // {controller, featureId}
 const cfg=()=>cleanAiState(state.ai);

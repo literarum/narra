@@ -1,14 +1,15 @@
 /* Editor side panels: entry details, links, decision journal, suggestions and writing help. Markup only; editor.js binds them. */
-import {talkAvailable,state,ctx,escapeHtml,icon,localDateInputValue,fmtDate,fmtLong,kindOptions,kindLabels,capitalizeRu,featureOn,activeEntries,entryById} from "./core.js?v=4.6.0";
-import {parseRussianDateHint,extractHashtags,suggestEntryKindRu} from "./domain.mjs?v=4.6.0";
-import {entryText} from "./text.mjs?v=4.6.0";
-import {suggestKnownEntities,chapterOf,sortChapters,NO_CHAPTER} from "./entities.mjs?v=4.6.0";
-import {detailQuestions,reflectiveQuestions,clarityFindings} from "./writing.mjs?v=4.6.0";
-import {relatedEntriesFor} from "./memories.js?v=4.6.0";
-import {entityMap} from "./derived.js?v=4.6.0";
-import {selectHtml} from "./kit.js?v=4.6.0";
-import {checkinSummary} from "./checkin.mjs?v=4.6.0";
-import {LINK_TYPES} from "./domain.mjs?v=4.6.0";
+import {talkAvailable,state,ctx,escapeHtml,icon,localDateInputValue,fmtDate,fmtLong,fmtTime,kindOptions,kindLabels,capitalizeRu,featureOn,activeEntries,entryById} from "./core.js?v=4.7.0";
+import {parseRussianDateHint,extractHashtags,suggestEntryKindRu,stemRu} from "./domain.mjs?v=4.7.0";
+import {keywordsFor} from "./intel.mjs?v=4.7.0";
+import {entryText} from "./text.mjs?v=4.7.0";
+import {suggestKnownEntities,chapterOf,sortChapters,NO_CHAPTER} from "./entities.mjs?v=4.7.0";
+import {detailQuestions,reflectiveQuestions,clarityFindings} from "./writing.mjs?v=4.7.0";
+import {relatedEntriesFor} from "./memories.js?v=4.7.0";
+import {docFreq,entityMap} from "./derived.js?v=4.7.0";
+import {selectHtml} from "./kit.js?v=4.7.0";
+import {checkinSummary} from "./checkin.mjs?v=4.7.0";
+import {LINK_TYPES} from "./domain.mjs?v=4.7.0";
 
 export const LINK_LABELS={related:"Связана",continuation:"Продолжение",decision_followup:"Итог решения",custom:"Другое"};
 const CONFIDENCE=[[0,"Не указано"],[1,"Совсем не уверен"],[2,"Скорее не уверен"],[3,"Сомневаюсь"],[4,"Скорее уверен"],[5,"Уверен"]];
@@ -20,6 +21,17 @@ export function smartSuggestions(entry){
   if(date){
     const key=`date:${date.iso.slice(0,10)}`;
     if(!dismissed.has(key)&&localDateInputValue(entry.happenedAt)!==localDateInputValue(date.iso))out.push({key,type:"date",value:date.iso,label:date.label});
+  }
+  // themes the person already uses, recognised in the text by word stem («на набережной» → #набережная): distinctive words
+  // (TF-IDF against the diary) first. New themes are not invented: without a dictionary of word forms they would come out inflected.
+  if(featureOn("featEntitySuggest")&&String(entry.body||"").length>=40){
+    const known=new Map();for(const e of activeEntries())for(const t of e.themes||[])known.set(stemRu(t),t);
+    if(known.size){
+      const kws=keywordsFor(`${entry.title||""} ${entry.body||""}`,docFreq(),{stem:stemRu,limit:12,minOther:1});
+      const picked=[];
+      for(const w of kws){const t=known.get(stemRu(w));if(t&&!picked.includes(t)&&!(entry.themes||[]).includes(t))picked.push(t);if(picked.length>=2)break;}
+      for(const t of picked){const key=`theme:${t}`;if(!dismissed.has(key))out.push({key,type:"theme",value:t,label:`Тема: #${t}`,why:"эта тема уже есть в дневнике, а её слово заметно в записи"});}
+    }
   }
   for(const theme of extractHashtags(entry.body||"")){
     const key=`theme:${theme}`;
@@ -34,13 +46,13 @@ export function smartSuggestions(entry){
       if(!dismissed.has(key))out.push({key,type:s.type,value:s.name,label:`${s.type==="person"?"Человек":s.type==="place"?"Место":"Проект"}: ${s.name}`});
     }
   }
-  return out.slice(0,7);
+  return out.filter((x,i,a)=>a.findIndex(y=>y.key===x.key)===i).slice(0,7);
 }
 export function suggestionsMarkup(entry){
   if(!state.smartSuggestionsEnabled)return `<p class="subtle text-small">Умные подсказки выключены в настройках.</p>`;
   const list=smartSuggestions(entry);
-  if(!list.length)return `<p class="subtle text-small">Подсказок нет. Они появляются, если в тексте есть дата, #тема, узнаваемый тип записи или знакомое имя.</p>`;
-  return `<div class="suggestion-list">${list.map(s=>`<span class="suggestion-chip"><button type="button" data-action="accept-suggestion" data-key="${escapeHtml(s.key)}" data-type="${s.type}" data-value="${encodeURIComponent(s.value)}">${escapeHtml(s.label)}</button><button type="button" data-action="dismiss-suggestion" data-key="${escapeHtml(s.key)}" aria-label="Скрыть подсказку">${icon("x")}</button></span>`).join("")}</div>`;
+  if(!list.length)return `<p class="subtle text-small">Подсказок нет. Они появляются, если в тексте есть дата, #тема, узнаваемый тип записи, знакомое имя или слово, которое связывает эту запись с другими.</p>`;
+  return `<div class="suggestion-list">${list.map(s=>`<span class="suggestion-chip"><button type="button" data-action="accept-suggestion" data-key="${escapeHtml(s.key)}" data-type="${s.type}" data-value="${encodeURIComponent(s.value)}"${s.why?` title="Почему: ${escapeHtml(s.why)}"`:""}>${escapeHtml(s.label)}</button><button type="button" data-action="dismiss-suggestion" data-key="${escapeHtml(s.key)}" aria-label="Скрыть подсказку">${icon("x")}</button></span>`).join("")}</div>`;
 }
 export function contextSummaryText(entry){
   const parts=[capitalizeRu(kindLabels[entry.kind]||"мысль"),fmtDate(entry.happenedAt,{year:new Date(entry.happenedAt).getFullYear()===new Date().getFullYear()?undefined:"numeric"})];
@@ -87,6 +99,7 @@ export function contextMarkup(entry){
       <label class="field"><span class="label">Темы</span><input class="input" id="entry-themes" autocomplete="off" value="${escapeHtml((entry.themes||[]).join(", "))}" placeholder="Например, работа, поездка"></label>
       <label class="field"><span class="label">Проекты</span><input class="input" id="entry-projects" autocomplete="off" value="${escapeHtml((entry.projects||[]).join(", "))}" placeholder="Через запятую"></label>
       <label class="field"><span class="label">Место</span><input class="input" id="entry-location" autocomplete="off" value="${escapeHtml(entry.location||"")}" placeholder="Где это было"></label>
+      <label class="field context-wide"><span class="label">Капсула времени — открыть не раньше</span><input id="entry-open-on" type="date" data-datepicker data-clearable data-placeholder="Не запечатывать" value="${entry.openOn||""}"><span class="field-hint subtle text-small">До этого дня текст скрыт везде: в дневнике, поиске, воспоминаниях и обзорах. В тот день Narra напомнит о письме.</span></label>
       <label class="check context-wide"><input id="entry-sensitive" type="checkbox" ${entry.sensitive?"checked":""}><span class="check-box"></span><span>Личная запись — не показывать среди воспоминаний</span></label>
     </div>${linksMarkup(entry)}${decisionMarkup(entry)}<div class="smart-suggestions"><div class="context-heading"><strong>Подсказки</strong><span>только по тексту этой записи</span></div><div id="suggestions">${suggestionsMarkup(entry)}</div></div></details>`;
 }
@@ -129,9 +142,11 @@ export function assistResult(kind,entry){
 /* ---------- reading mode: the same facts as the details panel, as plain text and chips ---------- */
 export function viewMetaMarkup(entry){
   const chip=(label,cls="")=>`<span class="view-chip ${cls}">${escapeHtml(label)}</span>`;
-  const when=[fmtLong(entry.happenedAt)];
+  const when=[`${fmtLong(entry.happenedAt)}, ${fmtTime(entry.happenedAt)}`];
   if(entry.happenedEnd)when[0]+=` — ${fmtLong(entry.happenedEnd)}`;
-  const line=[capitalizeRu(kindLabels[entry.kind]||"мысль"),...when,entry.location?`${entry.location}`:""].filter(Boolean);
+  // reading time: about 180 words a minute for Russian prose read for oneself
+  const wc=(String(entry.body||"").match(/[\p{L}\p{N}]+/gu)||[]).length,mins=Math.max(1,Math.round(wc/180));
+  const line=[capitalizeRu(kindLabels[entry.kind]||"мысль"),...when,entry.location?`${entry.location}`:"",wc>=120?`≈ ${mins} мин чтения`:""].filter(Boolean);
   const chap=featureOn("featChapters")?chapterOf(entry,state.chapters):null;
   const chips=[
     ...(entry.people||[]).map(x=>chip(x,"is-person")),

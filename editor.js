@@ -1,18 +1,20 @@
 /* Editor: a full-screen writing surface with Markdown tools, find, slash menu, focus mode, media, details, decisions,
    writing help and safe saving. Saving is atomic, versioned, and refuses to overwrite an entry edited elsewhere. */
-import {validateCanonicalEntry,nextRevision,searchEntries,parseRussianDateHint} from "./domain.mjs?v=4.6.0";
-import {applyFormat,activeFormats,continueList,shiftIndent,diffRange,renderMarkdown} from "./md.mjs?v=4.6.0";
-import {state,ctx,$,$$,escapeHtml,icon,uid,nowIso,fmtLong,fmtTime,fmtDate,localDateInputValue,dateInputToIso,splitCsv,words,chars,wordLabel,pluralRu,featureOn,activeEntries,entryById,mediaOf,kindLabels,capitalizeRu} from "./core.js?v=4.6.0";
-import {entryText,excerpt} from "./text.mjs?v=4.6.0";
-import {cleanDecision,cleanLinks} from "./domain.mjs?v=4.6.0";
-import {modalHeader,statusPill} from "./kit.js?v=4.6.0";
-import {enhance} from "./ui.mjs?v=4.6.0";
-import {STRUCTURE_TEMPLATE} from "./writing.mjs?v=4.6.0";
-import {contextMarkup,assistMarkup,assistResult,suggestionsMarkup,contextSummaryText,decisionMarkup,linksMarkup,smartSuggestions,viewMetaMarkup} from "./editor-panels.js?v=4.6.0";
-import {TextHistory} from "./history.mjs?v=4.6.0";
-import * as media from "./media.js?v=4.6.0";
-import * as store from "./store.js?v=4.6.0";
-import {TOOLS,SEP,normalizeLayout,toolInfo,applyCustomTool} from "./tools.mjs?v=4.6.0";
+import {validateCanonicalEntry,nextRevision,searchEntries,parseRussianDateHint,isSealedCapsule} from "./domain.mjs?v=4.7.0";
+import {applyFormat,activeFormats,continueList,shiftIndent,diffRange,renderMarkdown} from "./md.mjs?v=4.7.0";
+import {state,ctx,$,$$,escapeHtml,icon,uid,nowIso,fmtLong,fmtTime,fmtDate,localDateInputValue,dateInputToIso,splitCsv,words,chars,wordLabel,pluralRu,featureOn,activeEntries,entryById,mediaOf,kindLabels,capitalizeRu,downloadBlob,kbdLabel,isQuotaError,QUOTA_TEXT,todayKey} from "./core.js?v=4.7.0";
+import {entryText,excerpt,mdToPlain as mdToPlainText} from "./text.mjs?v=4.7.0";
+import {cleanDecision,cleanLinks} from "./domain.mjs?v=4.7.0";
+import {modalHeader,statusPill} from "./kit.js?v=4.7.0";
+import {enhance} from "./ui.mjs?v=4.7.0";
+import {STRUCTURE_TEMPLATE} from "./writing.mjs?v=4.7.0";
+import {contextMarkup,assistMarkup,assistResult,suggestionsMarkup,contextSummaryText,decisionMarkup,linksMarkup,smartSuggestions,viewMetaMarkup} from "./editor-panels.js?v=4.7.0";
+import {TextHistory} from "./history.mjs?v=4.7.0";
+import {entryToMarkdown} from "./importers.mjs?v=4.7.0";
+import {allTemplates,templateFields,templateFromEntry,MAX_TEMPLATES} from "./templates.mjs?v=4.7.0";
+import * as media from "./media.js?v=4.7.0";
+import * as store from "./store.js?v=4.7.0";
+import {TOOLS,SEP,normalizeLayout,toolInfo,applyCustomTool} from "./tools.mjs?v=4.7.0";
 
 const SLASH_ITEMS=[
   {format:"h1",icon:"heading",label:"Заголовок 1",kw:"заголовок h1 title"},{format:"h2",icon:"heading2",label:"Заголовок 2",kw:"подзаголовок h2"},{format:"h3",icon:"heading3",label:"Заголовок 3",kw:"h3 мелкий"},
@@ -22,9 +24,11 @@ const SLASH_ITEMS=[
   {format:"mark",icon:"highlight",label:"Выделение маркером",kw:"подсветка маркер"},{format:"date",icon:"calendar",label:"Дата и время",kw:"сегодня время"},
   {format:"divider",icon:"divider",label:"Разделитель",kw:"линия черта"},
 ];
-export function newEntry({body="",date=null,prefill=""}={}){
+export function newEntry({body="",date=null,prefill="",...extra}={}){
   const at=date?dateInputToIso(date,nowIso()):nowIso();
-  return {id:uid(),title:"",body,prefill,kind:"thought",happenedAt:at,createdAt:nowIso(),updatedAt:nowIso(),revision:0,favorite:false,sensitive:false,completedAt:null,deletedAt:null,people:[],themes:[],projects:[],location:"",dismissedSuggestions:[],happenedEnd:null,chapterId:null,links:[],decision:null};
+  // a copy or a template may bring its title, kind, people, places and themes
+  const carry={};for(const k of ["title","kind","people","themes","projects","location","chapterId","sensitive"])if(extra[k]!==undefined)carry[k]=structuredClone(extra[k]);
+  return {id:uid(),title:"",body,prefill,kind:"thought",happenedAt:at,createdAt:nowIso(),updatedAt:nowIso(),revision:0,favorite:false,sensitive:false,completedAt:null,deletedAt:null,people:[],themes:[],projects:[],location:"",dismissedSuggestions:[],happenedEnd:null,chapterId:null,links:[],decision:null,...carry};
 }
 const statsText=body=>{const wc=words(body),cc=chars(body);return [`${wc} ${wordLabel(wc)}`,`${cc} ${pluralRu(cc,"символ","символа","символов")}`];};
 const canDictate=()=>!!(globalThis.SpeechRecognition||globalThis.webkitSpeechRecognition);
@@ -35,7 +39,7 @@ function toolAvailable(info){
   return true;
 }
 function toolButton(info){
-  const tip=info.shortcut&&state.prefs.shortcuts?`${info.label} (${info.shortcut})`:info.label;
+  const tip=info.shortcut&&state.prefs.shortcuts?`${info.label} (${kbdLabel(info.shortcut)})`:info.label;
   const hook=info.format?`data-format="${info.format}"`:info.custom?`data-custom="${escapeHtml(info.key.slice(2))}"`:`data-action="${info.action}"`;
   const pressed=info.pressed||info.format||info.custom?` aria-pressed="false"`:"";
   return `<button type="button" class="tool-button${info.custom?" is-custom":""}" data-tool="${escapeHtml(info.key)}" ${hook}${pressed} aria-label="${escapeHtml(info.label)}" title="${escapeHtml(tip)}">${icon(info.icon)}</button>`;
@@ -58,11 +62,17 @@ export function refreshToolbar(){
 function mediaInputs(){
   return featureOn("featMedia")?`<input type="file" id="attach-file-photo" accept="image/*" multiple hidden><input type="file" id="attach-file-audio" accept="audio/*" hidden>`:"";
 }
+/* An empty new entry offers templates as one quiet row; typing anything hides it. */
+function templateStrip(entry,mode){
+  if(mode!=="edit"||entry.revision||String(entry.body||"").trim())return "";
+  const list=allTemplates(state.templates);
+  return `<div class="template-strip edit-only" id="template-strip" role="group" aria-label="Начать с шаблона"><span class="template-strip-label">Начать с шаблона</span><div class="template-chips">${list.map(t=>`<button type="button" class="chip template-chip" data-action="apply-template" data-id="${escapeHtml(t.id)}">${icon(t.icon||"pen")}<span>${escapeHtml(t.name)}</span></button>`).join("")}</div></div>`;
+}
 function editorMarkup(entry,mode="edit"){
   const [wc,cc]=statsText(entry.body),p=state.prefs;
   return `<div class="editor-top"><div class="editor-top-left"><button type="button" class="icon-button icon-button-quiet" data-action="close-editor" aria-label="Закрыть редактор" title="Закрыть (Esc)">${icon("arrow-left")}</button><span class="save-state edit-only" id="editor-save" role="status"><i class="save-dot"></i><span>${escapeHtml(state.saveStatus)}</span></span></div>
     <div class="editor-top-right">
-      <button type="button" class="icon-button icon-button-quiet only-desktop edit-only" data-action="editor-find" aria-label="Найти в записи" title="Найти в записи${p.shortcuts?" (Ctrl+F)":""}">${icon("search")}</button>
+      <button type="button" class="icon-button icon-button-quiet only-desktop edit-only" data-action="editor-find" aria-label="Найти в записи" title="Найти в записи${p.shortcuts?` (${kbdLabel("Ctrl+F")})`:""}">${icon("search")}</button>
       <button type="button" class="icon-button icon-button-quiet edit-only" data-action="toggle-preview" id="preview-toggle" aria-pressed="false" aria-label="Показать, как выглядит текст" title="Просмотр">${icon("eye")}</button>
       <button type="button" class="icon-button icon-button-quiet only-desktop" data-action="entry-checkin" aria-label="Отметить состояние" title="Отметить состояние">${icon("state")}</button>
       ${navigator.share?`<button type="button" class="icon-button icon-button-quiet only-desktop view-only" data-action="share-entry" aria-label="Поделиться" title="Поделиться">${icon("share")}</button>`:""}
@@ -72,10 +82,13 @@ function editorMarkup(entry,mode="edit"){
       <button type="button" class="icon-button icon-button-quiet only-mobile" data-action="editor-more" aria-label="Ещё" aria-haspopup="dialog">${icon("more")}</button>
       <button type="button" class="icon-button icon-button-quiet focus-exit" data-action="toggle-focus" aria-label="Выйти из режима фокуса" title="Выйти из режима фокуса (Esc)">${icon("focus-off")}<span>Выйти из фокуса</span><kbd class="only-desktop">Esc</kbd></button>
       <button type="button" class="primary button-with-icon edit-only" data-action="finish-editing">${icon("check")}<span>Готово</span></button>
+      <button type="button" class="icon-button icon-button-quiet view-only" data-action="entry-step" data-step="-1" aria-label="Предыдущая запись (←)" title="Более ранняя запись (←)">${icon("chevron-left")}</button>
+      <button type="button" class="icon-button icon-button-quiet view-only" data-action="entry-step" data-step="1" aria-label="Следующая запись (→)" title="Более поздняя запись (→)">${icon("chevron-right")}</button>
+      ${"speechSynthesis" in window?`<button type="button" class="icon-button icon-button-quiet view-only" data-action="read-aloud" id="read-aloud" aria-pressed="false" aria-label="Прочитать вслух" title="Прочитать вслух">${icon("wave")}</button>`:""}
       <button type="button" class="primary button-with-icon view-only" data-action="edit-entry">${icon("pen")}<span>Изменить</span></button>
     </div></div>
     <div class="editor-tools edit-only" id="editor-tools" role="toolbar" aria-label="Форматирование текста">
-      <div class="tool-group history-group" role="group" aria-label="История правок"><button type="button" class="tool-button" data-history="undo" aria-label="Отменить" title="Отменить${p.shortcuts?" (Ctrl+Z)":""}" disabled>${icon("undo")}</button><button type="button" class="tool-button" data-history="redo" aria-label="Повторить" title="Повторить${p.shortcuts?" (Ctrl+Shift+Z)":""}" disabled>${icon("undo","icon-flip")}</button></div>
+      <div class="tool-group history-group" role="group" aria-label="История правок"><button type="button" class="tool-button" data-history="undo" aria-label="Отменить" title="Отменить${p.shortcuts?` (${kbdLabel("Ctrl+Z")})`:""}" disabled>${icon("undo")}</button><button type="button" class="tool-button" data-history="redo" aria-label="Повторить" title="Повторить${p.shortcuts?` (${kbdLabel("Ctrl+Shift+Z")})`:""}" disabled>${icon("undo","icon-flip")}</button></div>
       <div class="tool-group tool-flow" id="tool-flow" role="group" aria-label="Форматирование">${toolbarFlowMarkup()}</div>
       ${mediaInputs()}
       <span class="tool-spacer"></span>
@@ -87,13 +100,14 @@ function editorMarkup(entry,mode="edit"){
       <textarea class="entry-title" id="entry-title" rows="1" maxlength="300" autocomplete="off" spellcheck="${p.spellcheck}" placeholder="Заголовок" aria-label="Заголовок записи"${mode==="view"?" readonly tabindex=\"-1\"":""}>${escapeHtml(entry.title||"")}</textarea>
       <div class="view-meta view-only" id="view-meta">${mode==="view"?viewMetaMarkup(entry):""}</div>
       ${contextMarkup(entry)}
+      ${templateStrip(entry,mode)}
       <div class="body-wrap"><div class="body-mirror" id="body-mirror" aria-hidden="true"></div><textarea class="entry-body" id="entry-body" autocomplete="off" spellcheck="${p.spellcheck}" placeholder="Начните с любого места…" aria-label="Текст записи">${escapeHtml(entry.body||"")}</textarea><div class="slash-menu card" id="editor-slash-menu" role="listbox" aria-label="Команды форматирования" hidden></div></div>
       <div class="md-preview" id="entry-preview" hidden></div>
       <div id="attach-strip" class="edit-only">${featureOn("featMedia")&&mode==="edit"?media.stripMarkup(entry.id):""}</div>
       <div id="view-attach" class="view-only">${featureOn("featMedia")&&mode==="view"?media.galleryMarkup(entry.id,entry.body||""):""}</div>
       ${assistMarkup()}
     </div></div>
-    <div class="editor-bottom"><div id="editor-date">${escapeHtml(fmtLong(entry.happenedAt))}</div>${p.editorStats?`<div class="editor-stats" aria-label="Размер текста"><span id="word-count">${wc}</span><span id="char-count">${cc}</span></div>`:""}<span class="session-info edit-only" id="session-info" hidden></span></div>`;
+    <div class="editor-bottom"><div id="editor-date">${escapeHtml(fmtLong(entry.happenedAt))}</div>${p.editorStats?`<div class="editor-stats" aria-label="Размер текста"><span id="word-count">${wc}</span><span id="char-count">${cc}</span></div>`:""}${p.wordGoal?`<span class="word-goal edit-only" id="word-goal">${goalMarkup(words(entry.body||""))}</span>`:""}<span class="writing-timer edit-only" id="writing-timer" hidden></span><span class="session-info edit-only" id="session-info" hidden></span></div>`;
 }
 export async function openEditor(id=null,opts={}){
   ctx.loadLazy?.("toolbar")?.catch?.(()=>{});
@@ -102,6 +116,8 @@ export async function openEditor(id=null,opts={}){
     if(!ok&&state.dirty&&state.editing.body.trim()){ctx.toast("Сначала нужно сохранить текущие изменения.");return null;}
   }
   let entry=id?entryById(id):null;
+  // a sealed time capsule shows its envelope first; it opens early only on purpose
+  if(entry&&!opts.unseal&&isSealedCapsule(entry,todayKey())){showCapsule(entry);return null;}
   if(!entry)entry=newEntry(opts);
   const existing=entry.revision>0;
   /* a finished entry opens for reading; a new one or an unfinished draft opens for writing */
@@ -111,10 +127,18 @@ export async function openEditor(id=null,opts={}){
   state.editorPreview=false;state.slash=null;state.find=null;
   state.editorMode=mode;state.editorOrigin=mode==="view"?"view":"direct";
   state.editorBaseline=existing?baselineOf(entry):null;
-  state.sessionStart=Date.now();state.sessionBaseWords=words(entry.body||"");
+  state.sessionStart=Date.now();state.sessionBaseWords=words(entry.body||"");state.goalToasted=words(entry.body||"")>=(state.prefs.wordGoal||Infinity);stopTimer();
   const box=ctx.overlay(editorMarkup(state.editing,mode),`modal editor-modal${mode==="view"?" is-viewing":""}`,mode==="view"?"Просмотр записи":"Редактор записи",{kind:"editor",focus:false});
   bindEditor(box,mode);
   return box;
+}
+function showCapsule(e){
+  const days=Math.max(1,Math.round((new Date(`${e.openOn}T12:00:00`)-new Date())/86400000));
+  ctx.sheetDialog(`${modalHeader("Капсула времени",`Откроется ${fmtDate(`${e.openOn}T12:00:00`,{year:"numeric"})}`,"lock","close-dialog")}<div class="modal-body capsule-body">
+    <div class="capsule-envelope" aria-hidden="true">${icon("mail")}</div>
+    <p>Письмо написано ${escapeHtml(fmtDate(e.createdAt||e.happenedAt,{year:"numeric"}))}, до открытия — ${days} ${pluralRu(days,"день","дня","дней")}.</p>
+    <p class="subtle text-small">Текст спрятан, чтобы встреча с ним была настоящей. Открыть раньше можно — но тогда капсула распечатается.</p>
+    <div class="capsule-actions"><button class="secondary" data-action="close-dialog">Подождать</button><button class="ghost" data-action="capsule-open-early" data-id="${escapeHtml(e.id)}">Открыть сейчас</button></div></div>`,"Капсула времени");
 }
 export function markEditorDirty(source="autosave"){
   if(!state.editing)return;
@@ -159,12 +183,31 @@ function updateSessionInfo(text){
   el.hidden=false;el.textContent=`+${added} ${wordLabel(added)}${mins>=1?` · ${mins} мин`:""}`;
 }
 let pendingCaret=false;
+/** «120 / 250» with a thin bar: a soft guide, never a requirement. */
+function goalMarkup(n){const g=state.prefs.wordGoal||0;if(!g)return "";return `<progress class="word-goal-bar" max="${g}" value="${Math.min(n,g)}" aria-hidden="true"></progress><span aria-label="Слов ${n} из цели ${g}">${n} / ${g}</span>`;}
+/* Writing timer: 5–20 minutes (expressive writing is usually 15–20). When the time is up it only says so — writing goes on. */
+let timer=null;
+function stopTimer(){if(timer){clearInterval(timer.id);timer=null;}const el=$("#writing-timer");if(el){el.hidden=true;el.textContent="";el.classList.remove("is-over");}}
+function startTimer(min){
+  stopTimer();const end=Date.now()+min*60000,el=$("#writing-timer");
+  const tick=()=>{const t=$("#writing-timer");if(!t||!state.editing){stopTimer();return;}
+    const left=Math.round((end-Date.now())/1000);
+    if(left<=0){t.textContent="Время вышло";t.classList.add("is-over");clearInterval(timer.id);timer=null;ctx.toast(`${min} минут прошло. Можно закончить — или писать дальше.`);try{navigator.vibrate?.(30);}catch{}return;}
+    t.hidden=false;t.textContent=`⏱ ${Math.floor(left/60)}:${String(left%60).padStart(2,"0")}`;};
+  timer={id:setInterval(tick,1000)};tick();if(el)el.hidden=false;
+  ctx.toast(`Таймер на ${min} минут. Пишите не останавливаясь — ошибки и порядок не важны.`);
+}
+function askTimer(){
+  const opt=m=>`<button type="button" class="more-menu-item" data-action="timer-start" data-min="${m}">${icon("clock")}<span><strong>${m} ${pluralRu(m,"минута","минуты","минут")}</strong></span>${icon("chevron-right")}</button>`;
+  ctx.sheetDialog(`${modalHeader("Таймер письма","Тихий отсчёт в нижней строке. Когда время выйдет, Narra только скажет об этом.","clock","close-dialog")}<div class="modal-body more-menu">${[5,10,15,20].map(opt).join("")}${timer?`<button type="button" class="more-menu-item" data-action="timer-stop">${icon("x")}<span><strong>Остановить таймер</strong></span>${icon("chevron-right")}</button>`:""}</div>`,"Таймер письма");
+}
 function scheduleIdleWork(){
   clearTimeout(idleJob);
   idleJob=setTimeout(()=>{
     const body=$("#entry-body");if(!body||!state.editing)return;
     const [w,c]=statsText(body.value),wn=$("#word-count"),cn=$("#char-count");
     if(wn)wn.textContent=w;if(cn)cn.textContent=c;
+    const goal=$("#word-goal");if(goal){const n=words(body.value);goal.innerHTML=goalMarkup(n);const reached=n>=state.prefs.wordGoal;goal.classList.toggle("is-reached",reached);if(reached&&!state.goalToasted){state.goalToasted=true;ctx.toast(`Цель — ${state.prefs.wordGoal} ${wordLabel(state.prefs.wordGoal)} — достигнута. Можно остановиться или продолжать.`);}}
     updateSessionInfo(body.value);
     refreshEditorMeta();
     if(state.find)findRun(true);
@@ -206,6 +249,7 @@ function ensureCaretVisible(){
     const {top,lh}=caretMetrics(body,body.selectionEnd);
     const sr=surface.getBoundingClientRect(),br=body.getBoundingClientRect();
     const y=br.top-sr.top+surface.scrollTop+top;
+    if(state.prefs.typewriter&&state.editorMode!=="view"){surface.scrollTop=Math.max(0,y+lh/2-surface.clientHeight*.45);return;} // the line being written stays in the middle
     const bottomGap=$("#editor-slash-menu")&&!$("#editor-slash-menu").hidden?270:96,topGap=28;
     if(y+lh+bottomGap>surface.scrollTop+surface.clientHeight)surface.scrollTop=y+lh+bottomGap-surface.clientHeight;
     else if(y-topGap<surface.scrollTop)surface.scrollTop=Math.max(0,y-topGap);
@@ -285,13 +329,43 @@ function applySlash(format){
   setBodyValue({value:body.value.slice(0,from)+body.value.slice(to),start:from,end:from});
   runFormat(chosen);
 }
+/* A long entry with three or more headings gets a small table of contents; a tap scrolls to the part. */
+function tocMarkup(src){
+  const hs=[...String(src||"").matchAll(/^(#{1,3})[ \t]+(.+)$/gm)].map(m=>({level:m[1].length,text:m[2].replace(/[*_~=`]/g,"").trim()})).filter(h=>h.text);
+  if(hs.length<3)return "";
+  return `<nav class="entry-toc" aria-label="Содержание записи"><strong>Содержание</strong><ol>${hs.map((h,i)=>`<li class="toc-l${h.level}"><button type="button" class="link-button" data-action="toc-go" data-i="${i}">${escapeHtml(h.text)}</button></li>`).join("")}</ol></nav>`;
+}
+/* Reading aloud with the voices of the device (works offline where the system has a Russian voice). */
+function stopReading(){try{speechSynthesis.cancel();}catch{}const b=$("#read-aloud");if(b){b.setAttribute("aria-pressed","false");b.classList.remove("is-active");b.setAttribute("aria-label","Прочитать вслух");}}
+function readAloud(){
+  const b=$("#read-aloud"),ed=state.editing;if(!ed||!("speechSynthesis" in window))return;
+  if(speechSynthesis.speaking){stopReading();return;}
+  const text=[ed.title,mdToPlainText(ed.body||"")].filter(Boolean).join(". ");if(!text.trim())return;
+  const voices=speechSynthesis.getVoices(),ru=voices.find(v=>/^ru/i.test(v.lang));
+  if(voices.length&&!ru)ctx.toast("На устройстве нет русского голоса: чтение может звучать с акцентом. Голоса добавляются в настройках системы.");
+  // long texts are spoken in sentence-sized parts: some engines stop on very long utterances
+  const parts=text.match(/[^.!?…\n]+[.!?…]*\s*/g)||[text];
+  parts.forEach((p,i)=>{const u=new SpeechSynthesisUtterance(p);u.lang="ru-RU";if(ru)u.voice=ru;u.rate=.98;if(i===parts.length-1)u.onend=stopReading;speechSynthesis.speak(u);});
+  if(b){b.setAttribute("aria-pressed","true");b.classList.add("is-active");b.setAttribute("aria-label","Остановить чтение");}
+}
+/** The neighbouring visible entry in time (−1 earlier, +1 later), for reading one after another. */
+function neighbour(step){
+  const ed=state.editing;if(!ed)return null;
+  const list=activeEntries().slice().sort((a,b)=>String(a.happenedAt).localeCompare(String(b.happenedAt)));
+  const i=list.findIndex(e=>e.id===ed.id);return i<0?null:list[i+step]||null;
+}
+async function stepEntry(step){
+  const next=neighbour(step);
+  if(!next){ctx.toast(step<0?"Это самая ранняя запись.":"Это самая поздняя запись.");return;}
+  stopReading();await openEditor(next.id);
+}
 function setPreview(on,{focus=true}={}){
   const modal=$(".editor-modal"),body=$("#entry-body"),pv=$("#entry-preview");if(!modal||!pv)return;
   state.editorPreview=on;hideSlash();
   modal.classList.toggle("is-previewing",on);
   $(".body-wrap")?.toggleAttribute("hidden",on);
   pv.hidden=!on;
-  if(on){pv.innerHTML=renderMarkdown(body.value,{collapsible:true})||`<p class="md-empty">Пока нечего показывать — напишите что-нибудь.</p>`;ctx.animateIn(pv);media.hydrate(pv);}
+  if(on){pv.innerHTML=(tocMarkup(body.value)+renderMarkdown(body.value,{collapsible:true}))||`<p class="md-empty">Пока нечего показывать — напишите что-нибудь.</p>`;ctx.animateIn(pv);media.hydrate(pv);}
   $("#editor-tools")?.classList.toggle("is-disabled",on);
   const btn=$("#preview-toggle");
   if(btn){btn.setAttribute("aria-pressed",String(on));btn.setAttribute("aria-label",on?"Вернуться к редактированию":"Показать, как выглядит текст");btn.title=on?"Редактировать":"Просмотр";btn.innerHTML=icon(on?"pen":"eye");}
@@ -408,6 +482,14 @@ function enterView(){
   const sa=$("#attach-strip");if(sa)sa.innerHTML="";
   hideSlash();closeFind({focusBody:false});
   setPreview(true,{focus:false});
+  // at the end of a read entry: up to three entries that share its themes, people or words — each says why
+  import("./memories.js?v=4.7.0").then(m=>{
+    const pv=$("#entry-preview");if(!pv||state.editing?.id!==ed.id||state.editorMode!=="view")return;
+    const rel=m.relatedEntriesFor(ed,3);if(!rel.length)return;
+    const box=document.createElement("aside");box.className="view-related";box.setAttribute("aria-label","Перекликается");
+    box.innerHTML=`<h2>Перекликается</h2>${rel.map(r=>`<button type="button" class="view-related-item" data-action="open-entry" data-id="${escapeHtml(r.entry.id)}"><strong>${escapeHtml(entryText(r.entry).title)}</strong><small>${escapeHtml(fmtDate(r.entry.happenedAt,{year:"numeric"}))}${r.sharedTerms?.length?` · общее: ${escapeHtml(r.sharedTerms.slice(0,3).join(", "))}`:""}</small></button>`).join("")}`;
+    pv.append(box);
+  }).catch(()=>{});
   requestAnimationFrame(()=>{autosize(t);const s=$("#editor-surface");if(s)s.scrollTop=0;$('[data-action="edit-entry"]')?.focus({preventScroll:true});});
 }
 function enterEdit(){
@@ -425,6 +507,7 @@ function bindEditor(box,mode="edit"){
   const title=$("#entry-title",box),body=$("#entry-body",box),surface=$("#editor-surface",box);
   hist=new TextHistory(body.value);histApplying=false;
   const onInput=ev=>{
+    if(body.value.trim())$("#template-strip",box)?.remove();
     const ed=state.editing;if(!ed)return;
     ed.title=title.value.replace(/\s*\n\s*/g," ");ed.body=body.value;
     if(ev?.target===body&&!histApplying){hist.record(body.value,[body.selectionStart,body.selectionEnd]);syncHistoryButtons();}
@@ -511,6 +594,13 @@ function bindEditor(box,mode="edit"){
   $("#entry-projects",box)?.addEventListener("input",meta(e=>{ed().projects=splitCsv(e.target.value).slice(0,12);}));
   $("#entry-location",box)?.addEventListener("input",meta(e=>{ed().location=e.target.value.trim();}));
   $("#entry-sensitive",box)?.addEventListener("change",meta(e=>{ed().sensitive=e.target.checked;}));
+  // time capsule: a day in the future seals the text until then; today or earlier makes no sense, so it is refused
+  const openOn=$("#entry-open-on",box);
+  openOn?.addEventListener("change",meta(e=>{
+    const v=e.target.value||null;
+    if(v&&v<=todayKey()){ctx.toast("Выберите день в будущем — до него письмо будет запечатано.");e.target.value=ed().openOn||"";return;}
+    ed().openOn=v;
+  }));
   const ctxBox=$("#entry-context",box);
   const decisionField=e=>{
     const t=e.target,d=ed();if(!d)return;
@@ -550,8 +640,9 @@ function bindEditor(box,mode="edit"){
   if(mode==="view"){enterView();return;}
   requestAnimationFrame(()=>{
     autosize(title);autosize(body);
-    if(state.editing.revision||state.editing.body){body.focus({preventScroll:true});body.setSelectionRange(body.value.length,body.value.length);ensureCaretVisible();}
-    else title.focus({preventScroll:true});
+    // a new entry starts in the text: the title is optional and is borrowed from the first sentence when left empty
+    body.focus({preventScroll:true});
+    if(state.editing.revision||state.editing.body){body.setSelectionRange(body.value.length,body.value.length);ensureCaretVisible();}
     syncToolbar();
   });
 }
@@ -585,11 +676,11 @@ function dismissSuggestion(el){
 
 /* ----- persistence of the open entry ----- */
 const isPrefillOnly=e=>!e.revision&&e.prefill&&e.body.trim()===e.prefill.trim();
-const META_KEYS=["title","body","favorite","completedAt","deletedAt","happenedAt","kind","sensitive","location","people","themes","projects","dismissedSuggestions","happenedEnd","chapterId","links","decision"];
+const META_KEYS=["title","body","favorite","pinned","openOn","completedAt","deletedAt","happenedAt","kind","sensitive","location","people","themes","projects","dismissedSuggestions","happenedEnd","chapterId","links","decision"];
 const sameValue=(a,b)=>JSON.stringify(a??null)===JSON.stringify(b??null);
 const baselineOf=e=>{const o={};for(const k of META_KEYS)o[k]=structuredClone(e[k]??null);return o;};
 /* what counts as "you changed this entry" when leaving; favourites and dismissed hints are not worth a question */
-const GUARD_KEYS=["title","body","kind","happenedAt","happenedEnd","location","people","themes","projects","chapterId","decision","links","sensitive"];
+const GUARD_KEYS=["title","body","kind","happenedAt","openOn","happenedEnd","location","people","themes","projects","chapterId","decision","links","sensitive"];
 function changedSinceOpen(){
   const ed=state.editing,b=state.editorBaseline;
   if(!ed)return false;
@@ -616,6 +707,7 @@ async function persistEditingSnapshot(snapshot,source,epoch){
     if(i>=0)state.entries[i]={...state.entries[i],...next};else state.entries.unshift(next);
     state.entries=[...state.entries].sort((a,b)=>new Date(b.happenedAt)-new Date(a.happenedAt));
     store.notifyChange("entry");
+    state.quotaWarned=false;
     if(state.editing?.id===snapshot.id){
       state.editing.revision=next.revision;state.editing.updatedAt=next.updatedAt;
       const tb=$("#trash-button");if(tb)tb.hidden=false;
@@ -626,6 +718,8 @@ async function persistEditingSnapshot(snapshot,source,epoch){
   }catch(err){
     if(err?.name==="ConflictError"){await handleConflict(snapshot,err.current);return false;}
     console.error("Ошибка локального сохранения",err);
+    // a full disk does not fix itself in a few seconds: say what happened and what helps instead of retrying blindly
+    if(isQuotaError(err)&&state.editing?.id===snapshot.id){setSaveStatus("Не сохранено: нет места","error");if(!state.quotaWarned){state.quotaWarned=true;ctx.toast(QUOTA_TEXT,null,{duration:12000});}return false;}
     if(state.editing?.id===snapshot.id){
       /* bounded retries with exponential backoff and jitter; the text never leaves the editor */
       const n=state.saveRetries=(state.saveRetries||0)+1;
@@ -705,7 +799,9 @@ export async function closeEditor({finish=false,force=false}={}){
   if(empty){
     if(ed.revision>0&&state.dirty){setSaveStatus("Текст не может быть пустым","error");ctx.toast("Верните текст записи или переместите её в корзину.");return false;}
     if(ed.title.trim()&&!ed.revision){
-      ctx.confirmDialog({title:"Закрыть без сохранения?",text:"Запись без текста не сохраняется, а здесь есть только заголовок. Добавьте хотя бы одну строку.",confirmLabel:"Закрыть без сохранения",cancelLabel:"Продолжить писать",danger:true,iconName:"info"},discard);
+      // a sentence typed into the title is still the person's words: offer to keep it as the text instead of losing it
+      const keep=async()=>{if(state.editing!==ed)return;ed.body=ed.title.trim();ed.title="";const t=$("#entry-title"),b=$("#entry-body");if(t)t.value="";if(b)b.value=ed.body;state.saveEpoch++;state.dirty=true;ctx.closeDialog({restoreFocus:false});await closeEditor({finish});};
+      ctx.confirmDialog({title:"Сохранить заголовок как текст?",text:"Запись без текста не сохраняется, а здесь есть только заголовок. Его можно сохранить как текст записи.",confirmLabel:"Сохранить как текст",cancelLabel:"Продолжить писать",iconName:"info"},keep);
       return false;
     }
     await discard();return true;
@@ -714,7 +810,8 @@ export async function closeEditor({finish=false,force=false}={}){
   const ok=await saveEditing(finish?"complete":"close");
   if(!ok){ctx.toast(state.conflict?"Сначала выберите, как сохранить запись.":"Не удалось сохранить запись. Редактор остаётся открытым.");return false;}
   ctx.closeOverlay();ctx.render();
-  if(finish)ctx.toast("Запись сохранена.");
+  if(ed.openOn&&ed.openOn>todayKey())ctx.toast(`Письмо запечатано до ${fmtDate(`${ed.openOn}T12:00:00`,{year:"numeric"})} — до этого дня его текст нигде не будет виден.`,null,{duration:6000});
+  else if(finish)ctx.toast("Запись сохранена.");
   return true;
 }
 function askBeforeLeaving(){
@@ -778,6 +875,57 @@ export async function restoreTrashedEntry(id){
     await store.commitEntrySnapshot(restored,"restore_trash");await store.trimVersions(restored.id,100);await store.loadData();store.notifyChange("entry");ctx.render();ctx.toast("Запись восстановлена.");
   }catch(error){console.error("Ошибка восстановления из корзины",error);ctx.toast("Не удалось восстановить запись.");}
 }
+/* Entries on paper (or as a PDF from the print dialog): title, date, place, people, the text and its pictures. Nothing leaves the device. */
+export async function printEntries(list){
+  if(!list?.length)return;
+  document.querySelector("#print-root")?.remove();
+  const one=e=>{const meta=[fmtLong(e.happenedAt)+", "+fmtTime(e.happenedAt),e.location,(e.people||[]).join(", ")].filter(Boolean).map(escapeHtml).join(" · ");
+    return `<article><h1>${escapeHtml(e.title||entryText(e).title)}</h1><p class="print-meta">${meta}</p>${(e.themes||[]).length?`<p class="print-meta">${e.themes.map(t=>"#"+escapeHtml(t)).join(" ")}</p>`:""}<div class="print-body">${renderMarkdown(e.body||"")}</div></article>`;};
+  const root=document.createElement("div");root.id="print-root";root.className="print-root print-entry";
+  root.innerHTML=`${list.map(one).join("")}<p class="print-foot">Narra · ${list.length>1?`записей: ${list.length} · `:""}напечатано ${escapeHtml(fmtDate(new Date().toISOString(),{year:"numeric"}))}</p>`;
+  document.body.append(root);document.body.classList.add("print-mode");
+  let done=false;const finish=()=>{if(done)return;done=true;root.remove();document.body.classList.remove("print-mode");window.removeEventListener("afterprint",finish);};
+  window.addEventListener("afterprint",finish);setTimeout(finish,180000); // iOS home-screen apps may never report afterprint
+  media.hydrate(root);
+  const imgs=[...root.querySelectorAll("img")].filter(i=>!i.complete);
+  if(imgs.length)await Promise.race([Promise.all(imgs.map(i=>new Promise(r=>{i.addEventListener("load",r,{once:true});i.addEventListener("error",r,{once:true});}))),new Promise(r=>setTimeout(r,4000))]);
+  window.print();
+}
+async function printEntry(){
+  const ed=state.editing;if(!ed)return;
+  if(state.dirty)await saveEditing("print").catch(()=>false);
+  await printEntries([ed]);
+}
+const isTypingTarget=el=>el&&(el.isContentEditable||/^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName))&&!el.readOnly;
+/* A copy of the entry as a new draft dated now: same text, people, places and themes, no history, no media links. */
+async function duplicateEntry(){
+  const ed=state.editing;if(!ed)return;
+  if(state.dirty)await saveEditing("switch").catch(()=>false);
+  const body=String(ed.body||"").replace(/!\[[^\]]*\]\(narra-media:[^)]+\)\n?/g,"");
+  const {id,revision,createdAt,updatedAt,completedAt,deletedAt,happenedAt,happenedEnd,openOn,pinned,favorite,links,decision,...rest}=ed;
+  await openEditor(null,{...rest,body,title:ed.title?`${ed.title} (копия)`:"",edit:true});
+  markEditorDirty("duplicate");
+  ctx.toast("Копия открыта как новая запись. Фото и аудио не копируются.");
+}
+/* Quotes: the fragment selected in the reading view (remembered on selection, because a tap on «…» may clear it). */
+let lastQuote="";
+document.addEventListener("selectionchange",()=>{
+  if(state.editorMode!=="view")return;
+  const sel=document.getSelection?.(),pv=document.querySelector("#entry-preview");
+  if(!sel||!pv||sel.isCollapsed||!pv.contains(sel.anchorNode))return;
+  const t=String(sel.toString()).replace(/\s+/g," ").trim();if(t.length>=3)lastQuote=t.slice(0,1200);
+});
+async function saveQuote(){
+  const ed=state.editing;if(!ed)return;
+  if(!lastQuote){ctx.toast("Выделите фрагмент в тексте записи, затем снова откройте «…» → «Сохранить цитату».");return;}
+  try{await store.saveQuotes([...(state.quotes||[]),{id:uid(),entryId:ed.id,text:lastQuote,at:nowIso()}]);ctx.toast("Цитата сохранена. Все цитаты — в «Воспоминаниях».");lastQuote="";document.getSelection?.()?.removeAllRanges?.();}
+  catch(error){console.error(error);ctx.toast("Не удалось сохранить цитату.");}
+}
+function togglePin(){
+  if(!state.editing)return;
+  state.editing.pinned=!state.editing.pinned;markEditorDirty("pin");
+  ctx.toast(state.editing.pinned?"Запись закреплена вверху дневника.":"Запись откреплена.");
+}
 function toggleFavorite(el){
   if(!state.editing)return;
   const on=!state.editing.favorite;state.editing.favorite=on;
@@ -817,12 +965,18 @@ function showEditorMore(){
   const item=(iconName,title,run,sub="")=>`<button type="button" class="more-menu-item" data-action="editor-run" data-run="${run}">${icon(iconName)}<span><strong>${title}</strong>${sub?`<small>${sub}</small>`:""}</span>${icon("chevron-right")}</button>`;
   ctx.sheetDialog(`${modalHeader("Запись","","pen","close-dialog")}<div class="modal-body more-menu">
     ${view?"":item("search","Найти в записи","find")}
+    ${view?"":item("clock",timer?"Таймер письма — идёт":"Таймер письма","timer","5, 10, 15 или 20 минут")}
     ${item("state","Отметить состояние","checkin")}
     ${item("history","История версий","versions")}
     ${item("star",ed.favorite?"Убрать из избранного":"Добавить в избранное","favorite")}
+    ${item("pin",ed.pinned?"Открепить":"Закрепить вверху дневника","pin")}
+    ${ed.revision?item("copy","Дублировать","duplicate","Новая запись с тем же текстом"):""}
+    ${view?item("quote","Сохранить цитату","quote",lastQuote?`«${escapeHtml(lastQuote.slice(0,40))}${lastQuote.length>40?"…":""}»`:"Сначала выделите фрагмент текста"):""}
     ${item("copy","Скопировать текст","copy")}
+    ${view?"":item("layout","Сохранить как шаблон","template","Структура записи без вашего текста")}
     ${navigator.share?item("share","Поделиться…","share"):""}
     ${item("download","Сохранить как файл Markdown","export-md")}
+    ${item("printer","Печать или PDF","print","В окне печати выберите «Сохранить как PDF»")}
     ${view?"":item("focus","Режим фокуса","focus")}
     ${ed.revision?`<div class="more-menu-sep" role="separator"></div>${item("trash","Переместить в корзину","trash")}`:""}</div>`,"Действия с записью");
 }
@@ -837,12 +991,38 @@ async function copyEntryText(){
 }
 function exportEntryMarkdown(){
   const ed=state.editing;if(!ed)return;
-  const front=`---\ndate: ${localDateInputValue(ed.happenedAt)}\nkind: ${ed.kind}\n${ed.themes?.length?`tags: [${ed.themes.join(", ")}]\n`:""}---\n\n`;
-  const md=`${front}${ed.title?`# ${ed.title}\n\n`:""}${ed.body}\n`;
-  const name=(ed.title||localDateInputValue(ed.happenedAt)).replace(/[\\/:*?"<>|\n]/g," ").trim().slice(0,60)||"запись";
-  const url=URL.createObjectURL(new Blob([md],{type:"text/markdown;charset=utf-8"}));
-  const a=document.createElement("a");a.href=url;a.download=`${name}.md`;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),4000);
+  // the same front matter as the folder export, so the file can be imported back with its date, tags, people and places
+  const md=entryToMarkdown(ed,{mediaPrefix:"narra-media:"});
+  const name=(ed.title||localDateInputValue(ed.happenedAt)).replace(/[\\/:*?"<>|\r\n\t]/g," ").replace(/\s+/g," ").trim().slice(0,60)||"запись";
+  downloadBlob(md,"text/markdown;charset=utf-8",`${name}.md`);
   ctx.toast("Файл сохранён.");
+}
+function saveAsTemplate(){
+  const ed=state.editing;if(!ed)return;
+  if((state.templates||[]).length>=MAX_TEMPLATES){ctx.toast(`Можно хранить до ${MAX_TEMPLATES} своих шаблонов. Лишние удаляются в Настройки → Редактор.`);return;}
+  const body=templateFromEntry(ed);
+  ctx.formDialog({title:"Новый шаблон",text:"Сохранится структура: заголовки, выделенные строки и пункты списков — без ваших предложений. Если структуры нет, сохранится текст целиком.",iconName:"layout",confirmLabel:"Сохранить",
+    fields:[{id:"name",label:"Название шаблона",value:ed.title||"",max:60}]},async v=>{
+    const name=String(v.name||"").trim();if(!name)return "Дайте шаблону название.";
+    try{await store.saveTemplates([...(state.templates||[]),{id:uid(),name,body,kind:ed.kind}]);ctx.toast(`Шаблон «${name}» появится в новых записях.`);return "";}
+    catch(error){console.error(error);return "Не удалось сохранить шаблон.";}
+  });
+}
+function applyTemplate(id){
+  const ed=state.editing;if(!ed)return;
+  const t=allTemplates(state.templates).find(x=>x.id===id);if(!t)return;
+  if(String(ed.body||"").trim()){ctx.toast("Шаблон подставляется только в пустую запись.");return;}
+  const f=templateFields(t);Object.assign(ed,f);
+  const body=$("#entry-body"),title=$("#entry-title"),kind=$("#entry-kind"),open=$("#entry-open-on");
+  if(body){body.value=ed.body;autosize(body);}
+  if(title&&f.title){title.value=f.title;autosize(title);}
+  if(kind){kind.value=ed.kind;kind.dispatchEvent(new Event("change",{bubbles:true}));}
+  if(open&&f.openOn){open.value=f.openOn;open.dispatchEvent(new Event("input",{bubbles:true}));}
+  $("#template-strip")?.remove();
+  refreshEditorMeta();markEditorDirty("template");
+  // the caret goes to the first empty line after a heading, ready to write
+  if(body){const i=ed.body.search(/\n\n|\. $/);const at=i>=0?Math.min(ed.body.length,i+1):ed.body.length;body.focus({preventScroll:true});body.setSelectionRange(at,at);}
+  if(f.openOn)ctx.toast(`Письмо будет запечатано до ${fmtDate(`${f.openOn}T12:00:00`,{year:"numeric"})} — дату можно поменять в «Деталях записи».`,null,{duration:6000});
 }
 async function runEditorAction(run){
   ctx.closeDialog({restoreFocus:false});
@@ -855,6 +1035,12 @@ async function runEditorAction(run){
   else if(run==="copy")await copyEntryText();
   else if(run==="share")await ctx.handleAction("share-entry",null);
   else if(run==="export-md")exportEntryMarkdown();
+  else if(run==="template")saveAsTemplate();
+  else if(run==="pin")togglePin();
+  else if(run==="timer")askTimer();
+  else if(run==="duplicate")await duplicateEntry();
+  else if(run==="quote")await saveQuote();
+  else if(run==="print")await printEntry();
 }
 
 /* ----- link picker ----- */
@@ -869,7 +1055,7 @@ const LINK_PICKER=`${modalHeader("Связать с записью","Выбер�
 
 /* ----- exports to the shell ----- */
 export function onOverlayClosed(){
-  media.stopRecordingIfAny();clearTimeout(idleJob);cancelAnimationFrame(frameJob);frameJob=0;
+  stopTimer();stopReading();lastQuote="";media.stopRecordingIfAny();clearTimeout(idleJob);cancelAnimationFrame(frameJob);frameJob=0;
   document.removeEventListener("selectionchange",onSelectionChange);
   store.revokeMediaUrls();
 }
@@ -885,6 +1071,8 @@ export async function onKey(e,mod){
   if(mod&&!e.shiftKey&&e.code==="KeyF"){e.preventDefault();showEditorFind();return;}
   if(mod&&e.key==="Enter"){e.preventDefault();if(state.editorMode==="view")return;await ctx.ACTIONS["finish-editing"]();return;}
   if(mod&&e.code==="KeyS"){e.preventDefault();const ok=await saveEditing("manual");if(ok)ctx.toast("Сохранено.");return;}
+  // reading: ← and → turn to the earlier or later entry (never while typing in a field)
+  if(state.editorMode==="view"&&!mod&&!e.altKey&&(e.key==="ArrowLeft"||e.key==="ArrowRight")&&!isTypingTarget(e.target)){e.preventDefault();await stepEntry(e.key==="ArrowLeft"?-1:1);return;}
   if(e.key==="F3"||(mod&&e.code==="KeyG")){e.preventDefault();if(!$("#editor-findbar")||$("#editor-findbar").hidden)showEditorFind();else findJump(e.shiftKey?-1:1);}
 }
 export const onResize=()=>{if(state.editing){autosize($("#entry-title"));autosize($("#entry-body"));}};
@@ -900,6 +1088,14 @@ export const actions={
   "new-entry":()=>openEditor(),
   "new-entry-on-date":el=>openEditor(null,{date:el.dataset.date}),
   "open-entry":el=>openEditor(el.dataset.id),
+  "capsule-open-early":async el=>{
+    const e=entryById(el.dataset.id);if(!e)return;ctx.closeDialog({restoreFocus:false});
+    // opening early unseals for good: the date is cleared and the change is saved like any edit
+    const next={...e,openOn:null,updatedAt:nowIso(),revision:nextRevision(e.revision)};
+    try{await store.commitEntrySnapshot(next,"capsule_open",{expectRevision:e.revision});const i=state.entries.findIndex(x=>x.id===e.id);if(i>=0)state.entries[i]=next;state.entries=[...state.entries];store.notifyChange("entry");}
+    catch(error){console.error(error);ctx.toast("Не удалось открыть капсулу. Ничего не изменилось.");return;}
+    openEditor(e.id,{unseal:true});
+  },
   "open-linked":async el=>{await openEditor(el.dataset.id);},
   "focus-new":async()=>{await openEditor();toggleFocusMode();},
   "close-editor":()=>closeEditor(),
@@ -931,6 +1127,13 @@ export const actions={
   "dismiss-suggestion":el=>dismissSuggestion(el),
   "editor-more":()=>showEditorMore(),
   "editor-run":el=>runEditorAction(el.dataset.run),
+  "apply-template":el=>applyTemplate(el.dataset.id),
+  "entry-step":el=>stepEntry(Number(el.dataset.step)),
+  "read-aloud":()=>readAloud(),
+  "toc-go":el=>{const hs=$$("#entry-preview :is(h2,h3,h4)");const h=hs[Number(el.dataset.i)];if(h){const d=h.closest("details");if(d)d.open=true;h.scrollIntoView({behavior:ctx.reducedMotion?.()?"auto":"smooth",block:"start"});}},
+  "duplicate-entry":()=>duplicateEntry(),
+  "timer-start":el=>{ctx.closeDialog({restoreFocus:false});startTimer(Number(el.dataset.min)||15);$("#entry-body")?.focus({preventScroll:true});},
+  "timer-stop":()=>{ctx.closeDialog({restoreFocus:false});stopTimer();ctx.toast("Таймер остановлен.");},
   "restore-trash":el=>restoreTrashedEntry(el.dataset.id),
   "undo-trash":el=>restoreTrashedEntry(el.dataset.id),
   "conflict-both":()=>resolveConflict("both"),

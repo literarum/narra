@@ -27,7 +27,10 @@ export function passcodeProblem(pass){
   const s=String(pass||"");
   if(s.length<4) return "Нужно не меньше четырёх символов.";
   if(/^(.)\1+$/.test(s)) return "Пароль из одного повторяющегося символа легко угадать.";
-  if(["1234","12345","123456","0000","1111","qwerty","password","пароль"].includes(s.toLowerCase())) return "Этот пароль слишком простой.";
+  const low=s.toLowerCase();
+  if(["qwerty","qwertyuiop","password","пароль","йцукен","asdf","zxcv","admin","love","любовь","narra","дневник","diary"].includes(low)) return "Этот пароль слишком простой.";
+  if(/^\d+$/.test(s)&&("01234567890".includes(s)||"09876543210".includes(s))) return "Цифры подряд легко угадать.";
+  if(/^(\d{1,3})\1+$/.test(s)) return "Повторяющийся набор цифр легко угадать.";
   return "";
 }
 export const INACTIVITY_OPTIONS=[[0,"Не блокировать"],[1,"Через 1 минуту"],[5,"Через 5 минут"],[15,"Через 15 минут"],[60,"Через час"]];
@@ -37,8 +40,9 @@ export const INACTIVITY_OPTIONS=[[0,"Не блокировать"],[1,"Чере�
    The recovery code (20 characters, ~100 bits) is shown once, stored only as a salted PBKDF2 hash, and is spent when used. */
 const ALPHABET="ABCDEFGHJKMNPQRSTVWXYZ23456789"; // no I, L, O, U, 0, 1: nothing to confuse when copying by hand
 export function makeRecoveryCode(){
-  const bytes=crypto.getRandomValues(new Uint8Array(20));let s="";
-  for(const b of bytes)s+=ALPHABET[b%ALPHABET.length];
+  // rejection sampling: 256 is not a multiple of 30, so bytes ≥ 240 are skipped to keep every character equally likely
+  let s="";
+  while(s.length<20){for(const b of crypto.getRandomValues(new Uint8Array(32))){if(b<240&&s.length<20)s+=ALPHABET[b%ALPHABET.length];}}
   return s.match(/.{4}/g).join("-");
 }
 export function normalizeRecoveryCode(input){

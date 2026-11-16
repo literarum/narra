@@ -2,9 +2,9 @@
    This file is the engine room: the prompt library, the hidden evaluation protocol, the local safety net, local pattern detection,
    session state and the memory that carries between sessions. Pure (no DOM, no network, no storage, clock passed in).
    Honest limits are part of the design: it is a thinking partner, not a therapist — it does not diagnose, prescribe or promise results. */
-import {foldRu} from "./domain.mjs?v=4.6.0";
-import {strip,mdToPlain} from "./text.mjs?v=4.6.0";
-import {dayKey,addDays} from "./stats.mjs?v=4.6.0";
+import {foldRu} from "./domain.mjs?v=4.7.0";
+import {strip,mdToPlain} from "./text.mjs?v=4.7.0";
+import {dayKey,addDays} from "./stats.mjs?v=4.7.0";
 
 /* ---------- 1. modes ---------- */
 export const MODES=[
