@@ -47,3 +47,8 @@ test("list blocks are recognised",()=>{
   assert.equal(parseBlock("текст").kind,null);
   assert.equal(typeof continueList,"function");
 });
+test("underscores and stars inside Cyrillic words are not emphasis",()=>{
+  assert.equal(renderInline("мой_файл_тут"),"мой_файл_тут");
+  assert.equal(renderInline("слово*звезда*слово"),"слово*звезда*слово");
+  assert.equal(renderInline("_курсив_"),"<em>курсив</em>");
+});

@@ -36,7 +36,7 @@ export function reflectiveQuestions(entry,{max=3}={}){
   const pool=[...(BY_KIND[entry.kind]||BY_KIND.thought)];
   if(/сомнева|не знаю|не уверен|не понимаю/.test(text))pool.unshift("Что помогло бы прояснить сомнение — информация, время, разговор?");
   if(/устал|тяжело|не могу/.test(text))pool.unshift("Что сейчас могло бы стать хоть немного легче?");
-  if(/благодар|спасибо|рад[аы]?\b/.test(text))pool.unshift("Кому и за что вы благодарны в этой истории?");
+  if(/благодар|спасибо|(?:^|[^\p{L}])рад[аы]?(?![\p{L}])/iu.test(text))pool.unshift("Кому и за что вы благодарны в этой истории?");
   const start=hash(text)%pool.length,out=[];
   for(let i=0;i<pool.length&&out.length<max;i++)out.push(pool[(start+i)%pool.length]);
   return out;

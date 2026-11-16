@@ -304,8 +304,9 @@ export function renderInline(text){
   s=s.replace(/\*\*([^*\n]+)\*\*/g,"<strong>$1</strong>")
      .replace(/~~([^~\n]+)~~/g,"<del>$1</del>")
      .replace(/==([^=\n]+)==/g,"<mark>$1</mark>")
-     .replace(/(?<![_\w])_([^_\n]+)_(?![_\w])/g,"<em>$1</em>")
-     .replace(/(?<![*\w])\*([^*\n]+)\*(?![*\w])/g,"<em>$1</em>")
+     // letters of any alphabet count as word characters (\w would miss Cyrillic): «мой_файл_тут» is not italic
+     .replace(/(?<![_\p{L}\p{N}])_([^_\n]+)_(?![_\p{L}\p{N}])/gu,"<em>$1</em>")
+     .replace(/(?<![*\p{L}\p{N}])\*([^*\n]+)\*(?![*\p{L}\p{N}])/gu,"<em>$1</em>")
      .replace(/(^|[\s(])#([\p{L}\p{N}_-]{2,40})/gu,(m,pre,tag)=>/^[\d_-]+$/u.test(tag)?m:`${pre}<span class="md-tag">#${tag}</span>`);
   return s.replace(/\u0000(\d+)\u0000/g,(_,i)=>holds[Number(i)]??"");
 }
