@@ -24,7 +24,7 @@ test("rising words: too little text says so instead of guessing",()=>{
   assert.equal(shiftingWords([e(1,"переезд")],{now}).enough,false);
 });
 test("near duplicates: the same text twice, not two different days",()=>{
-  const a=e(3,"Сегодня долго гуляли у реки и смотрели на закат, было тепло и спокойно"),b=e(2,"Сегодня долго гуляли у реки и смотрели на закат, было тепло и спокойно!"),c=e(1,"Работа, звонки, письма и встреча с командой до вечера");
+  const a=e(3,"Сегодня долго гуляли у реки и смотрели на закат, было тепло и спокойно, а потом пили чай дома"),b=e(2,"Сегодня долго гуляли у реки и смотрели на закат, было тепло и спокойно, а потом пили чай дома!"),c=e(1,"Работа, звонки, письма и встреча с командой до вечера");
   const d=nearDuplicates([a,b,c]);
   assert.equal(d.length,1);assert.ok(d[0].similarity>.9);
   assert.equal(nearDuplicates([a,b,c],{dismissed:new Set([d[0].key])}).length,0);

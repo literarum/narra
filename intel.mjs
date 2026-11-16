@@ -57,7 +57,7 @@ export function shingles(text,w=3){
 }
 export function jaccard(a,b){if(!a.size||!b.size)return 0;let inter=0;const [s,l]=a.size<b.size?[a,b]:[b,a];for(const x of s)if(l.has(x))inter++;return inter/(a.size+b.size-inter);}
 /** Pairs of entries that are almost the same text (pasted twice, saved twice, a copy that was never changed). */
-export function nearDuplicates(entries,{threshold=.6,minShingles=4,dismissed=new Set(),limit=30}={}){
+export function nearDuplicates(entries,{threshold=.6,minShingles=10,dismissed=new Set(),limit=30}={}){
   const list=(entries||[]).filter(e=>!e.deletedAt).map(e=>({e,s:shingles(`${e.title||""} ${e.body||""}`)})).filter(x=>x.s.size>=minShingles);
   // candidate pairs share a rare shingle; this keeps the comparison far below n² on a real diary
   const index=new Map();

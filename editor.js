@@ -482,6 +482,14 @@ function enterView(){
   const sa=$("#attach-strip");if(sa)sa.innerHTML="";
   hideSlash();closeFind({focusBody:false});
   setPreview(true,{focus:false});
+  // at the end of a read entry: up to three entries that share its themes, people or words — each says why
+  import("./memories.js?v=4.7.0").then(m=>{
+    const pv=$("#entry-preview");if(!pv||state.editing?.id!==ed.id||state.editorMode!=="view")return;
+    const rel=m.relatedEntriesFor(ed,3);if(!rel.length)return;
+    const box=document.createElement("aside");box.className="view-related";box.setAttribute("aria-label","Перекликается");
+    box.innerHTML=`<h2>Перекликается</h2>${rel.map(r=>`<button type="button" class="view-related-item" data-action="open-entry" data-id="${escapeHtml(r.entry.id)}"><strong>${escapeHtml(entryText(r.entry).title)}</strong><small>${escapeHtml(fmtDate(r.entry.happenedAt,{year:"numeric"}))}${r.sharedTerms?.length?` · общее: ${escapeHtml(r.sharedTerms.slice(0,3).join(", "))}`:""}</small></button>`).join("")}`;
+    pv.append(box);
+  }).catch(()=>{});
   requestAnimationFrame(()=>{autosize(t);const s=$("#editor-surface");if(s)s.scrollTop=0;$('[data-action="edit-entry"]')?.focus({preventScroll:true});});
 }
 function enterEdit(){

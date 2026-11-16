@@ -1,10 +1,11 @@
 /* Journal: timeline with day headers, calendar, life chapters, trash; filters, bulk actions and paging. */
-import {state,ctx,$,$$,escapeHtml,icon,fmtLong,fmtMonthYear,fmtDate,fmtDayRange,relDay,fmtTime,localDateKey,entryLabel,activeEntries,trashedEntries,kindOptions,kindLabels,capitalizeRu,featureOn,uid,nowIso,downloadBlob,isoStamp,mediaOf,checkinLabel,plural} from "./core.js?v=4.7.0";
+import {safeStorageGet,safeStorageSet,entryById,state,ctx,$,$$,escapeHtml,icon,fmtLong,fmtMonthYear,fmtDate,fmtDayRange,relDay,fmtTime,localDateKey,entryLabel,activeEntries,trashedEntries,kindOptions,kindLabels,capitalizeRu,featureOn,uid,nowIso,downloadBlob,isoStamp,mediaOf,checkinLabel,plural} from "./core.js?v=4.7.0";
 import {entryText} from "./text.mjs?v=4.7.0";
 import {nextRevision} from "./domain.mjs?v=4.7.0";
 import {checkinSummary} from "./checkin.mjs?v=4.7.0";
 import {chapterOf,chapterEntries,sortChapters,chapterMembership,chapterPatch,NO_CHAPTER} from "./entities.mjs?v=4.7.0";
 import {entryToMarkdown} from "./importers.mjs?v=4.7.0";
+import {nearDuplicates} from "./intel.mjs?v=4.7.0";
 import {dayKey} from "./stats.mjs?v=4.7.0";
 import {pageHeader,emptyState,tabs,selectHtml,field,checkRow,modalHeader} from "./kit.js?v=4.7.0";
 import {entryRows,entryRow} from "./entries-ui.js?v=4.7.0";
@@ -189,6 +190,34 @@ function galleryItems(){
 function galleryMarkup(items){
   return `<p class="subtle text-small gallery-note">Фото из записей: ${items.length}. Нажмите, чтобы открыть запись.</p><div class="photo-grid">${items.slice(0,600).map(({a,e})=>`<button type="button" class="photo-cell" data-action="open-entry" data-id="${escapeHtml(e.id)}" aria-label="${escapeHtml(`${entryText(e).title}, ${fmtDate(e.happenedAt,{year:"numeric"})}`)}"><img data-media-thumb="${escapeHtml(a.id)}" alt="" loading="lazy"><span>${escapeHtml(fmtDate(e.happenedAt))}</span></button>`).join("")}</div>`;
 }
+/** Several entries become one: the texts in time order under their dates, people/places/themes combined, photos moved along.
+    The originals go to the trash, so the step can be undone from there. */
+export function mergeEntries(list,{after=null}={}){
+    ctx.confirmDialog({title:`Объединить ${list.length} ${entryLabel(list.length)}?`,text:"Получится одна запись: тексты по порядку под своими датами, люди, места и темы — вместе, фото и аудио переедут в неё.",detail:"Исходные записи уйдут в корзину — оттуда их можно вернуть.",confirmLabel:"Объединить",iconName:"layout"},async()=>{
+      try{
+        const id=uid(),now=nowIso(),u=k=>[...new Set(list.flatMap(e=>e[k]||[]))];
+        const body=list.map(e=>`## ${fmtDate(e.happenedAt,{year:"numeric"})}${e.title?` · ${e.title}`:""}\n\n${String(e.body||"").trim()}`).join("\n\n");
+        const merged={id,title:`Вместе: ${fmtDayRange(dayKey(list[0].happenedAt),dayKey(list[list.length-1].happenedAt))}`,body,kind:"thought",happenedAt:list[0].happenedAt,createdAt:now,updatedAt:now,revision:1,favorite:list.some(e=>e.favorite),completedAt:now,deletedAt:null,
+          people:u("people"),themes:u("themes"),projects:u("projects").slice(0,12),location:list.find(e=>e.location)?.location||"",sensitive:list.some(e=>e.sensitive),dismissedSuggestions:[],happenedEnd:list.length>1?list[list.length-1].happenedAt:null,chapterId:null,links:[],decision:null,pinned:false,openOn:null};
+        await store.commitEntrySnapshot(merged,"merge");
+        for(const e of list)for(const a of state.attachments.filter(a=>a.entryId===e.id))await store.moveAttachment(a.id,id);
+        await bulkUpdate(list.map(e=>e.id),()=>({deletedAt:nowIso()}),"merged_into");
+        state.journalSelected=new Set();state.journalSelect=false;after?.();
+        await store.loadData();store.notifyChange("entry");ctx.render();
+        ctx.toast("Записи объединены. Исходные — в корзине.",{label:"Открыть",action:"open-entry",id});
+      }catch(error){console.error(error);await store.loadData().catch(()=>{});ctx.render();ctx.toast("Не удалось объединить записи. Ничего не потеряно.");}
+    });
+}
+
+/* Entries that are almost the same text (pasted or saved twice). Jaccard resemblance of word 3-shingles; 60 % and more is shown. */
+const dupDismissed=()=>{try{return new Set(JSON.parse(safeStorageGet("narra-dup-dismissed")||"[]"));}catch{return new Set();}};
+export function showDuplicates(){
+  const pairs=nearDuplicates(activeEntries(),{dismissed:dupDismissed()});
+  const row=p=>`<div class="dup-pair card"><div class="dup-head"><strong>Совпадает на ${Math.round(p.similarity*100)} %</strong><span class="subtle text-small">по фрагментам из трёх слов подряд</span></div>
+    ${[p.a,p.b].map(e=>`<button type="button" class="dup-entry" data-action="open-entry" data-id="${escapeHtml(e.id)}"><span>${escapeHtml(entryText(e).title)}</span><small>${escapeHtml(fmtDate(e.happenedAt,{year:"numeric"}))} · ${e.body.length} симв.</small></button>`).join("")}
+    <div class="dup-actions"><button class="ghost" data-action="dup-dismiss" data-key="${escapeHtml(p.key)}">Это не повтор</button><button class="secondary" data-action="dup-merge" data-a="${escapeHtml(p.a.id)}" data-b="${escapeHtml(p.b.id)}">Объединить</button></div></div>`;
+  ctx.sheetDialog(`${modalHeader("Похожие записи",pairs.length?`Найдено пар: ${pairs.length}`:"Повторов нет","layout","close-dialog")}<div class="modal-body dup-body">${pairs.length?`<p class="subtle text-small">Записи с почти одинаковым текстом — например, сохранённые дважды. Решаете вы: объединить или оставить как есть.</p>${pairs.map(row).join("")}`:`<p>Записей с почти одинаковым текстом нет.</p>`}</div>`,"Похожие записи");
+}
 export function journalView(){
   const trashCount=trashedEntries().length;
   const items=[["timeline","Лента"],["calendar","Календарь"]];
@@ -208,6 +237,9 @@ export function journalView(){
 }
 export const views={journal:journalView};
 export const actions={
+  "find-duplicates":()=>showDuplicates(),
+  "dup-dismiss":el=>{const set=dupDismissed();set.add(el.dataset.key);safeStorageSet("narra-dup-dismissed",JSON.stringify([...set].slice(-500)));el.closest(".dup-pair")?.remove();},
+  "dup-merge":el=>{const a=entryById(el.dataset.a),b=entryById(el.dataset.b);if(!a||!b)return;ctx.closeDialog({restoreFocus:false});mergeEntries([a,b].sort((x,y)=>new Date(x.happenedAt)-new Date(y.happenedAt)));},
   "journal-order":()=>{ctx.setPref("journalOrder",state.prefs.journalOrder==="old"?"new":"old");state.journalLimit=state.prefs.journalPage;ctx.render();},
   "calendar-prev":()=>{state.calendarCursor=ctx.shiftMonth(state.calendarCursor,-1);state.calendarSelectedDate=null;ctx.render();},
   "calendar-next":()=>{state.calendarCursor=ctx.shiftMonth(state.calendarCursor,1);state.calendarSelectedDate=null;ctx.render();},
@@ -250,20 +282,7 @@ export const actions={
   "bulk-merge":()=>{
     const list=selected().map(id=>state.entries.find(e=>e.id===id)).filter(Boolean).sort((a,b)=>new Date(a.happenedAt)-new Date(b.happenedAt));
     if(list.length<2)return;
-    ctx.confirmDialog({title:`Объединить ${list.length} ${entryLabel(list.length)}?`,text:"Получится одна запись: тексты по порядку под своими датами, люди, места и темы — вместе, фото и аудио переедут в неё.",detail:"Исходные записи уйдут в корзину — оттуда их можно вернуть.",confirmLabel:"Объединить",iconName:"layout"},async()=>{
-      try{
-        const id=uid(),now=nowIso(),u=k=>[...new Set(list.flatMap(e=>e[k]||[]))];
-        const body=list.map(e=>`## ${fmtDate(e.happenedAt,{year:"numeric"})}${e.title?` · ${e.title}`:""}\n\n${String(e.body||"").trim()}`).join("\n\n");
-        const merged={id,title:`Вместе: ${fmtDayRange(dayKey(list[0].happenedAt),dayKey(list[list.length-1].happenedAt))}`,body,kind:"thought",happenedAt:list[0].happenedAt,createdAt:now,updatedAt:now,revision:1,favorite:list.some(e=>e.favorite),completedAt:now,deletedAt:null,
-          people:u("people"),themes:u("themes"),projects:u("projects").slice(0,12),location:list.find(e=>e.location)?.location||"",sensitive:list.some(e=>e.sensitive),dismissedSuggestions:[],happenedEnd:list.length>1?list[list.length-1].happenedAt:null,chapterId:null,links:[],decision:null,pinned:false,openOn:null};
-        await store.commitEntrySnapshot(merged,"merge");
-        for(const e of list)for(const a of state.attachments.filter(a=>a.entryId===e.id))await store.moveAttachment(a.id,id);
-        await bulkUpdate(list.map(e=>e.id),()=>({deletedAt:nowIso()}),"merged_into");
-        state.journalSelected=new Set();state.journalSelect=false;
-        await store.loadData();store.notifyChange("entry");ctx.render();
-        ctx.toast("Записи объединены. Исходные — в корзине.",{label:"Открыть",action:"open-entry",id});
-      }catch(error){console.error(error);await store.loadData().catch(()=>{});ctx.render();ctx.toast("Не удалось объединить записи. Ничего не потеряно.");}
-    });
+    mergeEntries(list);
   },
   "bulk-export":()=>{
     const list=selected().map(id=>state.entries.find(e=>e.id===id)).sort((a,b)=>new Date(a.happenedAt)-new Date(b.happenedAt));

@@ -1,6 +1,6 @@
 /* Memories: a few explainable selections from the user's own entries. Nothing is invented and there is no endless feed.
    Every card says why it is shown; entries, people, places and themes can be muted. */
-import {state,ctx,$,escapeHtml,icon,relDay,dayOffset,activeEntries,todayKey,safeStorageGet,safeStorageSet,featureOn,yearsLabel,pluralRu,kindLabels} from "./core.js?v=4.7.0";
+import {fmtDate,localDateKey,state,ctx,$,escapeHtml,icon,relDay,dayOffset,activeEntries,todayKey,safeStorageGet,safeStorageSet,featureOn,yearsLabel,pluralRu,kindLabels} from "./core.js?v=4.7.0";
 import {relatedEntryScore,circularMonthDayDistance} from "./domain.mjs?v=4.7.0";
 import {entryText,excerpt,openChecklistItems} from "./text.mjs?v=4.7.0";
 import {pageHeader,emptyState,tabs,modalHeader} from "./kit.js?v=4.7.0";
@@ -9,6 +9,8 @@ import {entitiesOf,chapterOf,chapterEntries,sortChapters} from "./entities.mjs?v
 import {aliasMap,semanticIndex,hasMutedTopic,entityMap} from "./derived.js?v=4.7.0";
 import {similar,whyRelated} from "./semantic.mjs?v=4.7.0";
 import {dayKey} from "./stats.mjs?v=4.7.0";
+import {keySentences,intentions,quietPeople} from "./intel.mjs?v=4.7.0";
+import {stemRu} from "./domain.mjs?v=4.7.0";
 import * as store from "./store.js?v=4.7.0";
 
 export function memoryCandidates(){
@@ -78,10 +80,26 @@ function modeTabs(){
   if(featureOn("featChapters"))items.push(["chapter","Главы"]);
   items.push(["related","Перекликается"]);
   if((state.quotes||[]).length)items.push(["quotes","Цитаты"]);
+  if(intentionsList().length)items.push(["intentions","Намерения"]);
+  if(quietList().length)items.push(["people","Давно не писали"]);
   if(state.entries.some(e=>!e.deletedAt&&e.openOn))items.push(["capsules","Письма в будущее"]);
   if(featureOn("featSemantic"))items.push(["near","По близости слов"]);
   if(!items.some(i=>i[0]===state.memoriesMode))state.memoriesMode="day";
   return tabs("memories",items,state.memoriesMode,{label:"Виды воспоминаний"});
+}
+/* Intentions once written down («хочу…», «собираюсь…») from 2 weeks to a year ago — offered back, never as a to-do list. */
+const intentDismissed=()=>{try{return new Set(JSON.parse(safeStorageGet("narra-intent-dismissed")||"[]"));}catch{return new Set();}};
+const intentionsList=()=>intentions(memoryCandidates(),{dismissed:intentDismissed()});
+const quietList=()=>quietPeople([...entityMap().values()].filter(r=>!state.mutedTopics.includes(r.key)));
+function intentionsPanel(){
+  const list=intentionsList();
+  if(!list.length)return emptyState("Намерений не нашлось","Здесь появляются фразы вроде «хочу…» или «собираюсь…» из записей двухнедельной давности и старше.","","memories");
+  return section("Вы собирались","Фразы о намерениях из ваших записей. Это не список дел: может, всё уже сделано, а может, передумалось — и это тоже ответ.",`<div class="quote-list">${list.map(x=>`<figure class="card quote-card"><blockquote>${escapeHtml(x.text)}</blockquote><figcaption><button class="link-button" data-action="open-entry" data-id="${escapeHtml(x.entry.id)}">${escapeHtml(entryText(x.entry).title)}</button><span class="subtle">${x.days} ${pluralRu(x.days,"день","дня","дней")} назад</span><span class="intent-actions"><button class="ghost" data-action="intent-write" data-id="${escapeHtml(x.entry.id)}">Написать, как вышло</button><button class="icon-button icon-button-quiet" data-action="intent-dismiss" data-key="${escapeHtml(x.key)}" aria-label="Больше не показывать">${icon("x")}</button></span></figcaption></figure>`).join("")}</div>`);
+}
+function peoplePanel(){
+  const list=quietList();
+  if(!list.length)return emptyState("Все на виду","Здесь появляются люди, о которых вы писали часто, но давно — больше двух месяцев.","","memories");
+  return section("Давно не писали о…","Люди, которых вы упоминали много раз, но не в последние два месяца. Просто напоминание — без выводов.",`<div class="entity-quiet-list">${list.map(r=>`<div class="card quiet-row"><span><strong>${escapeHtml(r.name)}</strong><small>${r.count} ${pluralRu(r.count,"запись","записи","записей")} · последний раз ${escapeHtml(fmtDate(r.last,{year:"numeric"}))}</small></span><span class="quiet-actions"><button class="ghost" data-action="lifemap-open" data-key="${escapeHtml(r.key)}">Все записи</button><button class="secondary" data-action="quiet-write" data-name="${escapeHtml(r.name)}">Написать</button></span></div>`).join("")}</div>`);
 }
 function quotesPanel(){
   const live=new Map(activeEntries().map(e=>[e.id,e]));
@@ -100,6 +118,8 @@ function capsulesPanel(){
 function panel(pool){
   const mode=state.memoriesMode;
   if(mode==="quotes")return quotesPanel();
+  if(mode==="intentions")return intentionsPanel();
+  if(mode==="people")return peoplePanel();
   if(mode==="capsules")return capsulesPanel();
   if(mode==="day"){
     const {exact,near}=onThisDay(pool);
@@ -144,7 +164,19 @@ function muteSheet(id){
     ${ents.map(x=>`<button class="more-menu-item" data-action="mute-topic" data-key="${escapeHtml(x.key)}">${icon("eye")}<span><strong>Всё, где ${label[x.type]} «${escapeHtml(x.name)}»</strong><small>Скрыть записи с этим упоминанием</small></span>${icon("chevron-right")}</button>`).join("")}</div>`;
 }
 export const views={memories:memoriesView};
+/* «The week in your own words»: the most central sentences of a period (TextRank), quoted as written, each with its entry.
+   Only on request — nothing is summarised behind the person's back. */
+export function showKeySentences({from=null,to=null,label="За последние 7 дней"}={}){
+  const t=todayKey(),f=from||localDateKey(new Date(Date.now()-6*86400000)),e=to||t;
+  const list=activeEntries().filter(x=>{const k=localDateKey(new Date(x.happenedAt));return k>=f&&k<=e&&!x.sensitive;});
+  const picks=keySentences(list,{limit:3,stem:stemRu});
+  ctx.sheetDialog(`${modalHeader("Своими словами",label,"quote","close-dialog")}<div class="modal-body key-sentences">${picks.length?`<p class="subtle text-small">Три самые «центральные» фразы из ваших записей за период — те, что больше всего перекликаются с остальными. Ни одно слово не изменено. Личные записи не используются.</p>${picks.map(p=>`<figure class="quote-card card"><blockquote>${escapeHtml(p.text)}</blockquote><figcaption><button class="link-button" data-action="open-entry" data-id="${escapeHtml(p.entry.id)}">${escapeHtml(entryText(p.entry).title)}</button><span class="subtle">${escapeHtml(relDay(p.entry.happenedAt))}</span></figcaption></figure>`).join("")}`:`<p>За этот период ${list.length?"предложений слишком мало":"записей нет"}, чтобы что-то выбрать.</p>`}</div>`,"Своими словами");
+}
 export const actions={
+  "intent-dismiss":el=>{const s=intentDismissed();s.add(el.dataset.key);safeStorageSet("narra-intent-dismissed",JSON.stringify([...s].slice(-500)));ctx.render();},
+  "intent-write":async el=>{const src=state.entries.find(e=>e.id===el.dataset.id);if(!src)return;await ctx.openEditor(null,{body:"",edit:true});if(state.editing){state.editing.links=[{to:src.id,type:"continuation"}];ctx.markEditorDirty?.("intent");}ctx.toast("Новая запись связана с той, где было намерение.");},
+  "quiet-write":async el=>{const name=el.dataset.name;await ctx.openEditor(null,{body:"",people:[name],edit:true});},
+  "key-sentences":el=>showKeySentences(el?.dataset?.from?{from:el.dataset.from,to:el.dataset.to,label:el.dataset.label}:{}),
   "quote-delete":async el=>{try{await store.saveQuotes((state.quotes||[]).filter(q=>q.id!==el.dataset.id));ctx.render();ctx.toast("Цитата удалена.");}catch(error){console.error(error);ctx.toast("Не удалось удалить цитату.");}},
   "dismiss-memory":el=>{safeStorageSet("narra-memory-dismissed",todayKey());const s=el.closest(".section");if(s)ctx.collapseAndRemove(s);},
   "mute-memory":el=>ctx.sheetDialog(muteSheet(el.dataset.id),"Скрыть воспоминание"),

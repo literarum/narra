@@ -1,10 +1,11 @@
 /* Today: quick capture, a short check-in, one memory, one question, recent entries, first-run welcome. */
-import {talkAvailable,state,ctx,$,$$,escapeHtml,icon,uid,nowIso,fmtLong,fmtTime,relDay,activeEntries,sameDay,todayKey,safeStorageGet,safeStorageSet,featureOn,PREF_KEY,pluralRu,backupDue,sealedCapsules} from "./core.js?v=4.7.0";
+import {localDateKey,talkAvailable,state,ctx,$,$$,escapeHtml,icon,uid,nowIso,fmtLong,fmtTime,relDay,activeEntries,sameDay,todayKey,safeStorageGet,safeStorageSet,featureOn,PREF_KEY,pluralRu,backupDue,sealedCapsules} from "./core.js?v=4.7.0";
 import {entryText} from "./text.mjs?v=4.7.0";
 import {pageHeader,modalHeader} from "./kit.js?v=4.7.0";
 import {entryRows} from "./entries-ui.js?v=4.7.0";
 import {checkinCard} from "./checkin-ui.js?v=4.7.0";
-import {memoryCard} from "./memories.js?v=4.7.0";
+import {memoryCard,onThisDay,memoryCandidates} from "./memories.js?v=4.7.0";
+import {parseRussianDateHint} from "./domain.mjs?v=4.7.0";
 import * as store from "./store.js?v=4.7.0";
 
 const PROMPTS=[
@@ -46,7 +47,15 @@ export function pauseNote(entries,now=new Date()){
   const verb=days<30&&word==="день"?"прошёл":"прошло";
   return `<p class="pause-note">${icon("moon")}<span>С последней записи ${verb} ${n}. Ничего страшного — можно начать с одной фразы.</span></p>`;
 }
-const promptMarkup=()=>`<section class="section" id="prompt-section"><div class="section-heading"><h2>Вопрос для размышления</h2></div><article class="card prompt-card"><p>${escapeHtml(dailyPrompt())}</p><div class="prompt-actions"><button class="ghost button-with-icon" data-action="next-prompt" aria-label="Другой вопрос">${icon("refresh")}<span>Другой</span></button>${state.ai?.enabled?`<button class="ghost button-with-icon" data-action="prompt-ai" aria-label="Вопрос по моим записям">${icon("sparkle")}<span>По моим записям</span></button>`:""}<button class="secondary" data-action="use-prompt">Ответить</button></div></article></section>`;
+/* A question from the person's own past: an entry from this date in an earlier year, with «what has changed since?» */
+function echoMarkup(){
+  if(!featureOn("featMemories")||safeStorageGet("narra-echo-dismissed")===todayKey())return "";
+  const {exact}=onThisDay(memoryCandidates());if(!exact.length)return "";
+  const e=[...exact].sort((a,b)=>String(a.happenedAt).localeCompare(String(b.happenedAt)))[0],years=new Date().getFullYear()-new Date(e.happenedAt).getFullYear();
+  const t=entryText(e,160);
+  return `<section class="section" id="echo-section"><div class="section-heading"><h2>Вопрос из прошлого</h2></div><article class="card prompt-card echo-card"><p class="eyebrow">${years} ${pluralRu(years,"год","года","лет")} назад, в этот день</p><blockquote>«${escapeHtml(t.title)}${t.rest?` — ${escapeHtml(t.rest)}`:""}»</blockquote><p>Что изменилось с тех пор?</p><div class="prompt-actions"><button class="ghost" data-action="echo-dismiss">Не сегодня</button><button class="ghost" data-action="open-entry" data-id="${escapeHtml(e.id)}">Перечитать</button><button class="secondary" data-action="echo-answer" data-id="${escapeHtml(e.id)}">Ответить</button></div></article></section>`;
+}
+const promptMarkup=()=>`${echoMarkup()}<section class="section" id="prompt-section"><div class="section-heading"><h2>Вопрос для размышления</h2></div><article class="card prompt-card"><p>${escapeHtml(dailyPrompt())}</p><div class="prompt-actions"><button class="ghost button-with-icon" data-action="next-prompt" aria-label="Другой вопрос">${icon("refresh")}<span>Другой</span></button>${state.ai?.enabled?`<button class="ghost button-with-icon" data-action="prompt-ai" aria-label="Вопрос по моим записям">${icon("sparkle")}<span>По моим записям</span></button>`:""}<button class="secondary" data-action="use-prompt">Ответить</button></div></article></section>`;
 export const greetingText=(now=new Date())=>{const h=now.getHours();return h<5?"Доброй ночи":h<12?"Доброе утро":h<18?"Добрый день":"Добрый вечер";};
 
 function spaceNoticeMarkup(){
@@ -102,7 +111,7 @@ export function todayView(){
     <div class="hero-grid${p.showCheckin?"":" is-single"}">
       <article class="card quick-card"><div><p class="eyebrow">Быстрая запись</p><h2>Что сейчас хочется запомнить?</h2></div>
         <textarea class="quick-capture" id="quick-capture" aria-label="Быстрая запись" autocomplete="off" spellcheck="${p.spellcheck}" placeholder="Достаточно одной фразы…"></textarea>
-        <div class="quick-footer"><span class="save-state" id="quick-state" role="status"><i class="save-dot"></i><span>Начните писать</span></span><div class="quick-actions"><button class="ghost" data-action="expand-quick">Открыть в редакторе</button><button class="primary button-with-icon" id="save-quick" data-action="save-quick" disabled>${icon("check")}<span>Сохранить</span></button></div></div>
+        <div class="quick-footer"><span class="save-state" id="quick-state" role="status"><i class="save-dot"></i><span>Начните писать</span></span><button type="button" class="chip quick-date" id="quick-date" data-action="quick-date" aria-pressed="false" hidden></button><div class="quick-actions"><button class="ghost" data-action="expand-quick">Открыть в редакторе</button><button class="primary button-with-icon" id="save-quick" data-action="save-quick" disabled>${icon("check")}<span>Сохранить</span></button></div></div>
       </article>
       ${p.showCheckin?checkinCard():""}
     </div>
@@ -116,6 +125,10 @@ function updateQuickState(){
   const quick=$("#quick-capture"),label=$("#quick-state span"),save=$("#save-quick"),dot=$("#quick-state");
   if(!quick||!label)return;
   const has=Boolean(quick.value.trim());
+  const hint=has?parseRussianDateHint(quick.value,new Date()):null,chip=$("#quick-date");
+  const differs=hint&&localDateKey(new Date(hint.iso))!==todayKey();
+  if(!differs)state.quickDateOn=false;
+  if(chip){chip.hidden=!differs;if(differs){chip.textContent=`${state.quickDateOn?"✓ ":""}${hint.label.replace(/^Дата: /,"Записать на ")}`;chip.setAttribute("aria-pressed",String(Boolean(state.quickDateOn)));chip.classList.toggle("is-on",Boolean(state.quickDateOn));chip.dataset.iso=hint.iso;}}
   label.textContent=has?"Ещё не сохранено":"Начните писать";
   dot?.classList.toggle("is-busy",has);
   if(save)save.disabled=!has;
@@ -151,8 +164,11 @@ async function quickToEntry(expand=false){
   try{
     const recent=activeEntries().find(e=>e.body.trim()===q&&Date.now()-new Date(e.createdAt).getTime()<10000);
     if(recent){ctx.toast("Такая запись только что уже сохранена.");return;}
-    const at=nowIso();
-    const entry={id:uid(),title:"",body:q,kind:"thought",happenedAt:at,createdAt:at,updatedAt:at,revision:1,favorite:false,sensitive:false,completedAt:at,deletedAt:null,people:[],themes:[],projects:[],location:"",dismissedSuggestions:[],happenedEnd:null,chapterId:null,links:[],decision:null};
+    const at=nowIso(),chip=$("#quick-date");
+    // the date chosen from the text keeps the current time of day, so the entry sorts naturally within that day
+    const happened=state.quickDateOn&&chip?.dataset.iso?(()=>{const d=new Date(chip.dataset.iso),n=new Date();d.setHours(n.getHours(),n.getMinutes(),n.getSeconds(),0);return d.toISOString();})():at;
+    state.quickDateOn=false;
+    const entry={id:uid(),title:"",body:q,kind:"thought",happenedAt:happened,createdAt:at,updatedAt:at,revision:1,favorite:false,sensitive:false,completedAt:at,deletedAt:null,people:[],themes:[],projects:[],location:"",dismissedSuggestions:[],happenedEnd:null,chapterId:null,links:[],decision:null};
     await store.commitEntrySnapshot(entry,"quick_capture");await store.loadData();store.notifyChange("entry");
     clearQuick();ctx.render();
     ctx.toast("Запись сохранена.",{label:"Открыть",action:"open-entry",id:entry.id});
@@ -195,6 +211,10 @@ export const actions={
   "quick-focus":()=>{ctx.goTo("today");setTimeout(()=>$("#quick-capture")?.focus(),80);},
   "prompt-ai":async()=>{const m=await ctx.loadLazy("assistant");m.dailyQuestionFlow();},
   "use-prompt":()=>{const i=promptIndex(),text=`${state.aiPrompt||PROMPTS[i]}\n\n`;markPromptUsed(i);state.aiPrompt=null;state.promptShift++;ctx.openEditor(null,{body:text,prefill:text});},
+  "echo-dismiss":el=>{safeStorageSet("narra-echo-dismissed",todayKey());const s=el.closest("#echo-section");if(s)ctx.collapseAndRemove(s);},
+  "echo-answer":async el=>{const src=state.entries.find(e=>e.id===el.dataset.id);if(!src)return;const y=new Date(src.happenedAt).getFullYear();
+    const q=`Год ${y}, этот же день. Что изменилось с тех пор?\n\n`;await ctx.openEditor(null,{body:q,prefill:q,edit:true});if(state.editing){state.editing.links=[{to:src.id,type:"related"}];ctx.markEditorDirty?.("echo");}},
+  "quick-date":()=>{state.quickDateOn=!state.quickDateOn;updateQuickState();},
   "next-prompt":()=>{if(state.aiPrompt)state.aiPrompt=null;else{markPromptUsed(promptIndex());state.promptShift++;}const p=$("#prompt-section .prompt-card p");if(p){p.textContent=dailyPrompt();ctx.animateIn(p);}},
   "dismiss-reminder":el=>{safeStorageSet("narra-reminder-dismissed",todayKey());const n=el.closest(".reminder-card");if(n)ctx.collapseAndRemove(n);},
   "onboard-open":()=>ctx.sheetDialog(tourSheet(0),"Коротко о главном"),

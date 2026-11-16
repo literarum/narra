@@ -349,6 +349,8 @@ function commandItems(){
     {key:"export",group:"Система",icon:"backup",label:"Экспорт и резервная копия",kw:"скачать сохранить архив",action:"export"},
     {key:"import",group:"Система",icon:"upload",label:"Восстановить из копии",kw:"импорт загрузить файл markdown",action:"import"},
     {key:"diagnostics",group:"Система",icon:"shield",label:"Самопроверка",kw:"диагностика хранилище",action:"run-diagnostics"},
+    {key:"dups",group:"Действия",icon:"layout",label:"Найти похожие записи",kw:"повторы дубли дубликаты одинаковые объединить",action:"find-duplicates"},
+    {key:"week3",group:"Действия",icon:"quote",label:"Неделя своими словами",kw:"главное итог неделя фразы сводка",action:"key-sentences"},
     {key:"keys",group:"Система",icon:"keyboard",label:"Клавиши",kw:"горячие сочетания shortcuts помощь справка",action:"show-shortcuts"},
   ];
   if(state.lock)base.push({key:"lock",group:"Система",icon:"lock",label:"Заблокировать",kw:"пароль скрыть закрыть замок",action:"lock-now"});
