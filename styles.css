@@ -2088,3 +2088,10 @@ ul.card.talk-steps { padding: 8px 12px; }
 /* tab rows scroll, so an outside focus ring would be clipped into an odd shape: draw it inside the tab */
 .tabs .tab:focus-visible { outline-offset: -3px; border-radius: 10px; }
 .segmented button:focus-visible, .mobile-nav-item:focus-visible { outline-offset: -3px; }
+/* formatted assistant replies: compact lists and headings inside the bubble */
+.talk-bubble ul, .talk-bubble ol { margin: 6px 0; padding-left: 1.3em; }
+.talk-bubble li + li { margin-top: 3px; }
+.talk-bubble :is(h2, h3, h4, h5, h6) { margin: 10px 0 4px; font-size: 1em; font-weight: 650; }
+.talk-bubble :is(p, ul, ol, blockquote, pre, .md-table) + :is(p, ul, ol, blockquote, pre, .md-table) { margin-top: 8px; }
+.talk-bubble blockquote { margin: 0; padding-left: 10px; border-left: 2px solid var(--line-strong); color: var(--muted); }
+.talk-bubble pre { overflow-x: auto; font-size: 13px; }

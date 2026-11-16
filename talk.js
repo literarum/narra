@@ -1,5 +1,6 @@
 /* «Собеседник» and «Спросить дневник»: the conversation screen (loads on first use).
    The thinking about what to send lives in brain.mjs / therapy.mjs / hub.js; this file is the conversation: screens, turns, summary, steps and memory. */
+import {renderMarkdown} from "./md.mjs?v=4.7.0";
 import {state,ctx,$,$$,escapeHtml,icon,uid,nowIso,activeEntries,talkAvailable} from "./core.js?v=4.7.0";
 import {pageHeader,modalHeader,statusPill} from "./kit.js?v=4.7.0";
 import * as store from "./store.js?v=4.7.0";
@@ -87,7 +88,8 @@ export const views={talk:talkView};
 function msgMarkup(m,i,s){
   if(m.role==="user")return `<div class="talk-msg is-user" data-i="${i}"><div class="talk-bubble">${fmtBubble(m.content)}</div></div>`;
   const ins=m.meta?.insight?`<div class="talk-insight">${icon("bulb")}<span>${escapeHtml(m.meta.insight)}</span></div>`:"";
-  return `<div class="talk-msg is-ai${m.error?" is-error":""}" data-i="${i}"><div class="talk-bubble">${fmtBubble(m.content)}</div>${ins}</div>`;
+  // replies often use lists and emphasis: the same safe Markdown renderer as entries (text is escaped first, only http(s) links)
+  return `<div class="talk-msg is-ai${m.error?" is-error":""}" data-i="${i}"><div class="talk-bubble">${m.error?fmtBubble(m.content):renderMarkdown(String(m.content||""))}</div>${ins}</div>`;
 }
 function supportMarkup(){return `<aside class="talk-support" role="alert">${icon("shield")}<div><strong>${escapeHtml(SUPPORT.title)}</strong><p>${escapeHtml(SUPPORT.text)}</p><small>${escapeHtml(SUPPORT.note)}</small></div></aside>`;}
 function moodDots(s){
