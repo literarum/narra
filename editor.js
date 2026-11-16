@@ -888,6 +888,17 @@ async function printEntry(){
   if(state.dirty)await saveEditing("print").catch(()=>false);
   await printEntries([ed]);
 }
+const isTypingTarget=el=>el&&(el.isContentEditable||/^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName))&&!el.readOnly;
+/* A copy of the entry as a new draft dated now: same text, people, places and themes, no history, no media links. */
+async function duplicateEntry(){
+  const ed=state.editing;if(!ed)return;
+  if(state.dirty)await saveEditing("switch").catch(()=>false);
+  const body=String(ed.body||"").replace(/!\[[^\]]*\]\(narra-media:[^)]+\)\n?/g,"");
+  const {id,revision,createdAt,updatedAt,completedAt,deletedAt,happenedAt,happenedEnd,openOn,pinned,favorite,links,decision,...rest}=ed;
+  await openEditor(null,{...rest,body,title:ed.title?`${ed.title} (копия)`:"",edit:true});
+  markEditorDirty("duplicate");
+  ctx.toast("Копия открыта как новая запись. Фото и аудио не копируются.");
+}
 /* Quotes: the fragment selected in the reading view (remembered on selection, because a tap on «…» may clear it). */
 let lastQuote="";
 document.addEventListener("selectionchange",()=>{

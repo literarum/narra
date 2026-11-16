@@ -2290,3 +2290,4 @@ body[data-typewriter="on"] .editor-modal:not(.is-viewing) .editor-surface { padd
 .pixels.is-words .px.m2, .pixels-legend.is-words .px.m2 { background: color-mix(in srgb, var(--accent) 52%, var(--surface)); }
 .pixels.is-words .px.m3, .pixels-legend.is-words .px.m3 { background: color-mix(in srgb, var(--accent) 74%, var(--surface)); }
 .pixels.is-words .px.m4, .pixels-legend.is-words .px.m4 { background: var(--accent-strong); }
+@media (max-width: 720px) { .record-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .records-card { padding: 16px; } .record-tile strong { font-size: 22px; } }
