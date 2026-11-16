@@ -77,12 +77,30 @@ function modeTabs(){
   const items=[["day","В этот день"],["old","Давние мысли"]];
   if(featureOn("featChapters"))items.push(["chapter","Главы"]);
   items.push(["related","Перекликается"]);
+  if((state.quotes||[]).length)items.push(["quotes","Цитаты"]);
+  if(state.entries.some(e=>!e.deletedAt&&e.openOn))items.push(["capsules","Письма в будущее"]);
   if(featureOn("featSemantic"))items.push(["near","По близости слов"]);
   if(!items.some(i=>i[0]===state.memoriesMode))state.memoriesMode="day";
   return tabs("memories",items,state.memoriesMode,{label:"Виды воспоминаний"});
 }
+function quotesPanel(){
+  const live=new Map(activeEntries().map(e=>[e.id,e]));
+  const list=[...(state.quotes||[])].filter(q=>live.has(q.entryId)).reverse();
+  if(!list.length)return emptyState("Цитат пока нет","Выделите фрагмент при чтении записи и выберите «…» → «Сохранить цитату».","","memories");
+  return section("Ваши цитаты","Фрагменты, которые вы сохранили из своих записей.",`<div class="quote-list">${list.map(q=>{const e=live.get(q.entryId);return `<figure class="card quote-card"><blockquote>${escapeHtml(q.text)}</blockquote><figcaption><button class="link-button" data-action="open-entry" data-id="${escapeHtml(e.id)}">${escapeHtml(entryText(e).title)}</button><span class="subtle">${escapeHtml(relDay(e.happenedAt))}</span><button class="icon-button icon-button-quiet" data-action="quote-delete" data-id="${escapeHtml(q.id)}" aria-label="Удалить цитату">${icon("x")}</button></figcaption></figure>`;}).join("")}</div>`);
+}
+function capsulesPanel(){
+  const t=todayKey(),all=state.entries.filter(e=>!e.deletedAt&&e.openOn).sort((a,b)=>a.openOn.localeCompare(b.openOn));
+  const sealed=all.filter(e=>e.openOn>t),opened=all.filter(e=>e.openOn<=t).reverse();
+  const when=k=>new Intl.DateTimeFormat("ru-RU",{day:"numeric",month:"long",year:"numeric"}).format(new Date(`${k}T12:00:00`));
+  const env=e=>`<button type="button" class="card capsule-row" data-action="open-entry" data-id="${escapeHtml(e.id)}"><span class="capsule-envelope" aria-hidden="true">${icon("mail")}</span><span><strong>Откроется ${escapeHtml(when(e.openOn))}</strong><small>Написано ${escapeHtml(relDay(e.createdAt||e.happenedAt))}</small></span></button>`;
+  return (sealed.length?section("Ждут своего дня","Текст скрыт до даты открытия.",`<div class="capsule-list">${sealed.map(env).join("")}</div>`):"")
+    +(opened.length?section("Уже открылись","",entryRows(opened.slice(0,12),null,{reason:"Письмо в будущее"})):"");
+}
 function panel(pool){
   const mode=state.memoriesMode;
+  if(mode==="quotes")return quotesPanel();
+  if(mode==="capsules")return capsulesPanel();
   if(mode==="day"){
     const {exact,near}=onThisDay(pool);
     return section("В этот день","Та же дата в прошлые годы.",exact.length?entryRows(exact.slice(0,4),null,{reason:"Та же дата в другой год"}):"")
@@ -113,7 +131,7 @@ function panel(pool){
 export function memoriesView(){
   const pool=memoryCandidates();
   const head=pageHeader("Бережное возвращение","Воспоминания","Никакой бесконечной ленты: несколько объяснимых подборок.");
-  if(!pool.length)return `${head}${emptyState("Пока нечего возвращать","Пишите в своём ритме — Narra не будет создавать искусственные воспоминания.","","memories")}`;
+  if(!pool.length&&!(state.quotes||[]).length&&!state.entries.some(e=>!e.deletedAt&&e.openOn))return `${head}${emptyState("Пока нечего возвращать","Пишите в своём ритме — Narra не будет создавать искусственные воспоминания.","","memories")}`;
   return `${head}${modeTabs()}<div id="panel-memories" role="tabpanel" aria-labelledby="tab-memories-${state.memoriesMode}">${panel(pool)}</div>`;
 }
 
@@ -127,6 +145,7 @@ function muteSheet(id){
 }
 export const views={memories:memoriesView};
 export const actions={
+  "quote-delete":async el=>{try{await store.saveQuotes((state.quotes||[]).filter(q=>q.id!==el.dataset.id));ctx.render();ctx.toast("Цитата удалена.");}catch(error){console.error(error);ctx.toast("Не удалось удалить цитату.");}},
   "dismiss-memory":el=>{safeStorageSet("narra-memory-dismissed",todayKey());const s=el.closest(".section");if(s)ctx.collapseAndRemove(s);},
   "mute-memory":el=>ctx.sheetDialog(muteSheet(el.dataset.id),"Скрыть воспоминание"),
   "mute-entry":async el=>{

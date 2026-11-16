@@ -2259,3 +2259,14 @@ body[data-typewriter="on"] .editor-modal:not(.is-viewing) .editor-surface { padd
 .photo-cell img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .photo-cell span { position: absolute; left: 6px; bottom: 6px; padding: 2px 7px; border-radius: 8px; font-size: 11.5px; background: color-mix(in srgb, #000 48%, transparent); color: #fff; }
 @media (max-width: 720px) { .photo-grid { grid-template-columns: repeat(3, 1fr); gap: 4px; } .photo-cell { border-radius: 8px; } }
+
+/* ===== 4.7 — quotes and letters to the future in Memories ===== */
+.quote-list { display: grid; gap: 12px; }
+.quote-card { margin: 0; padding: 18px 20px; }
+.quote-card blockquote { margin: 0 0 10px; font: 400 18px/1.6 var(--serif); color: var(--text); }
+.quote-card blockquote::before { content: "«"; } .quote-card blockquote::after { content: "»"; }
+.quote-card figcaption { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 13px; }
+.quote-card figcaption .icon-button { margin-left: auto; }
+.capsule-list { display: grid; gap: 10px; }
+.capsule-row { display: flex; align-items: center; gap: 14px; width: 100%; padding: 14px 16px; text-align: left; color: var(--text); }
+.capsule-row span:last-child { display: grid; gap: 2px; } .capsule-row small { color: var(--muted); }

@@ -888,6 +888,20 @@ async function printEntry(){
   if(state.dirty)await saveEditing("print").catch(()=>false);
   await printEntries([ed]);
 }
+/* Quotes: the fragment selected in the reading view (remembered on selection, because a tap on «…» may clear it). */
+let lastQuote="";
+document.addEventListener("selectionchange",()=>{
+  if(state.editorMode!=="view")return;
+  const sel=document.getSelection?.(),pv=document.querySelector("#entry-preview");
+  if(!sel||!pv||sel.isCollapsed||!pv.contains(sel.anchorNode))return;
+  const t=String(sel.toString()).replace(/\s+/g," ").trim();if(t.length>=3)lastQuote=t.slice(0,1200);
+});
+async function saveQuote(){
+  const ed=state.editing;if(!ed)return;
+  if(!lastQuote){ctx.toast("Выделите фрагмент в тексте записи, затем снова откройте «…» → «Сохранить цитату».");return;}
+  try{await store.saveQuotes([...(state.quotes||[]),{id:uid(),entryId:ed.id,text:lastQuote,at:nowIso()}]);ctx.toast("Цитата сохранена. Все цитаты — в «Воспоминаниях».");lastQuote="";document.getSelection?.()?.removeAllRanges?.();}
+  catch(error){console.error(error);ctx.toast("Не удалось сохранить цитату.");}
+}
 function togglePin(){
   if(!state.editing)return;
   state.editing.pinned=!state.editing.pinned;markEditorDirty("pin");
@@ -938,6 +952,7 @@ function showEditorMore(){
     ${item("star",ed.favorite?"Убрать из избранного":"Добавить в избранное","favorite")}
     ${item("pin",ed.pinned?"Открепить":"Закрепить вверху дневника","pin")}
     ${ed.revision?item("copy","Дублировать","duplicate","Новая запись с тем же текстом"):""}
+    ${view?item("quote","Сохранить цитату","quote",lastQuote?`«${escapeHtml(lastQuote.slice(0,40))}${lastQuote.length>40?"…":""}»`:"Сначала выделите фрагмент текста"):""}
     ${item("copy","Скопировать текст","copy")}
     ${view?"":item("layout","Сохранить как шаблон","template","Структура записи без вашего текста")}
     ${navigator.share?item("share","Поделиться…","share"):""}
@@ -1005,6 +1020,7 @@ async function runEditorAction(run){
   else if(run==="pin")togglePin();
   else if(run==="timer")askTimer();
   else if(run==="duplicate")await duplicateEntry();
+  else if(run==="quote")await saveQuote();
   else if(run==="print")await printEntry();
 }
 
@@ -1020,7 +1036,7 @@ const LINK_PICKER=`${modalHeader("Связать с записью","Выбер�
 
 /* ----- exports to the shell ----- */
 export function onOverlayClosed(){
-  stopTimer();stopReading();media.stopRecordingIfAny();clearTimeout(idleJob);cancelAnimationFrame(frameJob);frameJob=0;
+  stopTimer();stopReading();lastQuote="";media.stopRecordingIfAny();clearTimeout(idleJob);cancelAnimationFrame(frameJob);frameJob=0;
   document.removeEventListener("selectionchange",onSelectionChange);
   store.revokeMediaUrls();
 }

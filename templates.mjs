@@ -12,6 +12,11 @@ export const BUILTIN_TEMPLATES=Object.freeze([
   {id:"b-dream",name:"Сон",icon:"moon",kind:"dream",body:"**Что снилось**\n\n\n**Какое было настроение во сне**\n\n\n**С чем это может быть связано**\n\n"},
   {id:"b-decision",name:"Решение",icon:"compass",kind:"decision",body:"**Что я решаю**\n\n\n**Варианты**\n\n- \n- \n\n**Чего я жду от выбора**\n\n"},
   {id:"b-week",name:"Неделя",icon:"reviews",kind:"thought",body:"**Главное за неделю**\n\n\n**Чему научилась / научился**\n\n\n**Что взять в следующую неделю**\n\n"},
+  /* CBT thought record (practical self-help form, not a clinical protocol): situation → thought → feeling with intensity →
+     evidence for and against (the step people tend to skip) → a more balanced thought → how strong the feeling is now */
+  {id:"b-thought",name:"Дневник мыслей",icon:"bulb",kind:"thought",body:"**Ситуация** — что произошло, где, с кем\n\n\n**Автоматическая мысль** — что пронеслось в голове\n\n\n**Чувство и сила** (0–100)\n\n\n**Что говорит за эту мысль**\n\n\n**Что говорит против неё**\n\n\n**Более взвешенная мысль**\n\n\n**Сила чувства теперь** (0–100)\n\n"},
+  {id:"b-intention",name:"Утреннее намерение",icon:"sun",kind:"thought",body:"**Как я себя чувствую этим утром**\n\n\n**Что сегодня важно**\n\n\n**Если станет трудно, я…**\n\n"},
+  {id:"b-evening",name:"Вечерний разбор",icon:"moon",kind:"day",body:"**Что сегодня получилось**\n\n\n**Что я сделала бы иначе**\n\n\n**За что я себе благодарна / благодарен**\n\n"},
   {id:"b-letter",name:"Письмо себе в будущее",icon:"mail",kind:"letter",capsule:true,body:"Дорогой я через год,\n\n"},
 ]);
 const str=(v,n)=>typeof v==="string"?v.slice(0,n):"";

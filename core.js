@@ -83,7 +83,7 @@ const now=new Date();
 export const state={
   prefs:loadPrefs(),route:"today",mode:safeStorageGet("narra-mode")==="demo"?"demo":"main",
   entries:[],checkins:[],attachments:[],chapters:[],reviews:[],entityNotes:[],
-  config:null,ai:null,aiKey:"",templates:[],lock:null,locked:false,mutedMemoryIds:[],mutedTopics:[],
+  config:null,ai:null,aiKey:"",templates:[],quotes:[],lock:null,locked:false,mutedMemoryIds:[],mutedTopics:[],
   journalView:"timeline",journalLimit:40,journalFilters:{},journalSelect:false,journalSelected:new Set(),
   calendarCursor:new Date(now.getFullYear(),now.getMonth(),1),calendarSelectedDate:null,
   reviewKind:"month",reviewCursor:new Date(now.getFullYear(),now.getMonth(),1),

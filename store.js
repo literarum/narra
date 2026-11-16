@@ -177,6 +177,9 @@ export const saveAiSecret=async key=>{if(key){await metaSet("ai-secret",await en
 export const saveAiState=async s=>{state.ai=cleanAiState(s);await metaSet("ai-state",state.ai);};
 export const syncLockHint=()=>{try{if(state.lock&&state.lock.enabled!==false)localStorage.setItem("narra-lock-hint","1");else localStorage.removeItem("narra-lock-hint");}catch{}};
 export const saveLock=async lock=>{if(lock)await metaSet("lock",lock);else await del(STORES.meta,"lock");state.lock=lock||null;syncLockHint();}; // memory follows the disk, never the other way round
+/** Saved quotes: short fragments of the person's own entries, kept encrypted with a link back to the entry. */
+export const cleanQuotes=list=>(Array.isArray(list)?list:[]).filter(q=>q&&typeof q.id==="string"&&typeof q.text==="string"&&q.text.trim()&&typeof q.entryId==="string").map(q=>({id:q.id,entryId:q.entryId,text:q.text.slice(0,1200),at:typeof q.at==="string"?q.at:new Date().toISOString()})).slice(-500);
+export const saveQuotes=async list=>{state.quotes=cleanQuotes(list);await metaSetSecure("quotes",state.quotes);};
 export const saveTemplates=async list=>{state.templates=cleanTemplates(list);await metaSetSecure("templates",state.templates);};
 export const saveMutedTopics=async list=>{state.mutedTopics=[...new Set(list)];await metaSet("muted-topics",state.mutedTopics);};
 
@@ -209,6 +212,7 @@ export async function loadData(){
   state.lock=await metaGet("lock",null);syncLockHint();
   state.lastBackup=await metaGet("last-backup",null);
   try{state.templates=cleanTemplates(await metaGetSecure("templates",[]));}catch{state.templates=[];}
+  try{state.quotes=cleanQuotes(await metaGetSecure("quotes",[]));}catch{state.quotes=[];}
   const list=v=>Array.isArray(v)?v.filter(x=>typeof x==="string"):[];
   state.mutedMemoryIds=list(await metaGet("muted-memory-ids",[]));
   state.mutedTopics=list(await metaGet("muted-topics",[]));
